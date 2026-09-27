@@ -492,8 +492,14 @@ end
 local function BuildUnitFrames(page)
     AddTitle(page, "Unit Frames", "Build independent player, target and focus frames from shared visual primitives.")
     local unitDB = FUI.db.unitFrames
-    local unitLabels = { player = "Player", target = "Target", focus = "Focus" }
-    local labelUnits = { Player = "player", Target = "target", Focus = "focus" }
+    local unitLabels = {
+        player = "Player", target = "Target", targettarget = "Target of Target",
+        targettargettarget = "Target of Target of Target", focus = "Focus",
+    }
+    local labelUnits = {
+        Player = "player", Target = "target", ["Target of Target"] = "targettarget",
+        ["Target of Target of Target"] = "targettargettarget", Focus = "focus",
+    }
     local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
     local tabs, panels = {}, {}
     local activeTab = "Display"
@@ -521,7 +527,7 @@ local function BuildUnitFrames(page)
         panels[name] = panel
     end
 
-    AddCycle(page, "Editing frame", 24, -128, 250, { "Player", "Target", "Focus" },
+    AddCycle(page, "Editing frame", 24, -128, 250, { "Player", "Target", "Target of Target", "Target of Target of Target", "Focus" },
         function() return unitLabels[unitDB.selectedFrame or "player"] end,
         function(value) unitDB.selectedFrame = labelUnits[value] or "player" RefreshCurrentPanel() end)
     AddSlider(page, "Global frame scale", 350, -128, 270, 0.70, 1.35, 0.05,
@@ -531,6 +537,7 @@ local function BuildUnitFrames(page)
     local display = panels.Display
     AddSection(display, "Frame behavior", -4)
     AddCheckbox(display, "Enable Unit Frames", 6, -25, function() return FUI.db.modules.unitFrames ~= false end, function(v) FUI.db.modules.unitFrames = v end, true)
+    AddCheckbox(display, "Enable selected frame", 250, -25, function() return Current().enabled ~= false end, function(v) Current().enabled = v end)
     AddCycle(display, "Visibility", 6, -70, 230, { "Always", "Solo", "Party", "Raid", "In Combat" }, function() return Current().visibility end, function(v) Current().visibility = v end)
     AddCycle(display, "Frame strata", 330, -70, 230, { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }, function() return Current().frameStrata end, function(v) Current().frameStrata = v end)
     AddSlider(display, "Border size", 6, -150, 270, 1, 4, 1, function() return Current().borderSize end, function(v) Current().borderSize = v end, function(v) return string.format("%d px", v) end)
@@ -767,36 +774,168 @@ local function BuildUnitFrames(page)
 end
 
 local function BuildGroupFrames(page)
-    AddTitle(page, "Party & Raid Frames", "Separate sizing and scaling for party and raid frames.")
-    AddModuleSwitch(page, "groupFrames")
-    AddSlider(page, "Party scale", 24, -155, 260, 0.65, 1.35, 0.05,
-        function() return FUI.db.groupFrames.partyScale end,
-        function(value) FUI.db.groupFrames.partyScale = value end,
-        function(value) return string.format("%d%%", value * 100) end)
-    AddSlider(page, "Raid scale", 330, -155, 260, 0.60, 1.30, 0.05,
-        function() return FUI.db.groupFrames.raidScale end,
-        function(value) FUI.db.groupFrames.raidScale = value end,
-        function(value) return string.format("%d%%", value * 100) end)
-    AddSlider(page, "Party width", 24, -240, 260, 120, 300, 5,
-        function() return FUI.db.groupFrames.partyWidth end,
-        function(value) FUI.db.groupFrames.partyWidth = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Party height", 330, -240, 260, 24, 70, 1,
-        function() return FUI.db.groupFrames.partyHeight end,
-        function(value) FUI.db.groupFrames.partyHeight = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Raid width", 24, -325, 260, 50, 140, 2,
-        function() return FUI.db.groupFrames.raidWidth end,
-        function(value) FUI.db.groupFrames.raidWidth = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Raid height", 330, -325, 260, 18, 50, 1,
-        function() return FUI.db.groupFrames.raidHeight end,
-        function(value) FUI.db.groupFrames.raidHeight = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Font size", 24, -410, 260, 7, 16, 1,
-        function() return FUI.db.groupFrames.fontSize end,
-        function(value) FUI.db.groupFrames.fontSize = value end,
-        function(value) return string.format("%d px", value) end)
+    AddTitle(page, "Party & Raid Frames", "Configure independent group layouts with an always-current visual preview.")
+    local db = FUI.db.groupFrames
+    local profileKeys = { Party = "party", Raid = "raid" }
+    local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
+    local function CurrentProfile() return db[profileKeys[db.selectedProfile or "Party"] or "party"] end
+    local function CurrentAura(kind) return CurrentProfile().auras[kind] end
+
+    local tabs, panels = {}, {}
+    local activeTab = db.selectedTab or "General"
+    local function SelectTab(name)
+        activeTab, db.selectedTab = name, name
+        for key, panel in pairs(panels) do panel:SetShown(key == name) end
+        for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
+    end
+    for index, name in ipairs({ "General", "Layout", "Health", "Text", "Buffs", "Debuffs", "Indicators" }) do
+        tabs[name] = AddButton(page, name, 18 + (index - 1) * 98, -88, 90, function() SelectTab(name) end)
+        local panel = CreateFrame("Frame", nil, page)
+        panel:SetPoint("TOPLEFT", 18, -266)
+        panel:SetPoint("BOTTOMRIGHT", -18, 8)
+        panel.controls = {}
+        panel:Hide()
+        panels[name] = panel
+    end
+
+    AddCycle(page, "Editing layout", 24, -128, 220, { "Party", "Raid" },
+        function() return db.selectedProfile or "Party" end,
+        function(value)
+            db.selectedProfile = value
+            local panel = panels[activeTab]
+            if panel and panel:IsShown() then panel:Hide() panel:Show() end
+        end)
+
+    local preview = CreateFrame("Frame", nil, page, "BackdropTemplate")
+    preview:SetPoint("TOPLEFT", 270, -112)
+    preview:SetSize(430, 132)
+    preview:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    preview:SetBackdropColor(0.008, 0.015, 0.028, 0.96)
+    preview:SetBackdropBorderColor(0.12, 0.38, 0.72, 1)
+    local previewTitle = FUI:CreateFont(preview, 10)
+    previewTitle:SetPoint("TOPLEFT", 8, -6)
+    previewTitle:SetTextColor(0.42, 0.72, 1)
+    local samples, names = {}, { "Flowdi", "Kael", "Mira", "Thorn", "Nyx", "Ari", "Vale", "Rune", "Lumi", "Dusk" }
+    local colors = { { .72, .62, .25 }, { .12, .58, .88 }, { .25, .72, .45 }, { .68, .28, .38 }, { .52, .42, .78 } }
+    for index = 1, 10 do
+        local sample = CreateFrame("Frame", nil, preview, "BackdropTemplate")
+        sample:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+        sample.name = FUI:CreateFont(sample, 8)
+        sample.name:SetPoint("TOPLEFT", 3, -2)
+        sample.name:SetText(names[index])
+        sample.healthText = FUI:CreateFont(sample, 7)
+        sample.healthText:SetPoint("RIGHT", -3, 1)
+        sample.power = sample:CreateTexture(nil, "ARTWORK")
+        sample.power:SetPoint("BOTTOMLEFT", 1, 1)
+        sample.power:SetPoint("BOTTOMRIGHT", -1, 1)
+        sample.buff = sample:CreateTexture(nil, "OVERLAY")
+        sample.buff:SetColorTexture(0.3, 0.85, 0.45, 1)
+        sample.debuff = sample:CreateTexture(nil, "OVERLAY")
+        sample.debuff:SetColorTexture(0.9, 0.25, 0.25, 1)
+        samples[index] = sample
+    end
+    local function UpdatePreview()
+        local profile = CurrentProfile()
+        local count = db.selectedProfile == "Party" and (db.party.showSelf and 5 or 4) or 10
+        local perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, count))
+        local columns, rows = math.ceil(count / perColumn), math.min(perColumn, count)
+        local rawWidth = columns * profile.width + math.max(0, columns - 1) * ((profile.spacing or 0) + (profile.groupSpacing or 0))
+        local rawHeight = rows * profile.height + math.max(0, rows - 1) * (profile.spacing or 0)
+        local scale = math.min(1, 410 / math.max(1, rawWidth), 102 / math.max(1, rawHeight))
+        local frameWidth, frameHeight = profile.width * scale, profile.height * scale
+        previewTitle:SetText((db.selectedProfile or "Party") .. " preview")
+        for index, sample in ipairs(samples) do
+            sample:SetShown(index <= count)
+            if index <= count then
+                local column, row = math.floor((index - 1) / perColumn), (index - 1) % perColumn
+                if profile.growthX == "Left" then column = columns - 1 - column end
+                if profile.growthY == "Up" then row = rows - 1 - row end
+                sample:ClearAllPoints()
+                sample:SetPoint("TOPLEFT", preview, "TOPLEFT", 10 + column * (profile.width + (profile.spacing or 0) + (profile.groupSpacing or 0)) * scale, -22 - row * (profile.height + (profile.spacing or 0)) * scale)
+                sample:SetSize(frameWidth, frameHeight)
+                sample:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = profile.borderSize or 1 })
+                local color = profile.healthColor == "Class" and colors[(index - 1) % #colors + 1] or profile.customHealthColor
+                sample:SetBackdropColor(color[1], color[2], color[3], profile.healthOpacity or 1)
+                sample:SetBackdropBorderColor(unpack(FUI.colors.border))
+                sample.name:SetFont(FUI:GetModuleFontPath("groupFrames"), math.max(7, math.min(12, profile.fontSize * scale)), FUI.db.global.fontOutline)
+                sample.power:SetHeight(math.max(1, (profile.powerHeight or 0) * scale))
+                sample.power:SetColorTexture(0.12, 0.38, 0.9, profile.powerOpacity or 1)
+                sample.power:SetShown((profile.powerHeight or 0) > 0)
+                sample.name:SetShown(profile.showName)
+                sample.healthText:SetText(profile.showHealthPercent and (70 + index) .. "%" or "")
+                local buffSize = math.max(3, math.min(frameHeight * .38, profile.auras.buff.size * scale))
+                sample.buff:SetSize(buffSize, buffSize)
+                sample.buff:SetPoint("TOPRIGHT", -2, -2)
+                sample.buff:SetShown(profile.auras.buff.enabled)
+                local debuffSize = math.max(3, math.min(frameHeight * .42, profile.auras.debuff.size * scale))
+                sample.debuff:SetSize(debuffSize, debuffSize)
+                sample.debuff:SetPoint("BOTTOMRIGHT", -2, 2)
+                sample.debuff:SetShown(profile.auras.debuff.enabled)
+            end
+        end
+    end
+    page:SetScript("OnUpdate", function(self, elapsed)
+        self.previewElapsed = (self.previewElapsed or 0) + elapsed
+        if self.previewElapsed >= 0.12 then self.previewElapsed = 0 UpdatePreview() end
+    end)
+    page:HookScript("OnShow", UpdatePreview)
+
+    local general = panels.General
+    AddCheckbox(general, "Enable module", 6, -8, function() return FUI.db.modules.groupFrames ~= false end, function(v) FUI.db.modules.groupFrames = v end, true)
+    AddCheckbox(general, "Enable selected layout", 220, -8, function() return CurrentProfile().enabled end, function(v) CurrentProfile().enabled = v end)
+    AddCheckbox(general, "Show party when solo", 450, -8, function() return db.party.showWhenSolo end, function(v) db.party.showWhenSolo = v end)
+    AddCheckbox(general, "Include player in party", 6, -45, function() return db.party.showSelf end, function(v) db.party.showSelf = v end)
+    AddSlider(general, "Scale", 6, -88, 270, 0.55, 1.50, 0.05, function() return CurrentProfile().scale end, function(v) CurrentProfile().scale = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(general, "Frame width", 330, -88, 270, 50, 320, 1, function() return CurrentProfile().width end, function(v) CurrentProfile().width = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(general, "Frame height", 6, -164, 270, 18, 90, 1, function() return CurrentProfile().height end, function(v) CurrentProfile().height = v end, function(v) return string.format("%d px", v) end)
+
+    local layout = panels.Layout
+    AddSlider(layout, "Frame spacing", 6, -8, 270, -2, 20, 1, function() return CurrentProfile().spacing end, function(v) CurrentProfile().spacing = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(layout, "Group spacing", 330, -8, 270, 0, 30, 1, function() return CurrentProfile().groupSpacing end, function(v) CurrentProfile().groupSpacing = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(layout, "Units per column", 6, -84, 270, 1, 10, 1, function() return CurrentProfile().unitsPerColumn end, function(v) CurrentProfile().unitsPerColumn = v end, function(v) return string.format("%d", v) end)
+    AddCycle(layout, "Column growth", 330, -84, 240, { "Right", "Left" }, function() return CurrentProfile().growthX end, function(v) CurrentProfile().growthX = v end)
+    AddCycle(layout, "Unit growth", 6, -160, 240, { "Down", "Up" }, function() return CurrentProfile().growthY end, function(v) CurrentProfile().growthY = v end)
+
+    local health = panels.Health
+    AddCycle(health, "Health color", 6, -8, 240, { "Class", "Custom" }, function() return CurrentProfile().healthColor end, function(v) CurrentProfile().healthColor = v end)
+    AddColor(health, "Custom health color", 330, -8, function() return CurrentProfile().customHealthColor end, function(v) CurrentProfile().customHealthColor = v end)
+    AddColor(health, "Health background", 330, -52, function() return CurrentProfile().healthBackground end, function(v) CurrentProfile().healthBackground = v end)
+    AddSlider(health, "Health opacity", 6, -84, 270, 0.1, 1, 0.05, function() return CurrentProfile().healthOpacity end, function(v) CurrentProfile().healthOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(health, "Power height", 330, -84, 270, 0, 20, 1, function() return CurrentProfile().powerHeight end, function(v) CurrentProfile().powerHeight = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(health, "Border size", 6, -160, 270, 1, 4, 1, function() return CurrentProfile().borderSize end, function(v) CurrentProfile().borderSize = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(health, "Hover border", 330, -180, function() return CurrentProfile().hoverBorder end, function(v) CurrentProfile().hoverBorder = v end)
+
+    local text = panels.Text
+    AddSlider(text, "Font size", 6, -8, 270, 7, 20, 1, function() return CurrentProfile().fontSize end, function(v) CurrentProfile().fontSize = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(text, "Show names", 330, -28, function() return CurrentProfile().showName end, function(v) CurrentProfile().showName = v end)
+    AddCheckbox(text, "Show health percent", 480, -28, function() return CurrentProfile().showHealthPercent end, function(v) CurrentProfile().showHealthPercent = v end)
+
+    local function BuildAuraPanel(panel, kind)
+        AddCheckbox(panel, "Enabled", 6, -8, function() return CurrentAura(kind).enabled end, function(v) CurrentAura(kind).enabled = v end)
+        AddCheckbox(panel, "Only mine", 180, -8, function() return CurrentAura(kind).mineOnly end, function(v) CurrentAura(kind).mineOnly = v end)
+        AddCheckbox(panel, "Tooltip", 340, -8, function() return CurrentAura(kind).tooltip end, function(v) CurrentAura(kind).tooltip = v end)
+        AddCheckbox(panel, "Cooldown", 480, -8, function() return CurrentAura(kind).cooldown end, function(v) CurrentAura(kind).cooldown = v end)
+        AddCheckbox(panel, "Click through", 6, -42, function() return CurrentAura(kind).clickThrough end, function(v) CurrentAura(kind).clickThrough = v end)
+        AddCheckbox(panel, "Duration text", 180, -42, function() return CurrentAura(kind).showDuration end, function(v) CurrentAura(kind).showDuration = v end)
+        AddCheckbox(panel, "Stack text", 340, -42, function() return CurrentAura(kind).showStacks end, function(v) CurrentAura(kind).showStacks = v end)
+        AddCheckbox(panel, "Desaturate", 480, -42, function() return CurrentAura(kind).desaturate end, function(v) CurrentAura(kind).desaturate = v end)
+        AddSlider(panel, "Icon size", 6, -80, 270, 8, 40, 1, function() return CurrentAura(kind).size end, function(v) CurrentAura(kind).size = v end, function(v) return string.format("%d px", v) end)
+        AddSlider(panel, "Max icons", 330, -80, 270, 1, 10, 1, function() return CurrentAura(kind).perRow end, function(v) CurrentAura(kind).perRow = v CurrentAura(kind).rows = 1 end, function(v) return string.format("%d", v) end)
+        AddSlider(panel, "Spacing", 6, -150, 270, 0, 12, 1, function() return CurrentAura(kind).spacing end, function(v) CurrentAura(kind).spacing = v end, function(v) return string.format("%d px", v) end)
+        AddSlider(panel, "Max duration (0 = all)", 330, -150, 270, 0, 600, 10, function() return CurrentAura(kind).maxDuration or 0 end, function(v) CurrentAura(kind).maxDuration = v end, function(v) return string.format("%d s", v) end)
+        AddCycle(panel, "Icon anchor", 6, -220, 190, anchorValues, function() return CurrentAura(kind).point end, function(v) CurrentAura(kind).point = v end)
+        AddCycle(panel, "Attach point", 220, -220, 190, anchorValues, function() return CurrentAura(kind).relativePoint end, function(v) CurrentAura(kind).relativePoint = v end)
+        AddCycle(panel, "Growth", 434, -220, 190, { "Right", "Left" }, function() return CurrentAura(kind).growthX end, function(v) CurrentAura(kind).growthX = v end)
+    end
+    BuildAuraPanel(panels.Buffs, "buff")
+    BuildAuraPanel(panels.Debuffs, "debuff")
+
+    local indicators = panels.Indicators
+    AddCheckbox(indicators, "Role indicator", 6, -8, function() return CurrentProfile().showRole end, function(v) CurrentProfile().showRole = v end)
+    AddCheckbox(indicators, "Leader indicator", 220, -8, function() return CurrentProfile().showLeader end, function(v) CurrentProfile().showLeader = v end)
+    AddCheckbox(indicators, "Raid marker", 430, -8, function() return CurrentProfile().showRaidMarker end, function(v) CurrentProfile().showRaidMarker = v end)
+    AddCheckbox(indicators, "Ready check", 6, -48, function() return CurrentProfile().showReadyCheck end, function(v) CurrentProfile().showReadyCheck = v end)
+    SelectTab(activeTab)
 end
 
 local function BuildChat(page)

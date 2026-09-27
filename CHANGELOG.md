@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.8
+
+- Switched Unit Frame aura collection to the safe packed-aura iterator with a legacy fallback, fixing hostile-target Debuff discovery.
+- Added optional Target of Target and Target of Target of Target frames with full Unit Frame settings and mover support.
+- Rebuilt Party and Raid Frames around independent profiles and secure clickable unit buttons.
+- Added a live layout preview that reflects dimensions, spacing, growth, colors, text, power bars, borders, Buffs, and Debuffs.
+- Added Party/Raid controls for visibility, player inclusion, scale, dimensions, unit/group spacing, units per column, growth direction, health styling, text, auras, and status indicators.
+- Added group-frame role, leader, raid-marker, ready-check, Buff, and Debuff rendering.
+
 ## 0.7.7
 
 - Added independent 1-5 px line-thickness controls to the Unlock Mode grid.

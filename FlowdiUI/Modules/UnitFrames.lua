@@ -9,6 +9,10 @@ local anchorPoints = {
     ["Left"] = "LEFT", ["Center"] = "CENTER", ["Right"] = "RIGHT",
     ["Bottom Left"] = "BOTTOMLEFT", ["Bottom"] = "BOTTOM", ["Bottom Right"] = "BOTTOMRIGHT",
 }
+local unitLabels = {
+    player = "Player", target = "Target", focus = "Focus",
+    targettarget = "Target of Target", targettargettarget = "Target of Target of Target",
+}
 
 local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
@@ -84,11 +88,13 @@ function module:UpdateVisibility(frame)
     local settings = FrameSettings(frame.unit)
     if not settings then return end
     local mode = settings.visibility or "Always"
-    local visible = true
-    if mode == "Solo" then visible = not IsInGroup()
-    elseif mode == "Party" then visible = IsInGroup() and not IsInRaid()
-    elseif mode == "Raid" then visible = IsInRaid()
-    elseif mode == "In Combat" then visible = InCombatLockdown()
+    local visible = settings.enabled ~= false
+    if visible then
+        if mode == "Solo" then visible = not IsInGroup()
+        elseif mode == "Party" then visible = IsInGroup() and not IsInRaid()
+        elseif mode == "Raid" then visible = IsInRaid()
+        elseif mode == "In Combat" then visible = InCombatLockdown()
+        end
     end
     frame:SetAlpha(visible and 1 or 0)
 end
@@ -112,7 +118,7 @@ function module:UpdateCast(frame)
             frame.castbar.startTime, frame.castbar.endTime = nil, nil
             frame.castbar:SetMinMaxValues(0, 1)
             frame.castbar:SetValue(0.62)
-            frame.castName:SetText(frame.unit:gsub("^%l", string.upper) .. " Cast Bar")
+            frame.castName:SetText((unitLabels[frame.unit] or frame.unit:gsub("^%l", string.upper)) .. " Cast Bar")
             frame.castTime:SetText("1.5")
             frame.castbar:Show()
         else
@@ -217,6 +223,32 @@ local function ReadAura(unit, index, filter)
     }
 end
 
+local function CollectAuras(unit, filter)
+    local auras = {}
+    if AuraUtil and AuraUtil.ForEachAura then
+        local ok = pcall(AuraUtil.ForEachAura, unit, filter, 80, function(data)
+            auras[#auras + 1] = {
+                index = #auras + 1,
+                name = data.name,
+                icon = data.icon,
+                applications = data.applications,
+                dispelName = data.dispelName,
+                duration = data.duration,
+                expirationTime = data.expirationTime,
+                spellId = data.spellId,
+            }
+        end, true)
+        if ok then return auras end
+        auras = {}
+    end
+    for index = 1, 80 do
+        local aura = ReadAura(unit, index, filter)
+        if not aura then break end
+        auras[#auras + 1] = aura
+    end
+    return auras
+end
+
 local function FormatAuraTime(seconds)
     if seconds >= 3600 then return string.format("%dh", math.ceil(seconds / 3600)) end
     if seconds >= 60 then return string.format("%dm", math.ceil(seconds / 60)) end
@@ -303,12 +335,7 @@ function module:UpdateAuras(frame, kind)
 
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
     if auraSettings.mineOnly then filter = filter .. "|PLAYER" end
-    local auras = {}
-    for index = 1, 80 do
-        local aura = ReadAura(frame.unit, index, filter)
-        if not aura then break end
-        auras[#auras + 1] = aura
-    end
+    local auras = CollectAuras(frame.unit, filter)
     if auraSettings.sortBy ~= "Index" then
         pcall(table.sort, auras, function(a, b)
             local av, bv = AuraSortValue(a, auraSettings.sortBy), AuraSortValue(b, auraSettings.sortBy)
@@ -418,6 +445,7 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.unit, frame.positionKey = unit, positionKey
     if frame.SetClipsChildren then frame:SetClipsChildren(false) end
     RegisterUnitWatch(frame)
+    frame.unitWatchEnabled = true
     FUI:RestorePosition(frame, positionKey)
     FUI:CreateBackdrop(frame, 1)
     FUI:MakeMovable(frame, positionKey)
@@ -457,7 +485,7 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.castbar = CreateFrame("StatusBar", nil, UIParent)
     frame.castbar.owner = frame
     frame.castbar.positionKey = unit .. "Castbar"
-    FUI:RegisterMover(frame.castbar, frame.castbar.positionKey, unit:gsub("^%l", string.upper) .. " Cast Bar", function()
+    FUI:RegisterMover(frame.castbar, frame.castbar.positionKey, (unitLabels[unit] or unit:gsub("^%l", string.upper)) .. " Cast Bar", function()
         local settings = FrameSettings(unit)
         if settings then settings.castDetached = true end
     end)
@@ -555,15 +583,15 @@ function module:CreateUnitFrame(unit, positionKey)
 
     for _, event in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER",
         "UNIT_NAME_UPDATE", "UNIT_CONNECTION", "UNIT_PORTRAIT_UPDATE", "UNIT_MODEL_CHANGED", "PLAYER_TARGET_CHANGED",
-        "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
+        "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "UNIT_TARGET", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
         "RAID_TARGET_UPDATE", "UNIT_HEAL_PREDICTION", "UNIT_AURA", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
         "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
         frame:RegisterEvent(event)
     end
     frame:SetScript("OnEvent", function(self, event, eventUnit)
-        if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+        if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
             module:UpdateFrame(self)
-            if event == "UNIT_AURA" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
+            if event == "UNIT_AURA" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_TARGET" then
                 module:UpdateAuras(self, "buff")
                 module:UpdateAuras(self, "debuff")
             end
@@ -674,6 +702,14 @@ local function ApplyCastLayout(frame, settings)
 end
 
 function module:ApplyFrame(frame, settings)
+    if settings.enabled == false and frame.unitWatchEnabled then
+        UnregisterUnitWatch(frame)
+        frame.unitWatchEnabled = false
+        frame:Hide()
+    elseif settings.enabled ~= false and not frame.unitWatchEnabled then
+        RegisterUnitWatch(frame)
+        frame.unitWatchEnabled = true
+    end
     local portraitShown = settings.showPortrait and settings.portraitMode ~= "None"
     local portraitSize = portraitShown and settings.portraitSize or 0
     local powerShown = settings.powerPosition ~= "Hidden" and settings.powerHeight > 0
@@ -764,6 +800,8 @@ end
 function module:Initialize()
     self:CreateUnitFrame("player", "player")
     self:CreateUnitFrame("target", "target")
+    self:CreateUnitFrame("targettarget", "targettarget")
+    self:CreateUnitFrame("targettargettarget", "targettargettarget")
     self:CreateUnitFrame("focus", "focus")
     self:HideDefaults()
     self:Apply()

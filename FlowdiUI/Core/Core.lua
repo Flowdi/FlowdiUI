@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.7"
+FUI.version = "0.7.8"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -35,6 +35,7 @@ local function AuraDefaults(helpful)
         growthY = "Up",
         sortBy = "Time Remaining",
         sortDirection = "Ascending",
+        maxDuration = 0,
         showDuration = true,
         durationSize = 9,
         durationPosition = "Bottom",
@@ -44,8 +45,71 @@ local function AuraDefaults(helpful)
     }
 end
 
+local function CloneDefaults(source)
+    if type(source) ~= "table" then return source end
+    local copy = {}
+    for key, value in pairs(source) do copy[key] = CloneDefaults(value) end
+    return copy
+end
+
+local function GroupProfileDefaults(party)
+    local profile = {
+        enabled = true,
+        scale = 1,
+        width = party and 180 or 92,
+        height = party and 42 or 34,
+        spacing = 3,
+        groupSpacing = 6,
+        unitsPerColumn = 5,
+        growthX = "Right",
+        growthY = "Down",
+        showWhenSolo = false,
+        showSelf = true,
+        powerHeight = party and 5 or 3,
+        healthColor = "Class",
+        customHealthColor = { 0.10, 0.65, 0.32, 1 },
+        healthBackground = { 0.025, 0.04, 0.055, 0.96 },
+        healthOpacity = 0.92,
+        powerOpacity = 1,
+        borderSize = 1,
+        hoverBorder = true,
+        fontSize = party and 11 or 9,
+        showName = true,
+        showHealthPercent = true,
+        showRole = true,
+        showLeader = true,
+        showRaidMarker = true,
+        showReadyCheck = true,
+        auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
+    }
+    profile.auras.buff.enabled = party
+    profile.auras.buff.size = party and 16 or 12
+    profile.auras.buff.perRow = party and 3 or 2
+    profile.auras.buff.rows = 1
+    profile.auras.buff.point = "Top Right"
+    profile.auras.buff.relativePoint = "Top Right"
+    profile.auras.buff.growthX = "Left"
+    profile.auras.buff.x = -2
+    profile.auras.buff.y = -2
+    profile.auras.buff.showDuration = false
+    profile.auras.buff.clickThrough = true
+    profile.auras.buff.tooltip = false
+    profile.auras.debuff.enabled = true
+    profile.auras.debuff.size = party and 18 or 13
+    profile.auras.debuff.perRow = party and 3 or 2
+    profile.auras.debuff.rows = 1
+    profile.auras.debuff.point = "Bottom Right"
+    profile.auras.debuff.relativePoint = "Bottom Right"
+    profile.auras.debuff.growthX = "Left"
+    profile.auras.debuff.x = -2
+    profile.auras.debuff.y = 2
+    profile.auras.debuff.clickThrough = true
+    profile.auras.debuff.tooltip = false
+    return profile
+end
+
 local defaults = {
-    profileVersion = 12,
+    profileVersion = 13,
     locked = true,
     scale = 1,
     global = {
@@ -128,6 +192,7 @@ local defaults = {
         selectedFrame = "player",
         frames = {
             player = {
+                enabled = true,
                 width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
                 texture = "Global", healthColor = "Class", customHealthColor = { 0.10, 0.65, 0.32, 1 },
                 healthBackground = { 0.067, 0.067, 0.067, 1 }, healthOpacity = 0.90,
@@ -153,6 +218,7 @@ local defaults = {
                 auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
             },
             target = {
+                enabled = true,
                 width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
                 texture = "Global", healthColor = "Class", customHealthColor = { 0.10, 0.65, 0.32, 1 },
                 healthBackground = { 0.067, 0.067, 0.067, 1 }, healthOpacity = 0.90,
@@ -178,6 +244,7 @@ local defaults = {
                 auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
             },
             focus = {
+                enabled = true,
                 width = 160, healthHeight = 34, powerHeight = 6, powerPosition = "Below Health Bar",
                 texture = "Global", healthColor = "Class", customHealthColor = { 0.10, 0.65, 0.32, 1 },
                 healthBackground = { 0.067, 0.067, 0.067, 1 }, healthOpacity = 0.90,
@@ -205,13 +272,11 @@ local defaults = {
         },
     },
     groupFrames = {
-        partyScale = 1,
-        raidScale = 1,
-        partyWidth = 180,
-        partyHeight = 42,
-        raidWidth = 78,
-        raidHeight = 26,
-        fontSize = 10,
+        selectedProfile = "Party",
+        selectedTab = "General",
+        preview = true,
+        party = GroupProfileDefaults(true),
+        raid = GroupProfileDefaults(false),
     },
     chat = {
         fontSize = 12,
@@ -262,9 +327,13 @@ local defaults = {
     positions = {
         player = { "CENTER", "CENTER", -280, -155 },
         target = { "CENTER", "CENTER", 280, -155 },
+        targettarget = { "CENTER", "CENTER", 500, -155 },
+        targettargettarget = { "CENTER", "CENTER", 500, -205 },
         focus = { "CENTER", "CENTER", 280, -235 },
         playerCastbar = { "CENTER", "CENTER", -280, -220 },
         targetCastbar = { "CENTER", "CENTER", 280, -220 },
+        targettargetCastbar = { "CENTER", "CENTER", 500, -195 },
+        targettargettargetCastbar = { "CENTER", "CENTER", 500, -245 },
         focusCastbar = { "CENTER", "CENTER", 280, -285 },
         party = { "LEFT", "LEFT", 42, 20 },
         raid = { "LEFT", "LEFT", 42, 20 },
@@ -273,6 +342,17 @@ local defaults = {
         settings = { "CENTER", "CENTER", 0, 0 },
     },
 }
+
+defaults.unitFrames.frames.targettarget = CloneDefaults(defaults.unitFrames.frames.focus)
+defaults.unitFrames.frames.targettarget.width = 150
+defaults.unitFrames.frames.targettarget.healthHeight = 30
+defaults.unitFrames.frames.targettarget.leftText = "Name"
+defaults.unitFrames.frames.targettarget.showCastbar = false
+defaults.unitFrames.frames.targettarget.enabled = false
+defaults.unitFrames.frames.targettargettarget = CloneDefaults(defaults.unitFrames.frames.targettarget)
+defaults.unitFrames.frames.targettargettarget.width = 135
+defaults.unitFrames.frames.targettargettarget.healthHeight = 26
+defaults.unitFrames.frames.targettargettarget.textSize = 10
 
 local function CopyDefaults(source, destination)
     if type(destination) ~= "table" then
@@ -432,7 +512,9 @@ function FUI:RegisterMover(frame, key, label, onMoved)
     if not frame or not key then return end
     local labels = {
         player = "Player Frame", target = "Target Frame", focus = "Focus Frame",
+        targettarget = "Target of Target", targettargettarget = "Target of Target of Target",
         playerCastbar = "Player Cast Bar", targetCastbar = "Target Cast Bar", focusCastbar = "Focus Cast Bar",
+        targettargetCastbar = "Target of Target Cast Bar", targettargettargetCastbar = "Target of Target of Target Cast Bar",
         party = "Party Frames", raid = "Raid Frames",
         dataPanel = "Primary Data Panel", dataPanel2 = "Second Data Panel",
     }
@@ -465,6 +547,17 @@ function FUI:Initialize()
             settings.powerHeight = unitDB.powerHeight or settings.powerHeight
             settings.textSize = unitDB.fontSize or settings.textSize
         end
+    end
+    if previousVersion < 13 then
+        local groupDB = self.db.groupFrames
+        groupDB.party.scale = groupDB.partyScale or groupDB.party.scale
+        groupDB.raid.scale = groupDB.raidScale or groupDB.raid.scale
+        groupDB.party.width = groupDB.partyWidth or groupDB.party.width
+        groupDB.party.height = groupDB.partyHeight or groupDB.party.height
+        groupDB.raid.width = groupDB.raidWidth or groupDB.raid.width
+        groupDB.raid.height = groupDB.raidHeight or groupDB.raid.height
+        groupDB.party.fontSize = groupDB.fontSize or groupDB.party.fontSize
+        groupDB.raid.fontSize = groupDB.fontSize or groupDB.raid.fontSize
     end
     self.db.profileVersion = defaults.profileVersion
 
