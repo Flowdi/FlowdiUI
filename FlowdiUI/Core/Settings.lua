@@ -468,6 +468,7 @@ local function BuildUnitFrames(page)
     local unitDB = FUI.db.unitFrames
     local unitLabels = { player = "Player", target = "Target", focus = "Focus" }
     local labelUnits = { Player = "player", Target = "target", Focus = "focus" }
+    local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
     local tabs, panels = {}, {}
     local activeTab = "Display"
     local function Current()
@@ -552,22 +553,62 @@ local function BuildUnitFrames(page)
     AddSlider(portrait, "Portrait size", 6, -150, 270, 20, 100, 1, function() return Current().portraitSize end, function(v) Current().portraitSize = v end, function(v) return string.format("%d px", v) end)
 
     local cast = panels["Cast Bar"]
-    AddSection(cast, "Cast bar", -4)
-    AddCheckbox(cast, "Show cast bar", 6, -25, function() return Current().showCastbar end, function(v) Current().showCastbar = v end)
-    AddCheckbox(cast, "Show spell icon", 330, -25, function() return Current().showCastIcon end, function(v) Current().showCastIcon = v end)
-    AddSlider(cast, "Cast bar height", 6, -78, 270, 8, 36, 1, function() return Current().castHeight end, function(v) Current().castHeight = v end, function(v) return string.format("%d px", v) end)
-    AddSlider(cast, "Fill opacity", 330, -78, 270, 0.10, 1, 0.05, function() return Current().castOpacity end, function(v) Current().castOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
-    AddColor(cast, "Cast fill color", 6, -162, function() return Current().castColor end, function(v) Current().castColor = v end)
-    local castNote = FUI:CreateFont(cast, 11)
-    castNote:SetPoint("TOPLEFT", 6, -225)
+    local castTabs, castPanels = {}, {}
+    local activeCastTab = "General"
+    local function SelectCastTab(name)
+        activeCastTab = name
+        unitDB.selectedCastTab = name
+        for key, panel in pairs(castPanels) do panel:SetShown(key == name) end
+        for key, tab in pairs(castTabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
+    end
+    for index, name in ipairs({ "General", "Position", "Text" }) do
+        castTabs[name] = AddButton(cast, name, 6 + (index - 1) * 138, -4, 128, function() SelectCastTab(name) end)
+        local panel = CreateFrame("Frame", nil, cast)
+        panel:SetPoint("TOPLEFT", 0, -42)
+        panel:SetPoint("BOTTOMRIGHT", 0, 0)
+        panel.controls = {}
+        panel:Hide()
+        castPanels[name] = panel
+    end
+
+    local castGeneral = castPanels.General
+    AddCheckbox(castGeneral, "Show cast bar", 6, -8, function() return Current().showCastbar end, function(v) Current().showCastbar = v end)
+    AddCheckbox(castGeneral, "Show spell icon", 210, -8, function() return Current().showCastIcon end, function(v) Current().showCastIcon = v end)
+    AddCheckbox(castGeneral, "Reverse fill", 420, -8, function() return Current().castReverseFill end, function(v) Current().castReverseFill = v end)
+    AddSlider(castGeneral, "Width", 6, -54, 270, 80, 600, 1, function() return Current().castWidth end, function(v) Current().castWidth = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(castGeneral, "Height", 330, -54, 270, 6, 60, 1, function() return Current().castHeight end, function(v) Current().castHeight = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(castGeneral, "Fill opacity", 6, -126, 270, 0.10, 1, 0.05, function() return Current().castOpacity end, function(v) Current().castOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(castGeneral, "Background opacity", 330, -126, 270, 0, 1, 0.05, function() return Current().castBackgroundOpacity end, function(v) Current().castBackgroundOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddCycle(castGeneral, "Bar texture", 6, -198, 240, textureNames, function() return Current().castTexture end, function(v) Current().castTexture = v end, "texture")
+    AddColor(castGeneral, "Fill color", 330, -198, function() return Current().castColor end, function(v) Current().castColor = v end)
+    AddColor(castGeneral, "Background color", 330, -246, function() return Current().castBackground end, function(v) Current().castBackground = v end)
+
+    local castPosition = castPanels.Position
+    AddCheckbox(castPosition, "Detached and draggable", 6, -8, function() return Current().castDetached end, function(v) Current().castDetached = v end)
+    AddButton(castPosition, "Unlock movers", 330, -4, 180, function() FUI:SetLocked(false) end)
+    AddCycle(castPosition, "Attach to", 6, -62, 240, { "Frame", "Health Bar", "Power Bar", "Portrait" }, function() return Current().castAttachTo end, function(v) Current().castAttachTo = v end)
+    AddCycle(castPosition, "Frame strata", 330, -62, 240, { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }, function() return Current().castFrameStrata end, function(v) Current().castFrameStrata = v end)
+    AddCycle(castPosition, "Bar anchor", 6, -138, 240, anchorValues, function() return Current().castPoint end, function(v) Current().castPoint = v end)
+    AddCycle(castPosition, "Attach point", 330, -138, 240, anchorValues, function() return Current().castRelativePoint end, function(v) Current().castRelativePoint = v end)
+    AddSlider(castPosition, "X offset", 6, -214, 270, -400, 400, 1, function() return Current().castX end, function(v) Current().castX = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(castPosition, "Y offset", 330, -214, 270, -400, 400, 1, function() return Current().castY end, function(v) Current().castY = v end, function(v) return string.format("%d px", v) end)
+
+    local castText = castPanels.Text
+    AddCycle(castText, "Spell name", 6, -16, 240, { "Left", "Center", "Right", "Hidden" }, function() return Current().castNamePosition end, function(v) Current().castNamePosition = v end)
+    AddCycle(castText, "Duration", 330, -16, 240, { "Left", "Center", "Right", "Hidden" }, function() return Current().castTimePosition end, function(v) Current().castTimePosition = v end)
+    AddCycle(castText, "Icon position", 6, -92, 240, { "Left", "Right" }, function() return Current().castIconPosition end, function(v) Current().castIconPosition = v end)
+    AddSlider(castText, "Text size", 330, -92, 270, 7, 24, 1, function() return Current().castTextSize end, function(v) Current().castTextSize = v end, function(v) return string.format("%d px", v) end)
+    AddCycle(castText, "Time format", 6, -168, 240, { "Remaining", "Elapsed" }, function() return Current().castTimeFormat end, function(v) Current().castTimeFormat = v end)
+    local castNote = FUI:CreateFont(castText, 11)
+    castNote:SetPoint("TOPLEFT", 6, -246)
     castNote:SetWidth(590)
     castNote:SetJustifyH("LEFT")
     castNote:SetTextColor(0.58, 0.7, 0.88)
-    castNote:SetText("Target and Focus cast bars are enabled by default. The Player mini cast bar is optional.")
+    castNote:SetText("Unlock movers to drag the selected frame's cast bar. Dragging automatically enables detached placement.")
+    SelectCastTab(unitDB.selectedCastTab or activeCastTab)
 
     local indicators = panels.Indicators
     local indicatorPrefixes = { ["Raid Marker"] = "raidMarker", ["Leader"] = "leaderIndicator", ["Combat"] = "combatIndicator" }
-    local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
     local function IndicatorPrefix() return indicatorPrefixes[unitDB.selectedIndicator or "Raid Marker"] or "raidMarker" end
     local function IndicatorValue(suffix, fallback)
         local value = Current()[IndicatorPrefix() .. suffix]

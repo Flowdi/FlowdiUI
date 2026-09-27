@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.4
+
+- Moved Unit Frame indicators onto a dedicated high-level overlay so raid markers always render above bars and portraits.
+- Expanded Cast Bar settings with General, Position, and Text sections.
+- Added cast-bar width, height, textures, colors, opacity, reverse fill, strata, attachment anchors, X/Y offsets, icon placement, text placement, text size, and time format.
+- Added detached cast bars that can be dragged independently while movers are unlocked.
+
 ## 0.7.3
 
 - Fixed protected raid-marker indices and assigned the required marker sprite sheet.

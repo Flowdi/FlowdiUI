@@ -106,8 +106,22 @@ function module:UpdateCast(frame)
         if not name then return nil end
         return { name = name, texture = texture, startTime = startTime, endTime = endTime, channeling = channeling, locked = notInterruptible }
     end)
-    if not ok or not cast then frame.castbar:Hide() return end
+    if not ok or not cast then
+        if not FUI.db.locked then
+            frame.castbar.preview = true
+            frame.castbar.startTime, frame.castbar.endTime = nil, nil
+            frame.castbar:SetMinMaxValues(0, 1)
+            frame.castbar:SetValue(0.62)
+            frame.castName:SetText(frame.unit:gsub("^%l", string.upper) .. " Cast Bar")
+            frame.castTime:SetText("1.5")
+            frame.castbar:Show()
+        else
+            frame.castbar:Hide()
+        end
+        return
+    end
     local rendered = pcall(function()
+        frame.castbar.preview = false
         frame.castbar.startTime = cast.startTime
         frame.castbar.endTime = cast.endTime
         frame.castbar.channeling = cast.channeling
@@ -200,8 +214,29 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.powerBG = frame.power:CreateTexture(nil, "BACKGROUND")
     frame.powerBG:SetAllPoints()
 
-    frame.castbar = CreateFrame("StatusBar", nil, frame)
+    frame.castbar = CreateFrame("StatusBar", nil, UIParent)
+    frame.castbar.owner = frame
+    frame.castbar.positionKey = unit .. "Castbar"
+    frame.castbar:SetMovable(true)
+    frame.castbar:SetClampedToScreen(true)
+    frame.castbar:RegisterForDrag("LeftButton")
+    frame.castbar:SetScript("OnDragStart", function(self)
+        if FUI.db.locked or InCombatLockdown() then return end
+        local settings = FrameSettings(self.owner.unit)
+        if settings then settings.castDetached = true end
+        local centerX, centerY = self:GetCenter()
+        if centerX and centerY then
+            self:ClearAllPoints()
+            self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", centerX, centerY)
+        end
+        self:StartMoving()
+    end)
+    frame.castbar:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        FUI:SavePosition(self, self.positionKey)
+    end)
     frame.castbar:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
+    FUI:CreateBackdrop(frame.castbar, 1)
     frame.castbarBG = frame.castbar:CreateTexture(nil, "BACKGROUND")
     frame.castbarBG:SetAllPoints()
     frame.castbarBG:SetColorTexture(0.025, 0.03, 0.045, 0.96)
@@ -219,16 +254,22 @@ function module:CreateUnitFrame(unit, positionKey)
             local now = GetTime() * 1000
             local value = self.channeling and math.max(self.startTime, self.endTime - (now - self.startTime)) or math.min(self.endTime, now)
             self:SetValue(value)
-            frame.castTime:SetText(string.format("%.1f", math.max(0, self.endTime - now) / 1000))
+            local settings = FrameSettings(frame.unit)
+            local duration = settings and settings.castTimeFormat == "Elapsed" and math.max(0, now - self.startTime) or math.max(0, self.endTime - now)
+            frame.castTime:SetText(string.format("%.1f", duration / 1000))
             if now >= self.endTime then self:Hide() end
         end)
     end)
 
-    frame.raidMarker = frame:CreateTexture(nil, "OVERLAY")
+    frame.indicatorLayer = CreateFrame("Frame", nil, frame)
+    frame.indicatorLayer:SetAllPoints(frame)
+    frame.indicatorLayer:SetFrameLevel(frame:GetFrameLevel() + 20)
+    if frame.indicatorLayer.SetClipsChildren then frame.indicatorLayer:SetClipsChildren(false) end
+    frame.raidMarker = frame.indicatorLayer:CreateTexture(nil, "OVERLAY", nil, 7)
     frame.raidMarker:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
-    frame.leaderIndicator = frame:CreateTexture(nil, "OVERLAY")
+    frame.leaderIndicator = frame.indicatorLayer:CreateTexture(nil, "OVERLAY", nil, 7)
     frame.leaderIndicator:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
-    frame.combatIndicator = frame:CreateTexture(nil, "OVERLAY")
+    frame.combatIndicator = frame.indicatorLayer:CreateTexture(nil, "OVERLAY", nil, 7)
     frame.combatIndicator:SetColorTexture(1, 0.18, 0.08, 0.95)
 
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
@@ -290,6 +331,12 @@ function module:SetLocked(locked)
     for _, frame in pairs(self.frames) do
         if locked then frame.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
         else frame.FlowdiBackdrop:SetBackdropBorderColor(1, 0.72, 0.12, 1) end
+        if frame.castbar.FlowdiBackdrop then
+            if locked then frame.castbar.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
+            else frame.castbar.FlowdiBackdrop:SetBackdropBorderColor(1, 0.72, 0.12, 1) end
+        end
+        frame.castbar:EnableMouse(not locked)
+        self:UpdateCast(frame)
     end
 end
 
@@ -310,6 +357,58 @@ local function ApplyIndicatorLayout(frame, texture, settings, prefix)
     local relativePoint = anchorPoints[settings[prefix .. "RelativePoint"]] or "CENTER"
     texture:ClearAllPoints()
     texture:SetPoint(point, target, relativePoint, settings[prefix .. "X"] or 0, settings[prefix .. "Y"] or 0)
+end
+
+local function ApplyCastText(font, castbar, position, inset)
+    font:ClearAllPoints()
+    if position == "Hidden" then font:Hide() return end
+    font:Show()
+    local point = anchorPoints[position] or string.upper(position or "LEFT")
+    if point ~= "LEFT" and point ~= "CENTER" and point ~= "RIGHT" then point = "LEFT" end
+    font:SetPoint(point, castbar, point, point == "LEFT" and inset or point == "RIGHT" and -inset or 0, 0)
+    font:SetJustifyH(point)
+end
+
+local function ApplyCastLayout(frame, settings)
+    local castbar = frame.castbar
+    castbar:SetParent(UIParent)
+    castbar:ClearAllPoints()
+    if settings.castDetached then
+        FUI:RestorePosition(castbar, castbar.positionKey)
+    else
+        local targets = {
+            ["Frame"] = frame,
+            ["Health Bar"] = frame.health,
+            ["Power Bar"] = frame.power,
+            ["Portrait"] = frame.portrait,
+        }
+        local target = targets[settings.castAttachTo] or frame
+        local point = anchorPoints[settings.castPoint] or "TOPLEFT"
+        local relativePoint = anchorPoints[settings.castRelativePoint] or "BOTTOMLEFT"
+        castbar:SetPoint(point, target, relativePoint, settings.castX or 0, settings.castY or -3)
+    end
+    castbar:SetSize(settings.castWidth or 220, settings.castHeight)
+    castbar:SetScale((FUI.db.scale or 1) * (FUI.db.unitFrames.scale or 1))
+    castbar:SetFrameStrata(settings.castFrameStrata or "MEDIUM")
+    if castbar.SetReverseFill then castbar:SetReverseFill(settings.castReverseFill == true) end
+    castbar:SetStatusBarTexture(settings.castTexture == "Global" and FUI:GetStatusBarTexture(false) or FUI.textures[settings.castTexture] or FUI:GetStatusBarTexture(false))
+    castbar:SetStatusBarColor(settings.castColor[1], settings.castColor[2], settings.castColor[3], settings.castOpacity)
+    local background = settings.castBackground or { 0.025, 0.03, 0.045, 1 }
+    frame.castbarBG:SetColorTexture(background[1], background[2], background[3], settings.castBackgroundOpacity or background[4] or 0.8)
+    frame.castIcon:SetShown(settings.showCastIcon)
+    frame.castIcon:ClearAllPoints()
+    local iconPosition = settings.castIconPosition or "Left"
+    if iconPosition == "Right" then frame.castIcon:SetPoint("LEFT", castbar, "RIGHT", 2, 0)
+    else frame.castIcon:SetPoint("RIGHT", castbar, "LEFT", -2, 0) end
+    frame.castIcon:SetSize(settings.castHeight, settings.castHeight)
+    ApplyCastText(frame.castName, castbar, settings.castNamePosition or "Left", 5)
+    ApplyCastText(frame.castTime, castbar, settings.castTimePosition or "Right", 5)
+    frame.castName:SetFont(FUI:GetModuleFontPath("unitFrames"), settings.castTextSize or 10, FUI.db.global.fontOutline)
+    frame.castTime:SetFont(FUI:GetModuleFontPath("unitFrames"), settings.castTextSize or 10, FUI.db.global.fontOutline)
+    if castbar.FlowdiBackdrop then
+        castbar.FlowdiBackdrop:SetBackdropColor(background[1], background[2], background[3], settings.castBackgroundOpacity or 0.8)
+        castbar.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
+    end
 end
 
 function module:ApplyFrame(frame, settings)
@@ -354,13 +453,7 @@ function module:ApplyFrame(frame, settings)
     local hb, pb = settings.healthBackground, settings.powerBackground
     frame.healthBG:SetColorTexture(hb[1], hb[2], hb[3], hb[4] or 1)
     frame.powerBG:SetColorTexture(pb[1], pb[2], pb[3], pb[4] or 1)
-    frame.castbar:ClearAllPoints()
-    frame.castbar:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -3)
-    frame.castbar:SetSize(totalWidth, settings.castHeight)
-    frame.castIcon:SetShown(settings.showCastIcon)
-    frame.castIcon:ClearAllPoints()
-    frame.castIcon:SetPoint("RIGHT", frame.castbar, "LEFT", -2, 0)
-    frame.castIcon:SetSize(settings.castHeight, settings.castHeight)
+    ApplyCastLayout(frame, settings)
     frame.raidMarker:SetSize(settings.raidMarkerSize, settings.raidMarkerSize)
     frame.leaderIndicator:SetSize(settings.leaderIndicatorSize, settings.leaderIndicatorSize)
     frame.combatIndicator:SetSize(settings.combatIndicatorSize, settings.combatIndicatorSize)

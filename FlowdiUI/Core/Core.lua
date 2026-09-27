@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.3"
+FUI.version = "0.7.4"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -13,7 +13,7 @@ FUI.pendingApply = false
 FUI.reputationValues = {}
 
 local defaults = {
-    profileVersion = 8,
+    profileVersion = 9,
     locked = true,
     scale = 1,
     global = {
@@ -80,6 +80,7 @@ local defaults = {
     unitFrames = {
         scale = 1,
         selectedIndicator = "Raid Marker",
+        selectedCastTab = "General",
         playerWidth = 230,
         targetWidth = 230,
         focusWidth = 185,
@@ -99,8 +100,12 @@ local defaults = {
                 powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 46,
-                showCastbar = false, castHeight = 14, castOpacity = 1, showCastIcon = true,
-                castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 22,
+                showCastbar = false, castWidth = 229, castHeight = 14, castOpacity = 1, showCastIcon = true,
+                castColor = { 0.86, 0.82, 0.64, 1 }, castBackground = { 0.025, 0.03, 0.045, 1 }, castBackgroundOpacity = 0.8,
+                castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
+                castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
+                castNamePosition = "Left", castTimePosition = "Right", castIconPosition = "Left", castTextSize = 10, castTimeFormat = "Remaining",
+                raidMarker = true, raidMarkerSize = 22,
                 raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
                 leaderIndicator = true, leaderIndicatorSize = 16,
                 leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
@@ -117,8 +122,12 @@ local defaults = {
                 powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Right", portraitSize = 46,
-                showCastbar = true, castHeight = 14, castOpacity = 1, showCastIcon = true,
-                castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 22,
+                showCastbar = true, castWidth = 229, castHeight = 14, castOpacity = 1, showCastIcon = true,
+                castColor = { 0.86, 0.82, 0.64, 1 }, castBackground = { 0.025, 0.03, 0.045, 1 }, castBackgroundOpacity = 0.8,
+                castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
+                castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
+                castNamePosition = "Left", castTimePosition = "Right", castIconPosition = "Left", castTextSize = 10, castTimeFormat = "Remaining",
+                raidMarker = true, raidMarkerSize = 22,
                 raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
                 leaderIndicator = true, leaderIndicatorSize = 16,
                 leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
@@ -135,8 +144,12 @@ local defaults = {
                 powerText = "None", textSize = 11, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = false, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 34,
-                showCastbar = true, castHeight = 12, castOpacity = 1, showCastIcon = true,
-                castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 20,
+                showCastbar = true, castWidth = 160, castHeight = 12, castOpacity = 1, showCastIcon = true,
+                castColor = { 0.86, 0.82, 0.64, 1 }, castBackground = { 0.025, 0.03, 0.045, 1 }, castBackgroundOpacity = 0.8,
+                castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
+                castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
+                castNamePosition = "Left", castTimePosition = "Right", castIconPosition = "Left", castTextSize = 9, castTimeFormat = "Remaining",
+                raidMarker = true, raidMarkerSize = 20,
                 raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
                 leaderIndicator = false, leaderIndicatorSize = 14,
                 leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
@@ -204,6 +217,9 @@ local defaults = {
         player = { "CENTER", "CENTER", -280, -155 },
         target = { "CENTER", "CENTER", 280, -155 },
         focus = { "CENTER", "CENTER", 280, -235 },
+        playerCastbar = { "CENTER", "CENTER", -280, -220 },
+        targetCastbar = { "CENTER", "CENTER", 280, -220 },
+        focusCastbar = { "CENTER", "CENTER", 280, -285 },
         party = { "LEFT", "LEFT", 42, 20 },
         raid = { "LEFT", "LEFT", 42, 20 },
         dataPanel = { "BOTTOM", "BOTTOM", 0, 4 },
