@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.6.3"
+FUI.version = "0.6.4"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.4
+
+- Added a high-priority dark cover above every native Game Menu artwork layer.
+- Kept the original secure buttons while rendering clean dark surfaces, borders, labels, and hover colors above them.
+
 ## 0.6.3
 
 - Replaced the layered menu-button treatment with direct native texture recoloring for reliable dark buttons.
