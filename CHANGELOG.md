@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.6
+
+- Added a dedicated two-pixel blue outline around the FlowdiUI Game Menu button.
+- Added a brighter branded border state on hover.
+
 ## 0.6.5
 
 - Removed native three-segment button artwork at its actual texture-region source.

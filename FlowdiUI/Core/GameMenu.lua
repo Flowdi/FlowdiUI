@@ -28,6 +28,28 @@ local function DiscoverButtonTextures(button, branded)
     for _, key in ipairs({ "Left", "Middle", "Right" }) do TrackButtonTexture(button, button[key], branded) end
 end
 
+local function EnsureBrandBorder(inset)
+    if inset.brandEdges then return inset.brandEdges end
+    inset.brandEdges = {}
+    for index = 1, 4 do
+        inset.brandEdges[index] = inset:CreateTexture(nil, "OVERLAY")
+    end
+    local top, bottom, left, right = unpack(inset.brandEdges)
+    top:SetPoint("TOPLEFT")
+    top:SetPoint("TOPRIGHT")
+    top:SetHeight(2)
+    bottom:SetPoint("BOTTOMLEFT")
+    bottom:SetPoint("BOTTOMRIGHT")
+    bottom:SetHeight(2)
+    left:SetPoint("TOPLEFT")
+    left:SetPoint("BOTTOMLEFT")
+    left:SetWidth(2)
+    right:SetPoint("TOPRIGHT")
+    right:SetPoint("BOTTOMRIGHT")
+    right:SetWidth(2)
+    return inset.brandEdges
+end
+
 local function EnsureButtonSkin(button, branded)
     if button.FlowdiDarkInset then return button.FlowdiDarkInset end
     DiscoverButtonTextures(button, branded)
@@ -70,6 +92,15 @@ local function ApplyButtonStyle(button, branded, darkEnabled)
     if branded then
         inset.background:SetColorTexture(hovered and 0.045 or 0.025, hovered and 0.15 or 0.075, hovered and 0.30 or 0.15, 1)
         inset:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+        for _, edge in ipairs(EnsureBrandBorder(inset)) do
+            edge:SetColorTexture(
+                math.min(1, accent[1] + (hovered and 0.18 or 0)),
+                math.min(1, accent[2] + (hovered and 0.18 or 0)),
+                math.min(1, accent[3] + (hovered and 0.18 or 0)),
+                1
+            )
+            edge:Show()
+        end
     else
         inset.background:SetColorTexture(hovered and 0.13 or 0.065, hovered and 0.15 or 0.070, hovered and 0.19 or 0.080, 1)
         inset:SetBackdropBorderColor(hovered and 0.30 or 0.24, hovered and 0.48 or 0.26, hovered and 0.72 or 0.30, 1)
