@@ -72,8 +72,12 @@ local function EnsureButtonOverlay(button)
     right:SetPoint("BOTTOMRIGHT", -1, 1)
     right:SetWidth(1)
 
-    local text = button:CreateFontString(nil, "OVERLAY")
+    local textLayer = CreateFrame("Frame", nil, button)
+    textLayer:SetAllPoints()
+    textLayer:EnableMouse(false)
+    local text = textLayer:CreateFontString(nil, "OVERLAY")
     text:SetPoint("CENTER", 0, 0)
+    button.FlowdiDarkTextLayer = textLayer
     button.FlowdiDarkText = text
     button:HookScript("OnEnter", function(self)
         self.FlowdiHovered = true
@@ -89,6 +93,8 @@ local function ApplyButtonStyle(button, branded, darkEnabled)
     local enabled = branded or darkEnabled
     local label = ResolveButtonLabel(button, branded)
     EnsureButtonOverlay(button)
+    button.FlowdiDarkTextLayer:SetFrameLevel(button:GetFrameLevel() + 20)
+    button.FlowdiDarkTextLayer:SetShown(enabled)
     button.FlowdiDarkSurface:SetShown(enabled)
     button.FlowdiDarkText:SetShown(enabled)
     for _, edge in ipairs(button.FlowdiDarkEdges) do edge:SetShown(enabled) end
