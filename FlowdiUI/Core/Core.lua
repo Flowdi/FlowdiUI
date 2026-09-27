@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.4"
+FUI.version = "0.7.5"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -13,7 +13,7 @@ FUI.pendingApply = false
 FUI.reputationValues = {}
 
 local defaults = {
-    profileVersion = 9,
+    profileVersion = 10,
     locked = true,
     scale = 1,
     global = {
@@ -105,6 +105,8 @@ local defaults = {
                 castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
                 castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
                 castNamePosition = "Left", castTimePosition = "Right", castIconPosition = "Left", castTextSize = 10, castTimeFormat = "Remaining",
+                healPrediction = false, healPredictionMine = true, healPredictionOthers = true, healPredictionOpacity = 0.75,
+                healPredictionMineColor = { 0.40, 0.95, 0.40, 1 }, healPredictionOtherColor = { 0.16, 0.67, 0.16, 1 },
                 raidMarker = true, raidMarkerSize = 22,
                 raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
                 leaderIndicator = true, leaderIndicatorSize = 16,
@@ -127,6 +129,8 @@ local defaults = {
                 castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
                 castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
                 castNamePosition = "Left", castTimePosition = "Right", castIconPosition = "Left", castTextSize = 10, castTimeFormat = "Remaining",
+                healPrediction = false, healPredictionMine = true, healPredictionOthers = true, healPredictionOpacity = 0.75,
+                healPredictionMineColor = { 0.40, 0.95, 0.40, 1 }, healPredictionOtherColor = { 0.16, 0.67, 0.16, 1 },
                 raidMarker = true, raidMarkerSize = 22,
                 raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
                 leaderIndicator = true, leaderIndicatorSize = 16,
@@ -149,6 +153,8 @@ local defaults = {
                 castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
                 castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
                 castNamePosition = "Left", castTimePosition = "Right", castIconPosition = "Left", castTextSize = 9, castTimeFormat = "Remaining",
+                healPrediction = false, healPredictionMine = true, healPredictionOthers = true, healPredictionOpacity = 0.75,
+                healPredictionMineColor = { 0.40, 0.95, 0.40, 1 }, healPredictionOtherColor = { 0.16, 0.67, 0.16, 1 },
                 raidMarker = true, raidMarkerSize = 20,
                 raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
                 leaderIndicator = false, leaderIndicatorSize = 14,

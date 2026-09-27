@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.5
+
+- Made every slider value box directly editable, including negative X/Y offsets.
+- Added a Lock Movers action and restored cast-bar visibility to active casts or mover previews only.
+- Replaced the placeholder combat square with the standard crossed-swords combat icon.
+- Added optional incoming-heal prediction bars with separate personal/other-healer visibility, colors, and opacity.
+
 ## 0.7.4
 
 - Moved Unit Frame indicators onto a dedicated high-level overlay so raid markers always render above bars and portraits.

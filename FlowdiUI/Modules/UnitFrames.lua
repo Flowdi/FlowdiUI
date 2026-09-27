@@ -155,6 +155,29 @@ function module:UpdateIndicators(frame)
     frame.combatIndicator:SetShown(settings.combatIndicator and combat == true)
 end
 
+function module:UpdateHealPrediction(frame)
+    local settings = FrameSettings(frame.unit)
+    local calculator = frame.healPredictionCalculator
+    if not settings or not settings.healPrediction or not calculator or not UnitGetDetailedHealPrediction then
+        frame.healPredictionMine:Hide()
+        frame.healPredictionOther:Hide()
+        return
+    end
+    local ok = pcall(function()
+        UnitGetDetailedHealPrediction(frame.unit, "player", calculator)
+        local _, mine, others = calculator:GetIncomingHeals()
+        local maximum = UnitHealthMax(frame.unit)
+        frame.healPredictionMine:SetMinMaxValues(0, maximum)
+        frame.healPredictionOther:SetMinMaxValues(0, maximum)
+        if settings.healPredictionMine then frame.healPredictionMine:SetValue(mine)
+        else frame.healPredictionMine:SetValue(0) end
+        if settings.healPredictionOthers then frame.healPredictionOther:SetValue(others)
+        else frame.healPredictionOther:SetValue(0) end
+    end)
+    frame.healPredictionMine:SetShown(ok and settings.healPredictionMine)
+    frame.healPredictionOther:SetShown(ok and settings.healPredictionOthers)
+end
+
 function module:UpdateFrame(frame)
     local unit = frame.unit
     local settings = FrameSettings(unit)
@@ -180,6 +203,7 @@ function module:UpdateFrame(frame)
     if frame.portrait:IsShown() then pcall(SetPortraitTexture, frame.portrait, unit) end
     self:UpdateCast(frame)
     self:UpdateIndicators(frame)
+    self:UpdateHealPrediction(frame)
     self:UpdateVisibility(frame)
 end
 
@@ -207,8 +231,29 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     frame.health = CreateFrame("StatusBar", nil, frame)
     frame.health:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
-    frame.healthBG = frame.health:CreateTexture(nil, "BACKGROUND")
-    frame.healthBG:SetAllPoints()
+    frame.healthBG = frame:CreateTexture(nil, "BACKGROUND")
+    frame.healPredictionClip = CreateFrame("Frame", nil, frame)
+    frame.healPredictionClip:SetFrameLevel(frame:GetFrameLevel() + 10)
+    if frame.healPredictionClip.SetClipsChildren then frame.healPredictionClip:SetClipsChildren(true) end
+    frame.healPredictionMine = CreateFrame("StatusBar", nil, frame.healPredictionClip)
+    frame.healPredictionOther = CreateFrame("StatusBar", nil, frame.healPredictionClip)
+    frame.healPredictionMine:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
+    frame.healPredictionOther:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
+    frame.healPredictionMine:SetFrameLevel(frame.healPredictionClip:GetFrameLevel() + 1)
+    frame.healPredictionOther:SetFrameLevel(frame.healPredictionClip:GetFrameLevel() + 2)
+    frame.healPredictionMine:Hide()
+    frame.healPredictionOther:Hide()
+    if CreateUnitHealPredictionCalculator then
+        frame.healPredictionCalculator = CreateUnitHealPredictionCalculator()
+        local incomingModes = Enum and Enum.UnitIncomingHealClampMode
+        if frame.healPredictionCalculator.SetIncomingHealClampMode and incomingModes then
+            frame.healPredictionCalculator:SetIncomingHealClampMode(incomingModes.MaximumHealth)
+        end
+        local absorbModes = Enum and Enum.UnitHealAbsorbClampMode
+        if frame.healPredictionCalculator.SetHealAbsorbClampMode and absorbModes then
+            frame.healPredictionCalculator:SetHealAbsorbClampMode(absorbModes.MaximumHealth)
+        end
+    end
     frame.power = CreateFrame("StatusBar", nil, frame)
     frame.power:SetStatusBarTexture(FUI:GetStatusBarTexture(true))
     frame.powerBG = frame.power:CreateTexture(nil, "BACKGROUND")
@@ -270,7 +315,9 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.leaderIndicator = frame.indicatorLayer:CreateTexture(nil, "OVERLAY", nil, 7)
     frame.leaderIndicator:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
     frame.combatIndicator = frame.indicatorLayer:CreateTexture(nil, "OVERLAY", nil, 7)
-    frame.combatIndicator:SetColorTexture(1, 0.18, 0.08, 0.95)
+    frame.combatIndicator:SetTexture("Interface\\CharacterFrame\\UI-StateIcon")
+    frame.combatIndicator:SetTexCoord(0.5, 1, 0, 0.49)
+    frame.combatIndicator:SetVertexColor(1, 1, 1, 1)
 
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
@@ -300,7 +347,7 @@ function module:CreateUnitFrame(unit, positionKey)
     for _, event in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER",
         "UNIT_NAME_UPDATE", "UNIT_CONNECTION", "UNIT_PORTRAIT_UPDATE", "UNIT_MODEL_CHANGED", "PLAYER_TARGET_CHANGED",
         "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
-        "RAID_TARGET_UPDATE", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
+        "RAID_TARGET_UPDATE", "UNIT_HEAL_PREDICTION", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
         "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
         frame:RegisterEvent(event)
     end
@@ -451,8 +498,27 @@ function module:ApplyFrame(frame, settings)
     frame.health:SetStatusBarTexture(TexturePath(settings))
     frame.power:SetStatusBarTexture(FUI:GetStatusBarTexture(true))
     local hb, pb = settings.healthBackground, settings.powerBackground
+    frame.healthBG:ClearAllPoints()
+    frame.healthBG:SetAllPoints(frame.health)
     frame.healthBG:SetColorTexture(hb[1], hb[2], hb[3], hb[4] or 1)
     frame.powerBG:SetColorTexture(pb[1], pb[2], pb[3], pb[4] or 1)
+    frame.healPredictionClip:ClearAllPoints()
+    frame.healPredictionClip:SetAllPoints(frame.health)
+    frame.healPredictionMine:SetStatusBarTexture(TexturePath(settings))
+    frame.healPredictionOther:SetStatusBarTexture(TexturePath(settings))
+    local healthFill = frame.health:GetStatusBarTexture()
+    local mineFill = frame.healPredictionMine:GetStatusBarTexture()
+    frame.healPredictionMine:ClearAllPoints()
+    frame.healPredictionMine:SetPoint("TOPLEFT", healthFill, "TOPRIGHT", 0, 0)
+    frame.healPredictionMine:SetPoint("BOTTOMLEFT", healthFill, "BOTTOMRIGHT", 0, 0)
+    frame.healPredictionMine:SetSize(settings.width, settings.healthHeight)
+    frame.healPredictionOther:ClearAllPoints()
+    frame.healPredictionOther:SetPoint("TOPLEFT", mineFill, "TOPRIGHT", 0, 0)
+    frame.healPredictionOther:SetPoint("BOTTOMLEFT", mineFill, "BOTTOMRIGHT", 0, 0)
+    frame.healPredictionOther:SetSize(settings.width, settings.healthHeight)
+    local mineColor, otherColor = settings.healPredictionMineColor, settings.healPredictionOtherColor
+    frame.healPredictionMine:SetStatusBarColor(mineColor[1], mineColor[2], mineColor[3], settings.healPredictionOpacity)
+    frame.healPredictionOther:SetStatusBarColor(otherColor[1], otherColor[2], otherColor[3], settings.healPredictionOpacity)
     ApplyCastLayout(frame, settings)
     frame.raidMarker:SetSize(settings.raidMarkerSize, settings.raidMarkerSize)
     frame.leaderIndicator:SetSize(settings.leaderIndicatorSize, settings.leaderIndicatorSize)

@@ -71,9 +71,14 @@ local function AddSlider(parent, label, x, y, width, minimum, maximum, step, get
     valueBox:SetBackdropColor(0.025, 0.04, 0.075, 0.98)
     valueBox:SetBackdropBorderColor(0.12, 0.38, 0.72, 1)
 
-    local valueText = FUI:CreateFont(valueBox, 11)
-    valueText:SetPoint("CENTER")
-    valueText:SetTextColor(0.45, 0.78, 1)
+    local valueInput = CreateFrame("EditBox", nil, valueBox)
+    valueInput:SetPoint("TOPLEFT", 3, -2)
+    valueInput:SetPoint("BOTTOMRIGHT", -3, 2)
+    valueInput:SetAutoFocus(false)
+    valueInput:SetJustifyH("CENTER")
+    valueInput:SetFont(FUI:GetFontPath(FUI.db.global.font), 11, FUI.db.global.fontOutline or "OUTLINE")
+    valueInput:SetTextColor(0.45, 0.78, 1)
+    valueInput:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 
     local slider = CreateFrame("Slider", nil, parent, "OptionsSliderTemplate")
     slider:SetPoint("TOPLEFT", x, y - 24)
@@ -86,14 +91,37 @@ local function AddSlider(parent, label, x, y, width, minimum, maximum, step, get
     if slider.Text then slider.Text:SetText("") end
     slider.getter = getter
     slider.refreshing = false
+    local function DisplayValue(value)
+        if valueInput:HasFocus() then
+            valueInput:SetText(string.format(step < 1 and "%.2f" or "%d", value))
+        else
+            valueInput:SetText(formatter and formatter(value) or string.format("%.2f", value))
+        end
+    end
+    valueInput:SetScript("OnEditFocusGained", function(self)
+        self:SetText(string.format(step < 1 and "%.2f" or "%d", slider:GetValue()))
+        self:HighlightText()
+    end)
+    local function CommitInput(self)
+        local number = tonumber((self:GetText() or ""):match("[-+]?%d*%.?%d+"))
+        if number then
+            number = math.max(minimum, math.min(maximum, number))
+            number = math.floor((number - minimum) / step + 0.5) * step + minimum
+            slider:SetValue(number)
+        end
+        self:ClearFocus()
+        DisplayValue(slider:GetValue())
+    end
+    valueInput:SetScript("OnEnterPressed", CommitInput)
+    valueInput:SetScript("OnEditFocusLost", function(self) DisplayValue(slider:GetValue()) end)
     slider:SetScript("OnShow", function(self)
         self.refreshing = true
         self:SetValue(self.getter())
         self.refreshing = false
-        valueText:SetText(formatter and formatter(self:GetValue()) or string.format("%.2f", self:GetValue()))
+        DisplayValue(self:GetValue())
     end)
     slider:SetScript("OnValueChanged", function(self, value)
-        valueText:SetText(formatter and formatter(value) or string.format("%.2f", value))
+        DisplayValue(value)
         if not self.refreshing then
             setter(value)
             FUI:ApplySettings()
@@ -485,8 +513,8 @@ local function BuildUnitFrames(page)
         for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
 
-    for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Indicators" }) do
-        tabs[name] = AddButton(page, name, 18 + (index - 1) * 90, -88, 84, function() SelectTab(name) end)
+    for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Healing", "Indicators" }) do
+        tabs[name] = AddButton(page, name, 18 + (index - 1) * 78, -88, 74, function() SelectTab(name) end)
         local panel = CreateFrame("Frame", nil, page)
         panel:SetPoint("TOPLEFT", 18, -190)
         panel:SetPoint("BOTTOMRIGHT", -18, 8)
@@ -585,7 +613,8 @@ local function BuildUnitFrames(page)
 
     local castPosition = castPanels.Position
     AddCheckbox(castPosition, "Detached and draggable", 6, -8, function() return Current().castDetached end, function(v) Current().castDetached = v end)
-    AddButton(castPosition, "Unlock movers", 330, -4, 180, function() FUI:SetLocked(false) end)
+    AddButton(castPosition, "Unlock movers", 330, -4, 130, function() FUI:SetLocked(false) end)
+    AddButton(castPosition, "Lock movers", 470, -4, 130, function() FUI:SetLocked(true) end)
     AddCycle(castPosition, "Attach to", 6, -62, 240, { "Frame", "Health Bar", "Power Bar", "Portrait" }, function() return Current().castAttachTo end, function(v) Current().castAttachTo = v end)
     AddCycle(castPosition, "Frame strata", 330, -62, 240, { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }, function() return Current().castFrameStrata end, function(v) Current().castFrameStrata = v end)
     AddCycle(castPosition, "Bar anchor", 6, -138, 240, anchorValues, function() return Current().castPoint end, function(v) Current().castPoint = v end)
@@ -606,6 +635,21 @@ local function BuildUnitFrames(page)
     castNote:SetTextColor(0.58, 0.7, 0.88)
     castNote:SetText("Unlock movers to drag the selected frame's cast bar. Dragging automatically enables detached placement.")
     SelectCastTab(unitDB.selectedCastTab or activeCastTab)
+
+    local healing = panels.Healing
+    AddSection(healing, "Incoming heal prediction", -4)
+    AddCheckbox(healing, "Enable prediction bar", 6, -25, function() return Current().healPrediction end, function(v) Current().healPrediction = v end)
+    AddCheckbox(healing, "Personal heals", 250, -25, function() return Current().healPredictionMine end, function(v) Current().healPredictionMine = v end)
+    AddCheckbox(healing, "Other healers", 450, -25, function() return Current().healPredictionOthers end, function(v) Current().healPredictionOthers = v end)
+    AddSlider(healing, "Prediction opacity", 6, -82, 270, 0.10, 1, 0.05, function() return Current().healPredictionOpacity end, function(v) Current().healPredictionOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddColor(healing, "Personal-heal color", 330, -82, function() return Current().healPredictionMineColor end, function(v) Current().healPredictionMineColor = v end)
+    AddColor(healing, "Other-heal color", 330, -132, function() return Current().healPredictionOtherColor end, function(v) Current().healPredictionOtherColor = v end)
+    local healingNote = FUI:CreateFont(healing, 11)
+    healingNote:SetPoint("TOPLEFT", 6, -205)
+    healingNote:SetWidth(590)
+    healingNote:SetJustifyH("LEFT")
+    healingNote:SetTextColor(0.58, 0.7, 0.88)
+    healingNote:SetText("Incoming heals extend from the current health fill and are clipped at maximum health.")
 
     local indicators = panels.Indicators
     local indicatorPrefixes = { ["Raid Marker"] = "raidMarker", ["Leader"] = "leaderIndicator", ["Combat"] = "combatIndicator" }
