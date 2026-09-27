@@ -178,6 +178,200 @@ function module:UpdateHealPrediction(frame)
     frame.healPredictionOther:SetShown(ok and settings.healPredictionOthers)
 end
 
+local function AuraNumber(value, fallback)
+    if value == nil or IsSecret(value) then return fallback end
+    local ok, number = pcall(tonumber, value)
+    return ok and number or fallback
+end
+
+local function ReadAura(unit, index, filter)
+    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+        local ok, data = pcall(C_UnitAuras.GetAuraDataByIndex, unit, index, filter)
+        if ok and data then
+            return {
+                index = index,
+                name = data.name,
+                icon = data.icon,
+                applications = data.applications,
+                dispelName = data.dispelName,
+                duration = data.duration,
+                expirationTime = data.expirationTime,
+                spellId = data.spellId,
+            }
+        end
+    end
+    local api = UnitAura
+    if not api then api = filter:find("HELPFUL", 1, true) and UnitBuff or UnitDebuff end
+    if not api then return nil end
+    local values = { pcall(api, unit, index, filter) }
+    if not values[1] or values[2] == nil then return nil end
+    return {
+        index = index,
+        name = values[2],
+        icon = values[3],
+        applications = values[4],
+        dispelName = values[5],
+        duration = values[6],
+        expirationTime = values[7],
+        spellId = values[11],
+    }
+end
+
+local function FormatAuraTime(seconds)
+    if seconds >= 3600 then return string.format("%dh", math.ceil(seconds / 3600)) end
+    if seconds >= 60 then return string.format("%dm", math.ceil(seconds / 60)) end
+    if seconds >= 10 then return string.format("%d", math.ceil(seconds)) end
+    return string.format("%.1f", math.max(0, seconds))
+end
+
+local function ApplyAuraTextPosition(text, position)
+    local point = anchorPoints[position] or "CENTER"
+    local x = point:find("LEFT", 1, true) and 2 or point:find("RIGHT", 1, true) and -2 or 0
+    local y = point:find("TOP", 1, true) and -1 or point:find("BOTTOM", 1, true) and 1 or 0
+    text:ClearAllPoints()
+    text:SetPoint(point, x, y)
+    text:SetJustifyH(point:find("LEFT", 1, true) and "LEFT" or point:find("RIGHT", 1, true) and "RIGHT" or "CENTER")
+end
+
+function module:CreateAuraButton(frame, kind, index)
+    local holder = frame.auraHolders[kind]
+    local button = CreateFrame("Button", nil, holder, "BackdropTemplate")
+    button:SetFrameLevel(holder:GetFrameLevel() + 1)
+    button:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    button:SetBackdropColor(0.01, 0.015, 0.025, 0.98)
+    button.icon = button:CreateTexture(nil, "ARTWORK")
+    button.icon:SetPoint("TOPLEFT", 2, -2)
+    button.icon:SetPoint("BOTTOMRIGHT", -2, 2)
+    button.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    button.cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+    button.cooldown:SetAllPoints(button.icon)
+    if button.cooldown.SetDrawEdge then button.cooldown:SetDrawEdge(false) end
+    if button.cooldown.SetHideCountdownNumbers then button.cooldown:SetHideCountdownNumbers(true) end
+    button.durationText = FUI:CreateFont(button, 9)
+    button.stackText = FUI:CreateFont(button, 10)
+    button:SetScript("OnEnter", function(self)
+        local settings = FrameSettings(frame.unit)
+        local auraSettings = settings and settings.auras and settings.auras[kind]
+        if not auraSettings or not auraSettings.tooltip or auraSettings.clickThrough or not self.auraIndex or not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local shown = false
+        if GameTooltip.SetUnitAura then shown = pcall(GameTooltip.SetUnitAura, GameTooltip, frame.unit, self.auraIndex, self.auraFilter) end
+        if not shown then
+            local tooltipMethod = kind == "buff" and GameTooltip.SetUnitBuff or GameTooltip.SetUnitDebuff
+            if tooltipMethod then pcall(tooltipMethod, GameTooltip, frame.unit, self.auraIndex, self.auraFilter) end
+        end
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    button:SetScript("OnUpdate", function(self, elapsed)
+        self.elapsed = (self.elapsed or 0) + elapsed
+        if self.elapsed < 0.1 then return end
+        self.elapsed = 0
+        local expiration = AuraNumber(self.expirationTime, 0)
+        if self.showDuration and expiration > 0 then
+            local remaining = expiration - GetTime()
+            if remaining > 0 then self.durationText:SetText(FormatAuraTime(remaining))
+            else self.durationText:SetText("") end
+        else
+            self.durationText:SetText("")
+        end
+    end)
+    holder.buttons[index] = button
+    return button
+end
+
+local function AuraSortValue(aura, sortBy)
+    if sortBy == "Name" then
+        if IsSecret(aura.name) then return "" end
+        return tostring(aura.name or "")
+    elseif sortBy == "Duration" then
+        return AuraNumber(aura.duration, 0)
+    elseif sortBy == "Time Remaining" then
+        local expiration = AuraNumber(aura.expirationTime, 0)
+        return expiration > 0 and expiration - GetTime() or 1000000000
+    end
+    return aura.index
+end
+
+function module:UpdateAuras(frame, kind)
+    local settings = FrameSettings(frame.unit)
+    local auraSettings = settings and settings.auras and settings.auras[kind]
+    local holder = frame.auraHolders and frame.auraHolders[kind]
+    if not auraSettings or not holder then return end
+    for _, button in ipairs(holder.buttons) do button:Hide() end
+    if not auraSettings.enabled then return end
+
+    local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
+    if auraSettings.mineOnly then filter = filter .. "|PLAYER" end
+    local auras = {}
+    for index = 1, 80 do
+        local aura = ReadAura(frame.unit, index, filter)
+        if not aura then break end
+        auras[#auras + 1] = aura
+    end
+    if auraSettings.sortBy ~= "Index" then
+        pcall(table.sort, auras, function(a, b)
+            local av, bv = AuraSortValue(a, auraSettings.sortBy), AuraSortValue(b, auraSettings.sortBy)
+            if av == bv then return a.index < b.index end
+            if auraSettings.sortDirection == "Descending" then return av > bv end
+            return av < bv
+        end)
+    elseif auraSettings.sortDirection == "Descending" then
+        local reversed = {}
+        for index = #auras, 1, -1 do reversed[#reversed + 1] = auras[index] end
+        auras = reversed
+    end
+
+    local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
+    local target = targets[auraSettings.attachTo] or frame
+    local point = anchorPoints[auraSettings.point] or "BOTTOMLEFT"
+    local relativePoint = anchorPoints[auraSettings.relativePoint] or "TOPLEFT"
+    local size = auraSettings.size or 22
+    local spacing = auraSettings.spacing or 2
+    local perRow = math.max(1, auraSettings.perRow or 8)
+    local maximum = math.max(1, auraSettings.rows or 1) * perRow
+    local xDirection = auraSettings.growthX == "Left" and -1 or 1
+    local yDirection = auraSettings.growthY == "Down" and -1 or 1
+    for displayIndex = 1, math.min(#auras, maximum) do
+        local aura = auras[displayIndex]
+        local button = holder.buttons[displayIndex] or self:CreateAuraButton(frame, kind, displayIndex)
+        local column = (displayIndex - 1) % perRow
+        local row = math.floor((displayIndex - 1) / perRow)
+        button:ClearAllPoints()
+        button:SetPoint(point, target, relativePoint,
+            (auraSettings.x or 0) + column * (size + spacing) * xDirection,
+            (auraSettings.y or 0) + row * (size + spacing) * yDirection)
+        button:SetSize(size, size)
+        button:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = auraSettings.borderSize or 1 })
+        local border = FUI.colors.border
+        if kind == "debuff" and DebuffTypeColor then
+            local dispelName = IsSecret(aura.dispelName) and "none" or aura.dispelName
+            border = DebuffTypeColor[dispelName or "none"] or DebuffTypeColor.none or border
+        end
+        button:SetBackdropBorderColor(border.r or border[1], border.g or border[2], border.b or border[3], 1)
+        button.icon:SetTexture(aura.icon)
+        if button.icon.SetDesaturated then button.icon:SetDesaturated(auraSettings.desaturate == true) end
+        button.auraIndex, button.auraFilter = aura.index, filter
+        button.expirationTime = aura.expirationTime
+        button.showDuration = auraSettings.showDuration
+        button:EnableMouse(not auraSettings.clickThrough)
+        button.durationText:SetFont(FUI:GetModuleFontPath("unitFrames"), auraSettings.durationSize or 9, FUI.db.global.fontOutline)
+        button.stackText:SetFont(FUI:GetModuleFontPath("unitFrames"), auraSettings.stackSize or 10, FUI.db.global.fontOutline)
+        ApplyAuraTextPosition(button.durationText, auraSettings.durationPosition)
+        ApplyAuraTextPosition(button.stackText, auraSettings.stackPosition)
+        local applications = AuraNumber(aura.applications, 0)
+        button.stackText:SetText(auraSettings.showStacks and applications > 1 and applications or "")
+        local duration, expiration = AuraNumber(aura.duration, 0), AuraNumber(aura.expirationTime, 0)
+        if auraSettings.cooldown and duration > 0 and expiration > 0 then
+            button.cooldown:Show()
+            pcall(button.cooldown.SetCooldown, button.cooldown, expiration - duration, duration)
+        else
+            button.cooldown:Hide()
+        end
+        button:Show()
+    end
+end
+
 function module:UpdateFrame(frame)
     local unit = frame.unit
     local settings = FrameSettings(unit)
@@ -222,6 +416,7 @@ function module:CreateUnitFrame(unit, positionKey)
     frame:SetAttribute("type2", "togglemenu")
     frame:RegisterForClicks("AnyUp")
     frame.unit, frame.positionKey = unit, positionKey
+    if frame.SetClipsChildren then frame:SetClipsChildren(false) end
     RegisterUnitWatch(frame)
     FUI:RestorePosition(frame, positionKey)
     FUI:CreateBackdrop(frame, 1)
@@ -323,6 +518,16 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.combatIndicator:SetTexCoord(0.5, 1, 0, 0.49)
     frame.combatIndicator:SetVertexColor(1, 1, 1, 1)
 
+    frame.auraHolders = {}
+    for _, kind in ipairs({ "buff", "debuff" }) do
+        local holder = CreateFrame("Frame", nil, frame)
+        holder:SetAllPoints(frame)
+        holder:SetFrameLevel(frame:GetFrameLevel() + 30)
+        if holder.SetClipsChildren then holder:SetClipsChildren(false) end
+        holder.buttons = {}
+        frame.auraHolders[kind] = holder
+    end
+
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
     frame.centerText = CreateText(frame, "CENTER", "CENTER")
@@ -351,12 +556,18 @@ function module:CreateUnitFrame(unit, positionKey)
     for _, event in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER",
         "UNIT_NAME_UPDATE", "UNIT_CONNECTION", "UNIT_PORTRAIT_UPDATE", "UNIT_MODEL_CHANGED", "PLAYER_TARGET_CHANGED",
         "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
-        "RAID_TARGET_UPDATE", "UNIT_HEAL_PREDICTION", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
+        "RAID_TARGET_UPDATE", "UNIT_HEAL_PREDICTION", "UNIT_AURA", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
         "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
         frame:RegisterEvent(event)
     end
     frame:SetScript("OnEvent", function(self, event, eventUnit)
-        if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then module:UpdateFrame(self) end
+        if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+            module:UpdateFrame(self)
+            if event == "UNIT_AURA" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
+                module:UpdateAuras(self, "buff")
+                module:UpdateAuras(self, "debuff")
+            end
+        end
     end)
     self.frames[unit] = frame
     return frame
@@ -537,6 +748,8 @@ function module:ApplyFrame(frame, settings)
         text:SetFont(FUI:GetModuleFontPath("unitFrames"), settings.textSize, FUI.db.global.fontOutline)
     end
     frame.powerText:SetFont(FUI:GetModuleFontPath("unitFrames"), math.max(8, settings.textSize - 2), FUI.db.global.fontOutline)
+    self:UpdateAuras(frame, "buff")
+    self:UpdateAuras(frame, "debuff")
     self:UpdateFrame(frame)
 end
 

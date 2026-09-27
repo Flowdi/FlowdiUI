@@ -511,7 +511,7 @@ local function BuildUnitFrames(page)
         for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
 
-    for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Healing", "Indicators" }) do
+    for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Auras", "Healing", "Indicators" }) do
         tabs[name] = AddButton(page, name, 18 + (index - 1) * 78, -88, 74, function() SelectTab(name) end)
         local panel = CreateFrame("Frame", nil, page)
         panel:SetPoint("TOPLEFT", 18, -190)
@@ -633,6 +633,81 @@ local function BuildUnitFrames(page)
     castNote:SetTextColor(0.58, 0.7, 0.88)
     castNote:SetText("Use the global Unlock Mode to drag cast bars. Moving one automatically enables detached placement.")
     SelectCastTab(unitDB.selectedCastTab or activeCastTab)
+
+    local auras = panels.Auras
+    local auraTypeButtons, auraTabs, auraPanels = {}, {}, {}
+    local auraKinds = { Buffs = "buff", Debuffs = "debuff" }
+    local activeAuraTab = unitDB.selectedAuraTab or "General"
+    local function AuraSettings()
+        local settings = Current()
+        local kind = auraKinds[unitDB.selectedAura or "Buffs"] or "buff"
+        return settings.auras[kind]
+    end
+    local function RefreshAuraPanel()
+        local panel = auraPanels[activeAuraTab]
+        if panel and panel:IsShown() then panel:Hide() panel:Show() end
+    end
+    local function SelectAuraType(name)
+        unitDB.selectedAura = name
+        for key, button in pairs(auraTypeButtons) do
+            button:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1)
+        end
+        RefreshAuraPanel()
+    end
+    local function SelectAuraTab(name)
+        activeAuraTab = name
+        unitDB.selectedAuraTab = name
+        for key, panel in pairs(auraPanels) do panel:SetShown(key == name) end
+        for key, button in pairs(auraTabs) do
+            button:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1)
+        end
+    end
+    for index, name in ipairs({ "Buffs", "Debuffs" }) do
+        auraTypeButtons[name] = AddButton(auras, name, 6 + (index - 1) * 138, -4, 128, function() SelectAuraType(name) end)
+    end
+    for index, name in ipairs({ "General", "Position", "Text" }) do
+        auraTabs[name] = AddButton(auras, name, 6 + (index - 1) * 138, -40, 128, function() SelectAuraTab(name) end)
+        local panel = CreateFrame("Frame", nil, auras)
+        panel:SetPoint("TOPLEFT", 0, -78)
+        panel:SetPoint("BOTTOMRIGHT", 0, 0)
+        panel.controls = {}
+        panel:Hide()
+        auraPanels[name] = panel
+    end
+
+    local auraGeneral = auraPanels.General
+    AddCheckbox(auraGeneral, "Enabled", 6, -8, function() return AuraSettings().enabled end, function(v) AuraSettings().enabled = v end)
+    AddCheckbox(auraGeneral, "Only my auras", 210, -8, function() return AuraSettings().mineOnly end, function(v) AuraSettings().mineOnly = v end)
+    AddCheckbox(auraGeneral, "Tooltip", 420, -8, function() return AuraSettings().tooltip end, function(v) AuraSettings().tooltip = v end)
+    AddCheckbox(auraGeneral, "Desaturate icons", 6, -46, function() return AuraSettings().desaturate end, function(v) AuraSettings().desaturate = v end)
+    AddCheckbox(auraGeneral, "Click through", 210, -46, function() return AuraSettings().clickThrough end, function(v) AuraSettings().clickThrough = v end)
+    AddCheckbox(auraGeneral, "Cooldown swipe", 420, -46, function() return AuraSettings().cooldown end, function(v) AuraSettings().cooldown = v end)
+    AddSlider(auraGeneral, "Icon size", 6, -92, 270, 12, 64, 1, function() return AuraSettings().size end, function(v) AuraSettings().size = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(auraGeneral, "Icons per row", 330, -92, 270, 1, 20, 1, function() return AuraSettings().perRow end, function(v) AuraSettings().perRow = v end, function(v) return string.format("%d", v) end)
+    AddSlider(auraGeneral, "Rows", 6, -168, 270, 1, 5, 1, function() return AuraSettings().rows end, function(v) AuraSettings().rows = v end, function(v) return string.format("%d", v) end)
+    AddSlider(auraGeneral, "Spacing", 330, -168, 270, 0, 20, 1, function() return AuraSettings().spacing end, function(v) AuraSettings().spacing = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(auraGeneral, "Border size", 6, -244, 270, 1, 4, 1, function() return AuraSettings().borderSize end, function(v) AuraSettings().borderSize = v end, function(v) return string.format("%d px", v) end)
+
+    local auraPosition = auraPanels.Position
+    AddCycle(auraPosition, "Attach to", 6, -8, 190, { "Frame", "Health Bar", "Power Bar", "Portrait" }, function() return AuraSettings().attachTo end, function(v) AuraSettings().attachTo = v end)
+    AddCycle(auraPosition, "Icon anchor", 220, -8, 190, anchorValues, function() return AuraSettings().point end, function(v) AuraSettings().point = v end)
+    AddCycle(auraPosition, "Attach point", 434, -8, 190, anchorValues, function() return AuraSettings().relativePoint end, function(v) AuraSettings().relativePoint = v end)
+    AddCycle(auraPosition, "Growth X", 6, -78, 190, { "Right", "Left" }, function() return AuraSettings().growthX end, function(v) AuraSettings().growthX = v end)
+    AddCycle(auraPosition, "Growth Y", 220, -78, 190, { "Up", "Down" }, function() return AuraSettings().growthY end, function(v) AuraSettings().growthY = v end)
+    AddCycle(auraPosition, "Sort by", 434, -78, 190, { "Index", "Time Remaining", "Duration", "Name" }, function() return AuraSettings().sortBy end, function(v) AuraSettings().sortBy = v end)
+    AddCycle(auraPosition, "Sort direction", 6, -148, 190, { "Ascending", "Descending" }, function() return AuraSettings().sortDirection end, function(v) AuraSettings().sortDirection = v end)
+    AddSlider(auraPosition, "X offset", 220, -148, 190, -200, 200, 1, function() return AuraSettings().x end, function(v) AuraSettings().x = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(auraPosition, "Y offset", 434, -148, 190, -200, 200, 1, function() return AuraSettings().y end, function(v) AuraSettings().y = v end, function(v) return string.format("%d px", v) end)
+
+    local auraText = auraPanels.Text
+    AddCheckbox(auraText, "Show duration", 6, -8, function() return AuraSettings().showDuration end, function(v) AuraSettings().showDuration = v end)
+    AddCheckbox(auraText, "Show stack count", 330, -8, function() return AuraSettings().showStacks end, function(v) AuraSettings().showStacks = v end)
+    AddSlider(auraText, "Duration text size", 6, -64, 270, 7, 24, 1, function() return AuraSettings().durationSize end, function(v) AuraSettings().durationSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(auraText, "Stack text size", 330, -64, 270, 7, 24, 1, function() return AuraSettings().stackSize end, function(v) AuraSettings().stackSize = v end, function(v) return string.format("%d px", v) end)
+    AddCycle(auraText, "Duration position", 6, -142, 240, anchorValues, function() return AuraSettings().durationPosition end, function(v) AuraSettings().durationPosition = v end)
+    AddCycle(auraText, "Stack position", 330, -142, 240, anchorValues, function() return AuraSettings().stackPosition end, function(v) AuraSettings().stackPosition = v end)
+    SelectAuraType(unitDB.selectedAura or "Buffs")
+    SelectAuraTab(activeAuraTab)
 
     local healing = panels.Healing
     AddSection(healing, "Incoming heal prediction", -4)
@@ -949,7 +1024,7 @@ function FUI:CreateSettings()
     unlockHover:SetColorTexture(0.08, 0.28, 0.58, 0.35)
     local unlockIcon = self:CreateFont(unlock, 15)
     unlockIcon:SetPoint("RIGHT", -12, 0)
-    unlockIcon:SetText("▶")
+    unlockIcon:SetText(">")
     unlockIcon:SetTextColor(0.35, 0.75, 1)
     unlock:SetScript("OnClick", function() FUI:EnterUnlockMode() end)
     frame.unlockButton = unlock

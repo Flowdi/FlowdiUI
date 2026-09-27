@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.6"
+FUI.version = "0.7.7"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -13,8 +13,39 @@ FUI.pendingApply = false
 FUI.reputationValues = {}
 FUI.movers = {}
 
+local function AuraDefaults(helpful)
+    return {
+        enabled = false,
+        mineOnly = false,
+        desaturate = false,
+        tooltip = true,
+        clickThrough = false,
+        cooldown = true,
+        size = 22,
+        perRow = 8,
+        rows = 1,
+        spacing = 2,
+        borderSize = 1,
+        attachTo = "Frame",
+        point = helpful and "Bottom Left" or "Bottom Right",
+        relativePoint = helpful and "Top Left" or "Top Right",
+        x = 0,
+        y = 3,
+        growthX = helpful and "Right" or "Left",
+        growthY = "Up",
+        sortBy = "Time Remaining",
+        sortDirection = "Ascending",
+        showDuration = true,
+        durationSize = 9,
+        durationPosition = "Bottom",
+        showStacks = true,
+        stackSize = 10,
+        stackPosition = "Top Right",
+    }
+end
+
 local defaults = {
-    profileVersion = 11,
+    profileVersion = 12,
     locked = true,
     scale = 1,
     global = {
@@ -33,6 +64,7 @@ local defaults = {
         optionsScale = 1,
         moverGrid = true,
         moverGridSize = 32,
+        moverGridThickness = 1,
         lagTolerance = 400,
         combatTextSize = 1,
         showCombatDamage = true,
@@ -84,6 +116,8 @@ local defaults = {
         scale = 1,
         selectedIndicator = "Raid Marker",
         selectedCastTab = "General",
+        selectedAura = "Buffs",
+        selectedAuraTab = "General",
         playerWidth = 230,
         targetWidth = 230,
         focusWidth = 185,
@@ -116,6 +150,7 @@ local defaults = {
                 leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
                 combatIndicator = true, combatIndicatorSize = 12,
                 combatIndicatorAttachTo = "Frame", combatIndicatorPoint = "Center", combatIndicatorRelativePoint = "Top Right", combatIndicatorX = 0, combatIndicatorY = 0,
+                auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
             },
             target = {
                 width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
@@ -140,6 +175,7 @@ local defaults = {
                 leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
                 combatIndicator = false, combatIndicatorSize = 12,
                 combatIndicatorAttachTo = "Frame", combatIndicatorPoint = "Center", combatIndicatorRelativePoint = "Top Right", combatIndicatorX = 0, combatIndicatorY = 0,
+                auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
             },
             focus = {
                 width = 160, healthHeight = 34, powerHeight = 6, powerPosition = "Below Health Bar",
@@ -164,6 +200,7 @@ local defaults = {
                 leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
                 combatIndicator = false, combatIndicatorSize = 10,
                 combatIndicatorAttachTo = "Frame", combatIndicatorPoint = "Center", combatIndicatorRelativePoint = "Top Right", combatIndicatorX = 0, combatIndicatorY = 0,
+                auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
             },
         },
     },

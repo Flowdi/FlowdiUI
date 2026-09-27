@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.7
+
+- Added independent 1-5 px line-thickness controls to the Unlock Mode grid.
+- Replaced the unsupported Unlock Mode navigation glyph with a font-safe icon.
+- Added configurable Buff and Debuff displays to Player, Target, and Focus frames.
+- Added aura sizing, rows, spacing, borders, attachment anchors, X/Y offsets, growth, sorting, duration text, stack text, tooltips, cooldown swipes, desaturation, and click-through controls.
+- Added compatibility paths for both table-based and legacy unit-aura APIs.
+
 ## 0.7.6
 
 - Replaced scattered mover lock controls with one central Unlock Mode in the settings sidebar.
