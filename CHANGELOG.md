@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.9
+
+- Added explicit Vertical and Horizontal orientations for Party Frames.
+- Added stable global names and dedicated high-level aura anchors to every Party and Raid unit button.
+- Added `FlowdiUI:GetGroupUnitFrame(unit)` plus `FlowdiAuraAnchor` for external raid-debuff integrations.
+
 ## 0.7.8
 
 - Switched Unit Frame aura collection to the safe packed-aura iterator with a legacy fallback, fixing hostile-target Debuff discovery.

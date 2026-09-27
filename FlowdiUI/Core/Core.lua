@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.8"
+FUI.version = "0.7.9"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -61,6 +61,7 @@ local function GroupProfileDefaults(party)
         spacing = 3,
         groupSpacing = 6,
         unitsPerColumn = 5,
+        orientation = party and "Vertical" or "Columns",
         growthX = "Right",
         growthY = "Down",
         showWhenSolo = false,
@@ -109,7 +110,7 @@ local function GroupProfileDefaults(party)
 end
 
 local defaults = {
-    profileVersion = 13,
+    profileVersion = 14,
     locked = true,
     scale = 1,
     global = {

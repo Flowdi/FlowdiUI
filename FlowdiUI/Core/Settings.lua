@@ -837,7 +837,10 @@ local function BuildGroupFrames(page)
     local function UpdatePreview()
         local profile = CurrentProfile()
         local count = db.selectedProfile == "Party" and (db.party.showSelf and 5 or 4) or 10
-        local perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, count))
+        local perColumn
+        if db.selectedProfile == "Party" and profile.orientation == "Horizontal" then perColumn = 1
+        elseif db.selectedProfile == "Party" then perColumn = count
+        else perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, count)) end
         local columns, rows = math.ceil(count / perColumn), math.min(perColumn, count)
         local rawWidth = columns * profile.width + math.max(0, columns - 1) * ((profile.spacing or 0) + (profile.groupSpacing or 0))
         local rawHeight = rows * profile.height + math.max(0, rows - 1) * (profile.spacing or 0)
@@ -895,6 +898,7 @@ local function BuildGroupFrames(page)
     AddSlider(layout, "Units per column", 6, -84, 270, 1, 10, 1, function() return CurrentProfile().unitsPerColumn end, function(v) CurrentProfile().unitsPerColumn = v end, function(v) return string.format("%d", v) end)
     AddCycle(layout, "Column growth", 330, -84, 240, { "Right", "Left" }, function() return CurrentProfile().growthX end, function(v) CurrentProfile().growthX = v end)
     AddCycle(layout, "Unit growth", 6, -160, 240, { "Down", "Up" }, function() return CurrentProfile().growthY end, function(v) CurrentProfile().growthY = v end)
+    AddCycle(layout, "Party orientation", 330, -160, 240, { "Vertical", "Horizontal" }, function() return db.party.orientation end, function(v) db.party.orientation = v end)
 
     local health = panels.Health
     AddCycle(health, "Health color", 6, -8, 240, { "Class", "Custom" }, function() return CurrentProfile().healthColor end, function(v) CurrentProfile().healthColor = v end)

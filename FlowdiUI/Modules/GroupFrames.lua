@@ -1,7 +1,7 @@
 local _, ns = ...
 local FUI = ns.FUI
 
-local module = { frames = {}, partyFrames = {}, raidFrames = {} }
+local module = { frames = {}, partyFrames = {}, raidFrames = {}, unitFrames = {} }
 FUI:RegisterModule("groupFrames", module)
 
 local anchorPoints = {
@@ -219,7 +219,8 @@ function module:UpdateButton(button)
 end
 
 function module:CreateButton(parent, unit, profileKey)
-    local button = CreateFrame("Button", nil, parent, "SecureUnitButtonTemplate")
+    local frameName = "FlowdiUI_Group_" .. unit:gsub("[^%w]", "")
+    local button = CreateFrame("Button", frameName, parent, "SecureUnitButtonTemplate")
     button:SetAttribute("unit", unit)
     button:SetAttribute("type1", "target")
     button:SetAttribute("type2", "togglemenu")
@@ -257,6 +258,12 @@ function module:CreateButton(parent, unit, profileKey)
     button.ready = button:CreateTexture(nil, "OVERLAY", nil, 7)
     button.ready:SetSize(16, 16)
     button.ready:SetPoint("CENTER")
+    button.externalAuraAnchor = CreateFrame("Frame", frameName .. "_AuraAnchor", button)
+    button.externalAuraAnchor:SetAllPoints(button)
+    button.externalAuraAnchor:SetFrameLevel(button:GetFrameLevel() + 40)
+    button.externalAuraAnchor:EnableMouse(false)
+    if button.externalAuraAnchor.SetClipsChildren then button.externalAuraAnchor:SetClipsChildren(false) end
+    button.FlowdiAuraAnchor = button.externalAuraAnchor
     button.auraButtons = { buff = {}, debuff = {} }
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
@@ -281,7 +288,12 @@ function module:CreateButton(parent, unit, profileKey)
         end
     end)
     self.frames[#self.frames + 1] = button
+    self.unitFrames[unit] = button
     return button
+end
+
+function module:GetGroupUnitFrame(unit)
+    return self.unitFrames[unit]
 end
 
 local function HideBlizzardGroupFrames()
@@ -356,7 +368,10 @@ function module:LayoutFrames(container, frames, profile, isParty)
         end
         if show then visibleFrames[#visibleFrames + 1] = button end
     end
-    local perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, #visibleFrames))
+    local perColumn
+    if isParty and profile.orientation == "Horizontal" then perColumn = 1
+    elseif isParty then perColumn = #visibleFrames
+    else perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, #visibleFrames)) end
     local columns = math.max(1, math.ceil(#visibleFrames / perColumn))
     local rows = math.min(perColumn, #visibleFrames)
     container:SetSize(columns * profile.width + math.max(0, columns - 1) * ((profile.spacing or 0) + (profile.groupSpacing or 0)),
@@ -401,4 +416,14 @@ function module:Initialize()
     self:CreateRaidFrames()
     HideBlizzardGroupFrames()
     self:Apply()
+end
+
+function FUI:GetGroupUnitFrame(unit)
+    return module.unitFrames[unit]
+end
+
+function FUI:GetUnitFrame(unit)
+    local unitModule = self.modules and self.modules.unitFrames
+    local unitFrame = unitModule and unitModule.frames and unitModule.frames[unit] or nil
+    return unitFrame or module.unitFrames[unit]
 end

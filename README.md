@@ -32,6 +32,10 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - Bag item-level text and quality-colored item borders
 - Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
 
+## Group-frame integrations
+
+Party and Raid buttons have stable global names and expose a dedicated high-level aura anchor. External aura displays can resolve a secure group frame with `FlowdiUI:GetGroupUnitFrame("raid1")` (or a party unit such as `party2`) and anchor to its `FlowdiAuraAnchor` field. `FlowdiUI:GetUnitFrame(unit)` remains available when an integration should prefer the matching main Unit Frame and fall back to a group frame.
+
 ## Installation
 
 Copy the `FlowdiUI` folder into the Forever client AddOns directory, normally:
