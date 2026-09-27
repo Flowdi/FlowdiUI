@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.0
+
+- Rebuilt Unit Frames around independent Player, Target, and Focus profiles.
+- Added Display, Health Bar, Power Bar, Texts, and Portrait settings tabs.
+- Added per-frame dimensions, texture, opacity, colors, visibility, strata, borders, tooltips, and hover controls.
+- Added configurable left, right, center, extra, and power text assignments.
+- Added attached 2D portraits with independent side and size controls.
+- Added automatic migration of the previous shared Unit Frame dimensions.
+
 ## 0.6.7
 
 - Matched the resting FlowdiUI button outline to the other Game Menu buttons while retaining the blue hover accent.

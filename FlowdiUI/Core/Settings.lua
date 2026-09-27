@@ -464,37 +464,94 @@ local function BuildNameplates(page)
 end
 
 local function BuildUnitFrames(page)
-    AddTitle(page, "Unit Frames", "Configure and position player, target and focus frames.")
-    AddModuleSwitch(page, "unitFrames")
-    AddSlider(page, "Frame scale", 24, -155, 260, 0.70, 1.35, 0.05,
-        function() return FUI.db.unitFrames.scale end,
-        function(value) FUI.db.unitFrames.scale = value end,
+    AddTitle(page, "Unit Frames", "Build independent player, target and focus frames from shared visual primitives.")
+    local unitDB = FUI.db.unitFrames
+    local unitLabels = { player = "Player", target = "Target", focus = "Focus" }
+    local labelUnits = { Player = "player", Target = "target", Focus = "focus" }
+    local tabs, panels = {}, {}
+    local activeTab = "Display"
+    local function Current()
+        local unit = unitDB.selectedFrame or "player"
+        return unitDB.frames[unit], unit
+    end
+    local function RefreshCurrentPanel()
+        local panel = panels[activeTab]
+        if panel and panel:IsShown() then panel:Hide() panel:Show() end
+    end
+    local function SelectTab(name)
+        activeTab = name
+        for key, panel in pairs(panels) do panel:SetShown(key == name) end
+        for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
+    end
+
+    for index, name in ipairs({ "Display", "Health Bar", "Power Bar", "Texts", "Portrait" }) do
+        tabs[name] = AddButton(page, name, 18 + (index - 1) * 125, -88, 116, function() SelectTab(name) end)
+        local panel = CreateFrame("Frame", nil, page)
+        panel:SetPoint("TOPLEFT", 18, -190)
+        panel:SetPoint("BOTTOMRIGHT", -18, 8)
+        panel.controls = {}
+        panel:Hide()
+        panels[name] = panel
+    end
+
+    AddCycle(page, "Editing frame", 24, -128, 250, { "Player", "Target", "Focus" },
+        function() return unitLabels[unitDB.selectedFrame or "player"] end,
+        function(value) unitDB.selectedFrame = labelUnits[value] or "player" RefreshCurrentPanel() end)
+    AddSlider(page, "Global frame scale", 350, -128, 270, 0.70, 1.35, 0.05,
+        function() return unitDB.scale end, function(value) unitDB.scale = value end,
         function(value) return string.format("%d%%", value * 100) end)
-    AddSlider(page, "Player width", 330, -155, 260, 150, 360, 5,
-        function() return FUI.db.unitFrames.playerWidth end,
-        function(value) FUI.db.unitFrames.playerWidth = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Target width", 24, -240, 260, 150, 360, 5,
-        function() return FUI.db.unitFrames.targetWidth end,
-        function(value) FUI.db.unitFrames.targetWidth = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Focus width", 330, -240, 260, 120, 300, 5,
-        function() return FUI.db.unitFrames.focusWidth end,
-        function(value) FUI.db.unitFrames.focusWidth = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Frame height", 24, -325, 260, 30, 80, 1,
-        function() return FUI.db.unitFrames.height end,
-        function(value) FUI.db.unitFrames.height = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Power bar height", 330, -325, 260, 4, 18, 1,
-        function() return FUI.db.unitFrames.powerHeight end,
-        function(value) FUI.db.unitFrames.powerHeight = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Font size", 24, -410, 260, 8, 18, 1,
-        function() return FUI.db.unitFrames.fontSize end,
-        function(value) FUI.db.unitFrames.fontSize = value end,
-        function(value) return string.format("%d px", value) end)
-    AddButton(page, "Unlock frames", 330, -420, 170, function() FUI:SetLocked(false) end)
+
+    local display = panels.Display
+    AddSection(display, "Frame behavior", -4)
+    AddCheckbox(display, "Enable Unit Frames", 6, -25, function() return FUI.db.modules.unitFrames ~= false end, function(v) FUI.db.modules.unitFrames = v end, true)
+    AddCycle(display, "Visibility", 6, -70, 230, { "Always", "Solo", "Party", "Raid", "In Combat" }, function() return Current().visibility end, function(v) Current().visibility = v end)
+    AddCycle(display, "Frame strata", 330, -70, 230, { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }, function() return Current().frameStrata end, function(v) Current().frameStrata = v end)
+    AddSlider(display, "Border size", 6, -150, 270, 1, 4, 1, function() return Current().borderSize end, function(v) Current().borderSize = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(display, "Hover border", 330, -171, function() return Current().hoverBorder end, function(v) Current().hoverBorder = v end)
+    AddCheckbox(display, "Show unit tooltip", 500, -171, function() return Current().showTooltip end, function(v) Current().showTooltip = v end)
+    AddButton(display, "Unlock frames", 6, -245, 170, function() FUI:SetLocked(false) end)
+    AddButton(display, "Lock frames", 190, -245, 170, function() FUI:SetLocked(true) end)
+
+    local health = panels["Health Bar"]
+    AddSection(health, "Dimensions & texture", -4)
+    AddSlider(health, "Health bar height", 6, -28, 270, 20, 90, 1, function() return Current().healthHeight end, function(v) Current().healthHeight = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(health, "Bar width", 330, -28, 270, 100, 420, 1, function() return Current().width end, function(v) Current().width = v end, function(v) return string.format("%d px", v) end)
+    local textureNames = { "Global" }
+    for _, name in ipairs(FUI:GetTextureNames()) do textureNames[#textureNames + 1] = name end
+    AddCycle(health, "Bar texture", 6, -108, 240, textureNames, function() return Current().texture end, function(v) Current().texture = v end, "texture")
+    AddSlider(health, "Fill opacity", 330, -108, 270, 0.10, 1, 0.05, function() return Current().healthOpacity end, function(v) Current().healthOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSection(health, "Colors", -190)
+    AddCycle(health, "Fill color mode", 6, -212, 240, { "Class", "Custom" }, function() return Current().healthColor end, function(v) Current().healthColor = v end)
+    AddColor(health, "Custom fill color", 330, -212, function() return Current().customHealthColor end, function(v) Current().customHealthColor = v end)
+    AddColor(health, "Bar background", 6, -278, function() return Current().healthBackground end, function(v) Current().healthBackground = v end)
+
+    local power = panels["Power Bar"]
+    AddSection(power, "Power bar", -4)
+    AddSlider(power, "Power bar height", 6, -28, 270, 0, 30, 1, function() return Current().powerHeight end, function(v) Current().powerHeight = v end, function(v) return string.format("%d px", v) end)
+    AddCycle(power, "Bar position", 330, -28, 240, { "Below Health Bar", "Above Health Bar", "Hidden" }, function() return Current().powerPosition end, function(v) Current().powerPosition = v end)
+    AddSlider(power, "Fill opacity", 6, -108, 270, 0.10, 1, 0.05, function() return Current().powerOpacity end, function(v) Current().powerOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddCycle(power, "Fill color mode", 330, -108, 240, { "Power Type", "Custom" }, function() return Current().powerColor end, function(v) Current().powerColor = v end)
+    AddColor(power, "Custom fill color", 6, -190, function() return Current().customPowerColor end, function(v) Current().customPowerColor = v end)
+    AddColor(power, "Bar background", 330, -190, function() return Current().powerBackground end, function(v) Current().powerBackground = v end)
+    AddCycle(power, "Power text", 6, -260, 240, { "None", "Power", "Power %" }, function() return Current().powerText end, function(v) Current().powerText = v end)
+
+    local texts = panels.Texts
+    local textValues = { "None", "Name", "Level + Name", "Health %", "Health", "Health / Max", "Power %", "Power" }
+    AddSection(texts, "Health text assignments", -4)
+    AddCycle(texts, "Left text", 6, -28, 240, textValues, function() return Current().leftText end, function(v) Current().leftText = v end)
+    AddCycle(texts, "Right text", 330, -28, 240, textValues, function() return Current().rightText end, function(v) Current().rightText = v end)
+    AddCycle(texts, "Center text", 6, -108, 240, textValues, function() return Current().centerText end, function(v) Current().centerText = v end)
+    AddCycle(texts, "Extra text", 330, -108, 240, textValues, function() return Current().extraText end, function(v) Current().extraText = v end)
+    AddSlider(texts, "Text size", 6, -190, 270, 8, 24, 1, function() return Current().textSize end, function(v) Current().textSize = v end, function(v) return string.format("%d px", v) end)
+
+    local portrait = panels.Portrait
+    AddSection(portrait, "Portrait", -4)
+    AddCheckbox(portrait, "Show portrait", 6, -25, function() return Current().showPortrait end, function(v) Current().showPortrait = v end)
+    AddCycle(portrait, "Portrait mode", 6, -70, 240, { "2D Portrait", "None" }, function() return Current().portraitMode end, function(v) Current().portraitMode = v end)
+    AddCycle(portrait, "Position", 330, -70, 240, { "Left", "Right" }, function() return Current().portraitPosition end, function(v) Current().portraitPosition = v end)
+    AddSlider(portrait, "Portrait size", 6, -150, 270, 20, 100, 1, function() return Current().portraitSize end, function(v) Current().portraitSize = v end, function(v) return string.format("%d px", v) end)
+
+    SelectTab("Display")
 end
 
 local function BuildGroupFrames(page)

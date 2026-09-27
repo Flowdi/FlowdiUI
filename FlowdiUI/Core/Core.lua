@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.6.7"
+FUI.version = "0.7.0"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -13,7 +13,7 @@ FUI.pendingApply = false
 FUI.reputationValues = {}
 
 local defaults = {
-    profileVersion = 6,
+    profileVersion = 7,
     locked = true,
     scale = 1,
     global = {
@@ -86,6 +86,42 @@ local defaults = {
         focusHeight = 38,
         powerHeight = 8,
         fontSize = 12,
+        selectedFrame = "player",
+        frames = {
+            player = {
+                width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
+                texture = "Global", healthColor = "Class", customHealthColor = { 0.10, 0.65, 0.32, 1 },
+                healthBackground = { 0.067, 0.067, 0.067, 1 }, healthOpacity = 0.90,
+                powerColor = "Power Type", customPowerColor = { 0.12, 0.38, 0.90, 1 },
+                powerBackground = { 0.02, 0.03, 0.06, 1 }, powerOpacity = 1,
+                leftText = "Name", rightText = "Health %", centerText = "None", extraText = "None",
+                powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
+                hoverBorder = true, showTooltip = true, visibility = "Always",
+                showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 46,
+            },
+            target = {
+                width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
+                texture = "Global", healthColor = "Class", customHealthColor = { 0.10, 0.65, 0.32, 1 },
+                healthBackground = { 0.067, 0.067, 0.067, 1 }, healthOpacity = 0.90,
+                powerColor = "Power Type", customPowerColor = { 0.12, 0.38, 0.90, 1 },
+                powerBackground = { 0.02, 0.03, 0.06, 1 }, powerOpacity = 1,
+                leftText = "Level + Name", rightText = "Health %", centerText = "None", extraText = "None",
+                powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
+                hoverBorder = true, showTooltip = true, visibility = "Always",
+                showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Right", portraitSize = 46,
+            },
+            focus = {
+                width = 160, healthHeight = 34, powerHeight = 6, powerPosition = "Below Health Bar",
+                texture = "Global", healthColor = "Class", customHealthColor = { 0.10, 0.65, 0.32, 1 },
+                healthBackground = { 0.067, 0.067, 0.067, 1 }, healthOpacity = 0.90,
+                powerColor = "Power Type", customPowerColor = { 0.12, 0.38, 0.90, 1 },
+                powerBackground = { 0.02, 0.03, 0.06, 1 }, powerOpacity = 1,
+                leftText = "Name", rightText = "Health %", centerText = "None", extraText = "None",
+                powerText = "None", textSize = 11, borderSize = 1, frameStrata = "MEDIUM",
+                hoverBorder = true, showTooltip = true, visibility = "Always",
+                showPortrait = false, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 34,
+            },
+        },
     },
     groupFrames = {
         partyScale = 1,
@@ -321,6 +357,19 @@ function FUI:Initialize()
     self.db = FlowdiUIDB
     local previousVersion = self.db.profileVersion or 0
     if previousVersion < 6 then self.db.global.darkGameMenu = true end
+    if previousVersion < 7 then
+        local unitDB = self.db.unitFrames
+        unitDB.frames.player.width = unitDB.playerWidth or unitDB.frames.player.width
+        unitDB.frames.target.width = unitDB.targetWidth or unitDB.frames.target.width
+        unitDB.frames.focus.width = unitDB.focusWidth or unitDB.frames.focus.width
+        unitDB.frames.player.healthHeight = unitDB.height or unitDB.frames.player.healthHeight
+        unitDB.frames.target.healthHeight = unitDB.height or unitDB.frames.target.healthHeight
+        unitDB.frames.focus.healthHeight = unitDB.focusHeight or unitDB.frames.focus.healthHeight
+        for _, settings in pairs(unitDB.frames) do
+            settings.powerHeight = unitDB.powerHeight or settings.powerHeight
+            settings.textSize = unitDB.fontSize or settings.textSize
+        end
+    end
     self.db.profileVersion = defaults.profileVersion
 
     self:DiscoverSharedMedia()

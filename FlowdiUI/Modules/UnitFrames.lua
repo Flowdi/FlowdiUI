@@ -8,127 +8,170 @@ local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
 end
 
-local function SafeUnitFlag(callback, unit)
-    local ok, value = pcall(callback, unit)
-    if not ok or IsSecret(value) then return nil end
-    return value and true or false
+local function SafeCall(callback, ...)
+    local ok, a, b, c = pcall(callback, ...)
+    if not ok or IsSecret(a) or IsSecret(b) or IsSecret(c) then return nil end
+    return a, b, c
 end
 
 local function SetSafeText(font, value)
-    if not font then return end
-    pcall(font.SetText, font, value)
+    if font then pcall(font.SetText, font, value or "") end
 end
 
-local function SetUnitColor(frame)
-    local color = FUI.colors.health
-    local ok, _, class = pcall(UnitClass, frame.unit)
-    if ok and not IsSecret(class) and class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] then
-        color = RAID_CLASS_COLORS[class]
+local function Abbreviate(value)
+    value = tonumber(value) or 0
+    if value >= 1000000 then return string.format("%.1fm", value / 1000000):gsub("%.0m", "m") end
+    if value >= 1000 then return string.format("%.1fk", value / 1000):gsub("%.0k", "k") end
+    return tostring(math.floor(value + 0.5))
+end
+
+local function TextValue(kind, unit, health, maxHealth, power, maxPower)
+    local ok, text = pcall(function()
+        if kind == "None" then return "" end
+        local name = UnitName(unit) or ""
+        if kind == "Name" then return name end
+        if kind == "Level + Name" then
+            local level = UnitLevel(unit)
+            return level and level > 0 and (level .. " " .. name) or name
+        end
+        if kind == "Health %" then return maxHealth > 0 and string.format("%d%%", health / maxHealth * 100 + 0.5) or "0%" end
+        if kind == "Health" then return Abbreviate(health) end
+        if kind == "Health / Max" then return Abbreviate(health) .. " / " .. Abbreviate(maxHealth) end
+        if kind == "Power %" then return maxPower > 0 and string.format("%d%%", power / maxPower * 100 + 0.5) or "0%" end
+        if kind == "Power" then return Abbreviate(power) end
+        return ""
+    end)
+    return ok and text or ""
+end
+
+local function FrameSettings(unit)
+    local db = FUI.db and FUI.db.unitFrames
+    return db and db.frames and db.frames[unit]
+end
+
+local function SetHealthColor(frame, settings)
+    local color = settings.customHealthColor or FUI.colors.health
+    if settings.healthColor == "Class" then
+        local _, class = SafeCall(UnitClass, frame.unit)
+        if class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] then color = RAID_CLASS_COLORS[class] end
     end
-    frame.health:SetStatusBarColor(color.r or color[1], color.g or color[2], color.b or color[3], 1)
+    frame.health:SetStatusBarColor(color.r or color[1], color.g or color[2], color.b or color[3], settings.healthOpacity or 1)
+end
+
+local function SetPowerColor(frame, settings)
+    local color = settings.customPowerColor or FUI.colors.power
+    if settings.powerColor == "Power Type" then
+        local powerType, token = SafeCall(UnitPowerType, frame.unit)
+        local candidate = PowerBarColor and (PowerBarColor[token] or PowerBarColor[powerType])
+        if candidate then color = candidate end
+    end
+    frame.power:SetStatusBarColor(color.r or color[1], color.g or color[2], color.b or color[3], settings.powerOpacity or 1)
+end
+
+function module:UpdateVisibility(frame)
+    local settings = FrameSettings(frame.unit)
+    if not settings then return end
+    local mode = settings.visibility or "Always"
+    local visible = true
+    if mode == "Solo" then visible = not IsInGroup()
+    elseif mode == "Party" then visible = IsInGroup() and not IsInRaid()
+    elseif mode == "Raid" then visible = IsInRaid()
+    elseif mode == "In Combat" then visible = InCombatLockdown()
+    end
+    frame:SetAlpha(visible and 1 or 0)
 end
 
 function module:UpdateFrame(frame)
     local unit = frame.unit
-    if not UnitExists(unit) then return end
-
-    local maxHealth = UnitHealthMax(unit)
-    local health = UnitHealth(unit)
-    frame.health:SetMinMaxValues(0, maxHealth)
-    frame.health:SetValue(health)
-
-    local maxPower = UnitPowerMax(unit)
-    local power = UnitPower(unit)
-    frame.power:SetMinMaxValues(0, maxPower)
-    frame.power:SetValue(power)
-
-    SetSafeText(frame.name, UnitName(unit))
-    SetUnitColor(frame)
-
-    local dead = SafeUnitFlag(UnitIsDeadOrGhost, unit)
-    local connected = SafeUnitFlag(UnitIsConnected, unit)
-    if dead == true then
-        frame.state:SetText("TOT")
-        frame.state:Show()
-    elseif connected == false then
-        frame.state:SetText("OFFLINE")
-        frame.state:Show()
-    else
-        frame.state:Hide()
-    end
+    local settings = FrameSettings(unit)
+    local exists = SafeCall(UnitExists, unit)
+    if not settings or exists == false then return end
+    local health, maxHealth = UnitHealth(unit), UnitHealthMax(unit)
+    local power, maxPower = UnitPower(unit), UnitPowerMax(unit)
+    pcall(frame.health.SetMinMaxValues, frame.health, 0, maxHealth)
+    pcall(frame.health.SetValue, frame.health, health)
+    pcall(frame.power.SetMinMaxValues, frame.power, 0, maxPower)
+    pcall(frame.power.SetValue, frame.power, power)
+    SetHealthColor(frame, settings)
+    SetPowerColor(frame, settings)
+    SetSafeText(frame.leftText, TextValue(settings.leftText, unit, health, maxHealth, power, maxPower))
+    SetSafeText(frame.rightText, TextValue(settings.rightText, unit, health, maxHealth, power, maxPower))
+    SetSafeText(frame.centerText, TextValue(settings.centerText, unit, health, maxHealth, power, maxPower))
+    SetSafeText(frame.extraText, TextValue(settings.extraText, unit, health, maxHealth, power, maxPower))
+    SetSafeText(frame.powerText, TextValue(settings.powerText, unit, health, maxHealth, power, maxPower))
+    local dead, connected = SafeCall(UnitIsDeadOrGhost, unit), SafeCall(UnitIsConnected, unit)
+    if dead == true then frame.state:SetText("DEAD") frame.state:Show()
+    elseif connected == false then frame.state:SetText("OFFLINE") frame.state:Show()
+    else frame.state:Hide() end
+    if frame.portrait:IsShown() then pcall(SetPortraitTexture, frame.portrait, unit) end
+    self:UpdateVisibility(frame)
 end
 
-function module:CreateUnitFrame(unit, width, height, positionKey)
+local function CreateText(frame, anchor, justify)
+    local text = FUI:CreateFont(frame, 12)
+    text:SetPoint(anchor, frame.health, anchor, anchor == "LEFT" and 7 or anchor == "RIGHT" and -7 or 0, 0)
+    text:SetJustifyH(justify or anchor)
+    return text
+end
+
+function module:CreateUnitFrame(unit, positionKey)
     local frame = CreateFrame("Button", "FlowdiUI_" .. unit:gsub("^%l", string.upper), UIParent, "SecureUnitButtonTemplate")
-    frame:SetSize(width, height)
+    frame:SetSize(181, 54)
     frame:SetAttribute("unit", unit)
     frame:SetAttribute("type1", "target")
     frame:SetAttribute("type2", "togglemenu")
     frame:RegisterForClicks("AnyUp")
-    frame.unit = unit
-    frame.positionKey = positionKey
+    frame.unit, frame.positionKey = unit, positionKey
     RegisterUnitWatch(frame)
-
     FUI:RestorePosition(frame, positionKey)
-    FUI:CreateBackdrop(frame, 2)
+    FUI:CreateBackdrop(frame, 1)
     FUI:MakeMovable(frame, positionKey)
 
-    local health = CreateFrame("StatusBar", nil, frame)
-    health:SetPoint("TOPLEFT", 1, -1)
-    health:SetPoint("TOPRIGHT", -1, -1)
-    health:SetHeight(height - 12)
-    health:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
-    health:SetStatusBarColor(unpack(FUI.colors.health))
-    frame.health = health
+    frame.portrait = frame:CreateTexture(nil, "ARTWORK")
+    frame.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    frame.health = CreateFrame("StatusBar", nil, frame)
+    frame.health:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
+    frame.healthBG = frame.health:CreateTexture(nil, "BACKGROUND")
+    frame.healthBG:SetAllPoints()
+    frame.power = CreateFrame("StatusBar", nil, frame)
+    frame.power:SetStatusBarTexture(FUI:GetStatusBarTexture(true))
+    frame.powerBG = frame.power:CreateTexture(nil, "BACKGROUND")
+    frame.powerBG:SetAllPoints()
 
-    local healthBG = health:CreateTexture(nil, "BACKGROUND")
-    healthBG:SetAllPoints()
-    healthBG:SetColorTexture(0.025, 0.04, 0.055, 0.95)
+    frame.leftText = CreateText(frame, "LEFT", "LEFT")
+    frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
+    frame.centerText = CreateText(frame, "CENTER", "CENTER")
+    frame.extraText = FUI:CreateFont(frame, 11)
+    frame.extraText:SetPoint("TOP", frame.health, "TOP", 0, -3)
+    frame.powerText = FUI:CreateFont(frame, 9)
+    frame.powerText:SetPoint("CENTER", frame.power)
+    frame.state = FUI:CreateFont(frame, 10)
+    frame.state:SetPoint("CENTER", frame.health)
+    frame.state:SetTextColor(1, 0.35, 0.35)
 
-    local power = CreateFrame("StatusBar", nil, frame)
-    power:SetPoint("TOPLEFT", health, "BOTTOMLEFT", 0, -2)
-    power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
-    power:SetStatusBarTexture(FUI:GetStatusBarTexture(true))
-    power:SetStatusBarColor(unpack(FUI.colors.power))
-    frame.power = power
-
-    local powerBG = power:CreateTexture(nil, "BACKGROUND")
-    powerBG:SetAllPoints()
-    powerBG:SetColorTexture(0.02, 0.03, 0.06, 0.95)
-
-    local name = FUI:CreateFont(frame, 12)
-    name:SetPoint("LEFT", health, "LEFT", 8, 0)
-    name:SetPoint("RIGHT", health, "RIGHT", -8, 0)
-    name:SetJustifyH("LEFT")
-    frame.name = name
-
-    local state = FUI:CreateFont(frame, 10)
-    state:SetPoint("RIGHT", health, "RIGHT", -6, 0)
-    state:SetTextColor(1, 0.35, 0.35)
-    frame.state = state
-
-    local highlight = frame:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetAllPoints()
-    highlight:SetColorTexture(0.15, 0.5, 1, 0.11)
-
-    frame:RegisterEvent("UNIT_HEALTH")
-    frame:RegisterEvent("UNIT_MAXHEALTH")
-    frame:RegisterEvent("UNIT_POWER_UPDATE")
-    frame:RegisterEvent("UNIT_MAXPOWER")
-    frame:RegisterEvent("UNIT_DISPLAYPOWER")
-    frame:RegisterEvent("UNIT_NAME_UPDATE")
-    frame:RegisterEvent("UNIT_CONNECTION")
-    frame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    frame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    frame:SetScript("OnEvent", function(self, event, eventUnit)
-        if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-            module:UpdateFrame(self)
+    frame:SetScript("OnEnter", function(self)
+        local settings = FrameSettings(self.unit)
+        if settings and settings.hoverBorder then self.FlowdiBackdrop:SetBackdropBorderColor(0.3, 0.7, 1, 1) end
+        if settings and settings.showTooltip and GameTooltip then
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            pcall(GameTooltip.SetUnit, GameTooltip, self.unit)
+            GameTooltip:Show()
         end
     end)
+    frame:SetScript("OnLeave", function(self)
+        self.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
+        if GameTooltip then GameTooltip:Hide() end
+    end)
 
+    for _, event in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER",
+        "UNIT_NAME_UPDATE", "UNIT_CONNECTION", "UNIT_PORTRAIT_UPDATE", "UNIT_MODEL_CHANGED", "PLAYER_TARGET_CHANGED",
+        "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" }) do
+        frame:RegisterEvent(event)
+    end
+    frame:SetScript("OnEvent", function(self, event, eventUnit)
+        if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then module:UpdateFrame(self) end
+    end)
     self.frames[unit] = frame
-    self:UpdateFrame(frame)
     return frame
 end
 
@@ -138,9 +181,7 @@ local function HideBlizzardFrame(frame)
     if frame.EnableMouse then frame:EnableMouse(false) end
     if frame.HookScript and not frame.FlowdiHiddenHook then
         frame.FlowdiHiddenHook = true
-        frame:HookScript("OnShow", function(self)
-            self:SetAlpha(0)
-        end)
+        frame:HookScript("OnShow", function(self) self:SetAlpha(0) end)
     end
 end
 
@@ -152,39 +193,80 @@ end
 
 function module:SetLocked(locked)
     for _, frame in pairs(self.frames) do
-        if locked then
-            frame.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
-        else
-            frame.FlowdiBackdrop:SetBackdropBorderColor(1, 0.72, 0.12, 1)
-        end
+        if locked then frame.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
+        else frame.FlowdiBackdrop:SetBackdropBorderColor(1, 0.72, 0.12, 1) end
     end
 end
 
+local function TexturePath(settings)
+    if settings.texture == "Global" then return FUI:GetStatusBarTexture(false) end
+    return FUI.textures[settings.texture] or FUI:GetStatusBarTexture(false)
+end
+
+function module:ApplyFrame(frame, settings)
+    local portraitShown = settings.showPortrait and settings.portraitMode ~= "None"
+    local portraitSize = portraitShown and settings.portraitSize or 0
+    local powerShown = settings.powerPosition ~= "Hidden" and settings.powerHeight > 0
+    local powerHeight, gap = powerShown and settings.powerHeight or 0, powerShown and 2 or 0
+    local totalHeight = settings.healthHeight + powerHeight + gap
+    local totalWidth = settings.width + (portraitShown and portraitSize + 2 or 0)
+    frame:SetSize(totalWidth, totalHeight)
+    frame:SetScale((FUI.db.scale or 1) * (FUI.db.unitFrames.scale or 1))
+    frame:SetFrameStrata(settings.frameStrata or "MEDIUM")
+
+    frame.portrait:ClearAllPoints()
+    frame.portrait:SetShown(portraitShown)
+    if portraitShown then
+        frame.portrait:SetSize(portraitSize, totalHeight)
+        frame.portrait:SetPoint(settings.portraitPosition == "Right" and "RIGHT" or "LEFT", frame)
+    end
+    local leftInset = portraitShown and settings.portraitPosition == "Left" and portraitSize + 2 or 1
+    local rightInset = portraitShown and settings.portraitPosition == "Right" and portraitSize + 2 or 1
+    frame.health:ClearAllPoints()
+    frame.power:ClearAllPoints()
+    if settings.powerPosition == "Above Health Bar" and powerShown then
+        frame.power:SetPoint("TOPLEFT", frame, "TOPLEFT", leftInset, -1)
+        frame.power:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -rightInset, -1)
+        frame.power:SetHeight(powerHeight)
+        frame.health:SetPoint("TOPLEFT", frame.power, "BOTTOMLEFT", 0, -gap)
+        frame.health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -rightInset, 1)
+    else
+        frame.health:SetPoint("TOPLEFT", frame, "TOPLEFT", leftInset, -1)
+        frame.health:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -rightInset, -1)
+        frame.health:SetHeight(settings.healthHeight)
+        if powerShown then
+            frame.power:SetPoint("TOPLEFT", frame.health, "BOTTOMLEFT", 0, -gap)
+            frame.power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -rightInset, 1)
+        end
+    end
+    frame.power:SetShown(powerShown)
+    frame.health:SetStatusBarTexture(TexturePath(settings))
+    frame.power:SetStatusBarTexture(FUI:GetStatusBarTexture(true))
+    local hb, pb = settings.healthBackground, settings.powerBackground
+    frame.healthBG:SetColorTexture(hb[1], hb[2], hb[3], hb[4] or 1)
+    frame.powerBG:SetColorTexture(pb[1], pb[2], pb[3], pb[4] or 1)
+    frame.FlowdiBackdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = settings.borderSize or 1 })
+    frame.FlowdiBackdrop:SetBackdropColor(0.01, 0.015, 0.025, 0.95)
+    frame.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
+    for _, text in ipairs({ frame.leftText, frame.rightText, frame.centerText, frame.extraText }) do
+        text:SetFont(FUI:GetModuleFontPath("unitFrames"), settings.textSize, FUI.db.global.fontOutline)
+    end
+    frame.powerText:SetFont(FUI:GetModuleFontPath("unitFrames"), math.max(8, settings.textSize - 2), FUI.db.global.fontOutline)
+    self:UpdateFrame(frame)
+end
+
 function module:Apply()
-    local scale = (FUI.db.scale or 1) * FUI.db.unitFrames.scale
-    local db = FUI.db.unitFrames
+    if InCombatLockdown() then return end
     for unit, frame in pairs(self.frames) do
-        local width = unit == "player" and db.playerWidth or unit == "target" and db.targetWidth or db.focusWidth
-        local height = unit == "focus" and db.focusHeight or db.height
-        frame:SetSize(width, height)
-        frame:SetScale(scale)
-        frame.health:ClearAllPoints()
-        frame.health:SetPoint("TOPLEFT", 1, -1)
-        frame.health:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, db.powerHeight + 2)
-        frame.power:ClearAllPoints()
-        frame.power:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 1, 1)
-        frame.power:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
-        frame.power:SetHeight(db.powerHeight)
-        frame.health:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
-        frame.power:SetStatusBarTexture(FUI:GetStatusBarTexture(true))
-        frame.name:SetFont(FUI:GetModuleFontPath("unitFrames"), db.fontSize, FUI.db.global.fontOutline)
+        local settings = FrameSettings(unit)
+        if settings then self:ApplyFrame(frame, settings) end
     end
 end
 
 function module:Initialize()
-    self:CreateUnitFrame("player", 230, 46, "player")
-    self:CreateUnitFrame("target", 230, 46, "target")
-    self:CreateUnitFrame("focus", 185, 38, "focus")
+    self:CreateUnitFrame("player", "player")
+    self:CreateUnitFrame("target", "target")
+    self:CreateUnitFrame("focus", "focus")
     self:HideDefaults()
     self:Apply()
 end
