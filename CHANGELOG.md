@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.5
+
+- Removed native three-segment button artwork at its actual texture-region source.
+- Returned all labels to the original Blizzard font strings so pooled buttons keep their text reliably.
+- Added compact inset backgrounds and borders without covering or replacing secure menu buttons.
+
 ## 0.6.4
 
 - Added a high-priority dark cover above every native Game Menu artwork layer.

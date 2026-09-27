@@ -10,23 +10,36 @@ local function OpenFlowdiUI()
     FUI:OpenSettings()
 end
 
-local function GetButtonLabel(button, branded)
-    if branded then return "FlowdiUI" end
-    local label = button.GetText and button:GetText()
-    local nativeText = button.GetFontString and button:GetFontString()
-    if (not label or label == "") and nativeText and nativeText.GetText then label = nativeText:GetText() end
-    return label or RETURN_TO_GAME or "Return to Game"
+local function TrackButtonTexture(button, texture, branded)
+    if not texture or not texture.IsObjectType or not texture:IsObjectType("Texture") then return end
+    button.FlowdiNativeTextures = button.FlowdiNativeTextures or {}
+    if button.FlowdiNativeTextures[texture] ~= nil then return end
+    button.FlowdiNativeTextures[texture] = texture:GetAlpha()
+    hooksecurefunc(texture, "SetAlpha", function(self, alpha)
+        local darkEnabled = branded or (FUI.db and FUI.db.global.darkGameMenu)
+        if darkEnabled and alpha > 0 then self:SetAlpha(0) end
+    end)
 end
 
-local function EnsureButtonCover(button)
-    if button.FlowdiDarkCover then return button.FlowdiDarkCover end
-    local cover = CreateFrame("Frame", nil, button, "BackdropTemplate")
-    cover:SetAllPoints(button)
-    cover:EnableMouse(false)
-    local label = cover:CreateFontString(nil, "OVERLAY")
-    label:SetPoint("CENTER")
-    cover.label = label
-    button.FlowdiDarkCover = cover
+local function DiscoverButtonTextures(button, branded)
+    for index = 1, select("#", button:GetRegions()) do
+        TrackButtonTexture(button, select(index, button:GetRegions()), branded)
+    end
+    for _, key in ipairs({ "Left", "Middle", "Right" }) do TrackButtonTexture(button, button[key], branded) end
+end
+
+local function EnsureButtonSkin(button, branded)
+    if button.FlowdiDarkInset then return button.FlowdiDarkInset end
+    DiscoverButtonTextures(button, branded)
+    local inset = CreateFrame("Frame", nil, button, "BackdropTemplate")
+    inset:SetPoint("TOPLEFT", 2, -2)
+    inset:SetPoint("BOTTOMRIGHT", -2, 2)
+    inset:SetFrameLevel(button:GetFrameLevel())
+    inset:EnableMouse(false)
+    local background = inset:CreateTexture(nil, "BACKGROUND")
+    background:SetAllPoints()
+    inset.background = background
+    button.FlowdiDarkInset = inset
     button:HookScript("OnEnter", function(self)
         self.FlowdiHovered = true
         if self.FlowdiRefreshStyle then self:FlowdiRefreshStyle() end
@@ -35,33 +48,36 @@ local function EnsureButtonCover(button)
         self.FlowdiHovered = false
         if self.FlowdiRefreshStyle then self:FlowdiRefreshStyle() end
     end)
-    return cover
+    return inset
 end
 
 local function ApplyButtonStyle(button, branded, darkEnabled)
     local enabled = branded or darkEnabled
-    local cover = EnsureButtonCover(button)
-    cover:SetFrameStrata(button:GetFrameStrata())
-    cover:SetFrameLevel(button:GetFrameLevel() + 100)
-    cover:SetShown(enabled)
-
+    local inset = EnsureButtonSkin(button, branded)
+    DiscoverButtonTextures(button, branded)
+    inset:SetFrameLevel(button:GetFrameLevel())
+    inset:SetShown(enabled)
+    for texture, originalAlpha in pairs(button.FlowdiNativeTextures or {}) do
+        texture:SetAlpha(enabled and 0 or originalAlpha)
+    end
     local nativeText = button.GetFontString and button:GetFontString()
-    if nativeText then nativeText:SetAlpha(enabled and 0 or 1) end
+    if nativeText then nativeText:SetAlpha(1) end
     if not enabled then return end
 
     local hovered = button.FlowdiHovered
     local accent = FUI.colors.accent or { 0.18, 0.55, 1, 1 }
-    cover:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = branded and 2 or 1 })
+    inset:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = branded and 2 or 1 })
     if branded then
-        cover:SetBackdropColor(hovered and 0.045 or 0.025, hovered and 0.15 or 0.075, hovered and 0.30 or 0.15, 1)
-        cover:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+        inset.background:SetColorTexture(hovered and 0.045 or 0.025, hovered and 0.15 or 0.075, hovered and 0.30 or 0.15, 1)
+        inset:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
     else
-        cover:SetBackdropColor(hovered and 0.13 or 0.065, hovered and 0.15 or 0.070, hovered and 0.19 or 0.080, 1)
-        cover:SetBackdropBorderColor(hovered and 0.30 or 0.24, hovered and 0.48 or 0.26, hovered and 0.72 or 0.30, 1)
+        inset.background:SetColorTexture(hovered and 0.13 or 0.065, hovered and 0.15 or 0.070, hovered and 0.19 or 0.080, 1)
+        inset:SetBackdropBorderColor(hovered and 0.30 or 0.24, hovered and 0.48 or 0.26, hovered and 0.72 or 0.30, 1)
     end
-    cover.label:SetText(GetButtonLabel(button, branded))
-    cover.label:SetTextColor(1, 1, 1, 1)
-    cover.label:SetFont(FUI:GetFontPath(FUI.db and FUI.db.global.font), branded and 13 or 12, "OUTLINE")
+    if nativeText then
+        nativeText:SetTextColor(1, 1, 1, 1)
+        nativeText:SetFont(FUI:GetFontPath(FUI.db and FUI.db.global.font), branded and 13 or 12, "OUTLINE")
+    end
     button.FlowdiRefreshStyle = function(self)
         ApplyButtonStyle(self, branded, FUI.db and FUI.db.global.darkGameMenu)
     end
