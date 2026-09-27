@@ -81,6 +81,45 @@ function module:UpdateVisibility(frame)
     frame:SetAlpha(visible and 1 or 0)
 end
 
+function module:UpdateCast(frame)
+    local settings = FrameSettings(frame.unit)
+    if not settings or not settings.showCastbar then frame.castbar:Hide() return end
+    local ok, cast = pcall(function()
+        local name, text, texture, startTime, endTime, _, _, notInterruptible = UnitCastingInfo(frame.unit)
+        local channeling = false
+        if not name then
+            name, text, texture, startTime, endTime, _, notInterruptible = UnitChannelInfo(frame.unit)
+            channeling = name and true or false
+        end
+        if not name then return nil end
+        return { name = name, texture = texture, startTime = startTime, endTime = endTime, channeling = channeling, locked = notInterruptible }
+    end)
+    if not ok or not cast then frame.castbar:Hide() return end
+    local rendered = pcall(function()
+        frame.castbar.startTime = cast.startTime
+        frame.castbar.endTime = cast.endTime
+        frame.castbar.channeling = cast.channeling
+        frame.castbar:SetMinMaxValues(cast.startTime, cast.endTime)
+        frame.castbar:SetValue(cast.channeling and cast.endTime or cast.startTime)
+        frame.castName:SetText(cast.name)
+        frame.castIcon:SetTexture(cast.texture)
+        frame.castbar:SetStatusBarColor(cast.locked and 0.45 or settings.castColor[1], cast.locked and 0.45 or settings.castColor[2], cast.locked and 0.45 or settings.castColor[3], settings.castOpacity)
+    end)
+    frame.castbar:SetShown(rendered)
+end
+
+function module:UpdateIndicators(frame)
+    local settings = FrameSettings(frame.unit)
+    if not settings then return end
+    local marker = SafeCall(GetRaidTargetIndex, frame.unit)
+    frame.raidMarker:SetShown(settings.raidMarker and marker ~= nil)
+    if marker then pcall(SetRaidTargetIconTexture, frame.raidMarker, marker) end
+    local leader = SafeCall(UnitIsGroupLeader, frame.unit)
+    frame.leaderIndicator:SetShown(settings.leaderIndicator and leader == true)
+    local combat = SafeCall(UnitAffectingCombat, frame.unit)
+    frame.combatIndicator:SetShown(settings.combatIndicator and combat == true)
+end
+
 function module:UpdateFrame(frame)
     local unit = frame.unit
     local settings = FrameSettings(unit)
@@ -104,11 +143,13 @@ function module:UpdateFrame(frame)
     elseif connected == false then frame.state:SetText("OFFLINE") frame.state:Show()
     else frame.state:Hide() end
     if frame.portrait:IsShown() then pcall(SetPortraitTexture, frame.portrait, unit) end
+    self:UpdateCast(frame)
+    self:UpdateIndicators(frame)
     self:UpdateVisibility(frame)
 end
 
 local function CreateText(frame, anchor, justify)
-    local text = FUI:CreateFont(frame, 12)
+    local text = FUI:CreateFont(frame.health, 12)
     text:SetPoint(anchor, frame.health, anchor, anchor == "LEFT" and 7 or anchor == "RIGHT" and -7 or 0, 0)
     text:SetJustifyH(justify or anchor)
     return text
@@ -138,14 +179,47 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.powerBG = frame.power:CreateTexture(nil, "BACKGROUND")
     frame.powerBG:SetAllPoints()
 
+    frame.castbar = CreateFrame("StatusBar", nil, frame)
+    frame.castbar:SetStatusBarTexture(FUI:GetStatusBarTexture(false))
+    frame.castbarBG = frame.castbar:CreateTexture(nil, "BACKGROUND")
+    frame.castbarBG:SetAllPoints()
+    frame.castbarBG:SetColorTexture(0.025, 0.03, 0.045, 0.96)
+    frame.castIcon = frame.castbar:CreateTexture(nil, "ARTWORK")
+    frame.castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    frame.castName = FUI:CreateFont(frame.castbar, 10)
+    frame.castName:SetPoint("LEFT", 5, 0)
+    frame.castName:SetPoint("RIGHT", -42, 0)
+    frame.castName:SetJustifyH("LEFT")
+    frame.castTime = FUI:CreateFont(frame.castbar, 9)
+    frame.castTime:SetPoint("RIGHT", -4, 0)
+    frame.castbar:SetScript("OnUpdate", function(self)
+        if not self.startTime or not self.endTime then return end
+        pcall(function()
+            local now = GetTime() * 1000
+            local value = self.channeling and math.max(self.startTime, self.endTime - (now - self.startTime)) or math.min(self.endTime, now)
+            self:SetValue(value)
+            frame.castTime:SetText(string.format("%.1f", math.max(0, self.endTime - now) / 1000))
+            if now >= self.endTime then self:Hide() end
+        end)
+    end)
+
+    frame.raidMarker = frame:CreateTexture(nil, "OVERLAY")
+    frame.raidMarker:SetPoint("TOP", frame, "TOP", 0, 10)
+    frame.leaderIndicator = frame:CreateTexture(nil, "OVERLAY")
+    frame.leaderIndicator:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
+    frame.leaderIndicator:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
+    frame.combatIndicator = frame:CreateTexture(nil, "OVERLAY")
+    frame.combatIndicator:SetColorTexture(1, 0.18, 0.08, 0.95)
+    frame.combatIndicator:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
+
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
     frame.centerText = CreateText(frame, "CENTER", "CENTER")
-    frame.extraText = FUI:CreateFont(frame, 11)
+    frame.extraText = FUI:CreateFont(frame.health, 11)
     frame.extraText:SetPoint("TOP", frame.health, "TOP", 0, -3)
-    frame.powerText = FUI:CreateFont(frame, 9)
+    frame.powerText = FUI:CreateFont(frame.power, 9)
     frame.powerText:SetPoint("CENTER", frame.power)
-    frame.state = FUI:CreateFont(frame, 10)
+    frame.state = FUI:CreateFont(frame.health, 10)
     frame.state:SetPoint("CENTER", frame.health)
     frame.state:SetTextColor(1, 0.35, 0.35)
 
@@ -165,7 +239,9 @@ function module:CreateUnitFrame(unit, positionKey)
 
     for _, event in ipairs({ "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_POWER_UPDATE", "UNIT_MAXPOWER", "UNIT_DISPLAYPOWER",
         "UNIT_NAME_UPDATE", "UNIT_CONNECTION", "UNIT_PORTRAIT_UPDATE", "UNIT_MODEL_CHANGED", "PLAYER_TARGET_CHANGED",
-        "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" }) do
+        "PLAYER_FOCUS_CHANGED", "PLAYER_ENTERING_WORLD", "GROUP_ROSTER_UPDATE", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
+        "RAID_TARGET_UPDATE", "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED",
+        "UNIT_SPELLCAST_DELAYED", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_CHANNEL_UPDATE", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
         frame:RegisterEvent(event)
     end
     frame:SetScript("OnEvent", function(self, event, eventUnit)
@@ -245,6 +321,16 @@ function module:ApplyFrame(frame, settings)
     local hb, pb = settings.healthBackground, settings.powerBackground
     frame.healthBG:SetColorTexture(hb[1], hb[2], hb[3], hb[4] or 1)
     frame.powerBG:SetColorTexture(pb[1], pb[2], pb[3], pb[4] or 1)
+    frame.castbar:ClearAllPoints()
+    frame.castbar:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", 0, -3)
+    frame.castbar:SetSize(totalWidth, settings.castHeight)
+    frame.castIcon:SetShown(settings.showCastIcon)
+    frame.castIcon:ClearAllPoints()
+    frame.castIcon:SetPoint("RIGHT", frame.castbar, "LEFT", -2, 0)
+    frame.castIcon:SetSize(settings.castHeight, settings.castHeight)
+    frame.raidMarker:SetSize(settings.raidMarkerSize, settings.raidMarkerSize)
+    frame.leaderIndicator:SetSize(settings.leaderIndicatorSize, settings.leaderIndicatorSize)
+    frame.combatIndicator:SetSize(settings.combatIndicatorSize, settings.combatIndicatorSize)
     frame.FlowdiBackdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = settings.borderSize or 1 })
     frame.FlowdiBackdrop:SetBackdropColor(0.01, 0.015, 0.025, 0.95)
     frame.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))

@@ -484,8 +484,8 @@ local function BuildUnitFrames(page)
         for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
 
-    for index, name in ipairs({ "Display", "Health Bar", "Power Bar", "Texts", "Portrait" }) do
-        tabs[name] = AddButton(page, name, 18 + (index - 1) * 125, -88, 116, function() SelectTab(name) end)
+    for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Indicators" }) do
+        tabs[name] = AddButton(page, name, 18 + (index - 1) * 90, -88, 84, function() SelectTab(name) end)
         local panel = CreateFrame("Frame", nil, page)
         panel:SetPoint("TOPLEFT", 18, -190)
         panel:SetPoint("BOTTOMRIGHT", -18, 8)
@@ -512,7 +512,7 @@ local function BuildUnitFrames(page)
     AddButton(display, "Unlock frames", 6, -245, 170, function() FUI:SetLocked(false) end)
     AddButton(display, "Lock frames", 190, -245, 170, function() FUI:SetLocked(true) end)
 
-    local health = panels["Health Bar"]
+    local health = panels.Health
     AddSection(health, "Dimensions & texture", -4)
     AddSlider(health, "Health bar height", 6, -28, 270, 20, 90, 1, function() return Current().healthHeight end, function(v) Current().healthHeight = v end, function(v) return string.format("%d px", v) end)
     AddSlider(health, "Bar width", 330, -28, 270, 100, 420, 1, function() return Current().width end, function(v) Current().width = v end, function(v) return string.format("%d px", v) end)
@@ -525,7 +525,7 @@ local function BuildUnitFrames(page)
     AddColor(health, "Custom fill color", 330, -212, function() return Current().customHealthColor end, function(v) Current().customHealthColor = v end)
     AddColor(health, "Bar background", 6, -278, function() return Current().healthBackground end, function(v) Current().healthBackground = v end)
 
-    local power = panels["Power Bar"]
+    local power = panels.Power
     AddSection(power, "Power bar", -4)
     AddSlider(power, "Power bar height", 6, -28, 270, 0, 30, 1, function() return Current().powerHeight end, function(v) Current().powerHeight = v end, function(v) return string.format("%d px", v) end)
     AddCycle(power, "Bar position", 330, -28, 240, { "Below Health Bar", "Above Health Bar", "Hidden" }, function() return Current().powerPosition end, function(v) Current().powerPosition = v end)
@@ -550,6 +550,29 @@ local function BuildUnitFrames(page)
     AddCycle(portrait, "Portrait mode", 6, -70, 240, { "2D Portrait", "None" }, function() return Current().portraitMode end, function(v) Current().portraitMode = v end)
     AddCycle(portrait, "Position", 330, -70, 240, { "Left", "Right" }, function() return Current().portraitPosition end, function(v) Current().portraitPosition = v end)
     AddSlider(portrait, "Portrait size", 6, -150, 270, 20, 100, 1, function() return Current().portraitSize end, function(v) Current().portraitSize = v end, function(v) return string.format("%d px", v) end)
+
+    local cast = panels["Cast Bar"]
+    AddSection(cast, "Cast bar", -4)
+    AddCheckbox(cast, "Show cast bar", 6, -25, function() return Current().showCastbar end, function(v) Current().showCastbar = v end)
+    AddCheckbox(cast, "Show spell icon", 330, -25, function() return Current().showCastIcon end, function(v) Current().showCastIcon = v end)
+    AddSlider(cast, "Cast bar height", 6, -78, 270, 8, 36, 1, function() return Current().castHeight end, function(v) Current().castHeight = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(cast, "Fill opacity", 330, -78, 270, 0.10, 1, 0.05, function() return Current().castOpacity end, function(v) Current().castOpacity = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddColor(cast, "Cast fill color", 6, -162, function() return Current().castColor end, function(v) Current().castColor = v end)
+    local castNote = FUI:CreateFont(cast, 11)
+    castNote:SetPoint("TOPLEFT", 6, -225)
+    castNote:SetWidth(590)
+    castNote:SetJustifyH("LEFT")
+    castNote:SetTextColor(0.58, 0.7, 0.88)
+    castNote:SetText("Target and Focus cast bars are enabled by default. The Player mini cast bar is optional.")
+
+    local indicators = panels.Indicators
+    AddSection(indicators, "Frame indicators", -4)
+    AddCheckbox(indicators, "Raid marker", 6, -25, function() return Current().raidMarker end, function(v) Current().raidMarker = v end)
+    AddSlider(indicators, "Marker size", 330, -22, 270, 10, 48, 1, function() return Current().raidMarkerSize end, function(v) Current().raidMarkerSize = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(indicators, "Leader indicator", 6, -105, function() return Current().leaderIndicator end, function(v) Current().leaderIndicator = v end)
+    AddSlider(indicators, "Leader icon size", 330, -102, 270, 8, 36, 1, function() return Current().leaderIndicatorSize end, function(v) Current().leaderIndicatorSize = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(indicators, "Combat indicator", 6, -185, function() return Current().combatIndicator end, function(v) Current().combatIndicator = v end)
+    AddSlider(indicators, "Combat icon size", 330, -182, 270, 6, 30, 1, function() return Current().combatIndicatorSize end, function(v) Current().combatIndicatorSize = v end, function(v) return string.format("%d px", v) end)
 
     SelectTab("Display")
 end
@@ -756,6 +779,15 @@ function FUI:CreateSettings()
     self:RestorePosition(frame, "settings")
     frame:SetScale(self.db.global.optionsScale or 1)
     frame:SetMovable(true)
+    frame:EnableMouse(true)
+    frame:RegisterForDrag("LeftButton")
+    frame:SetScript("OnDragStart", function(self)
+        if not InCombatLockdown() then self:StartMoving() end
+    end)
+    frame:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        FUI:SavePosition(self, "settings")
+    end)
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
     frame:SetBackdrop({ bgFile = self.textures.Flat, edgeFile = self.textures.Flat, edgeSize = 1 })

@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.0"
+FUI.version = "0.7.1"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -98,6 +98,9 @@ local defaults = {
                 powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 46,
+                showCastbar = false, castHeight = 14, castOpacity = 1, showCastIcon = true,
+                castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 22,
+                leaderIndicator = true, leaderIndicatorSize = 16, combatIndicator = true, combatIndicatorSize = 12,
             },
             target = {
                 width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
@@ -109,6 +112,9 @@ local defaults = {
                 powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Right", portraitSize = 46,
+                showCastbar = true, castHeight = 14, castOpacity = 1, showCastIcon = true,
+                castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 22,
+                leaderIndicator = true, leaderIndicatorSize = 16, combatIndicator = false, combatIndicatorSize = 12,
             },
             focus = {
                 width = 160, healthHeight = 34, powerHeight = 6, powerPosition = "Below Health Bar",
@@ -120,6 +126,9 @@ local defaults = {
                 powerText = "None", textSize = 11, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = false, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 34,
+                showCastbar = true, castHeight = 12, castOpacity = 1, showCastIcon = true,
+                castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 20,
+                leaderIndicator = false, leaderIndicatorSize = 14, combatIndicator = false, combatIndicatorSize = 10,
             },
         },
     },

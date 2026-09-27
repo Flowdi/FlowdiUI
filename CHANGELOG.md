@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1
+
+- Made every non-interactive area of the settings window available as a drag surface.
+- Moved Unit Frame text elements onto their visible Health and Power bar layers.
+- Added working per-frame cast bars with icon, height, opacity, and fill-color controls.
+- Added raid-marker, group-leader, and combat indicators with independent sizes.
+- Expanded Unit Frame navigation to seven focused settings tabs.
+
 ## 0.7.0
 
 - Rebuilt Unit Frames around independent Player, Target, and Focus profiles.
