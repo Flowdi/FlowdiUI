@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.2"
+FUI.version = "0.7.3"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -13,7 +13,7 @@ FUI.pendingApply = false
 FUI.reputationValues = {}
 
 local defaults = {
-    profileVersion = 7,
+    profileVersion = 8,
     locked = true,
     scale = 1,
     global = {
@@ -79,6 +79,7 @@ local defaults = {
     },
     unitFrames = {
         scale = 1,
+        selectedIndicator = "Raid Marker",
         playerWidth = 230,
         targetWidth = 230,
         focusWidth = 185,
@@ -100,7 +101,11 @@ local defaults = {
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 46,
                 showCastbar = false, castHeight = 14, castOpacity = 1, showCastIcon = true,
                 castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 22,
-                leaderIndicator = true, leaderIndicatorSize = 16, combatIndicator = true, combatIndicatorSize = 12,
+                raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
+                leaderIndicator = true, leaderIndicatorSize = 16,
+                leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
+                combatIndicator = true, combatIndicatorSize = 12,
+                combatIndicatorAttachTo = "Frame", combatIndicatorPoint = "Center", combatIndicatorRelativePoint = "Top Right", combatIndicatorX = 0, combatIndicatorY = 0,
             },
             target = {
                 width = 181, healthHeight = 46, powerHeight = 6, powerPosition = "Below Health Bar",
@@ -114,7 +119,11 @@ local defaults = {
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Right", portraitSize = 46,
                 showCastbar = true, castHeight = 14, castOpacity = 1, showCastIcon = true,
                 castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 22,
-                leaderIndicator = true, leaderIndicatorSize = 16, combatIndicator = false, combatIndicatorSize = 12,
+                raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
+                leaderIndicator = true, leaderIndicatorSize = 16,
+                leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
+                combatIndicator = false, combatIndicatorSize = 12,
+                combatIndicatorAttachTo = "Frame", combatIndicatorPoint = "Center", combatIndicatorRelativePoint = "Top Right", combatIndicatorX = 0, combatIndicatorY = 0,
             },
             focus = {
                 width = 160, healthHeight = 34, powerHeight = 6, powerPosition = "Below Health Bar",
@@ -128,7 +137,11 @@ local defaults = {
                 showPortrait = false, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 34,
                 showCastbar = true, castHeight = 12, castOpacity = 1, showCastIcon = true,
                 castColor = { 0.86, 0.82, 0.64, 1 }, raidMarker = true, raidMarkerSize = 20,
-                leaderIndicator = false, leaderIndicatorSize = 14, combatIndicator = false, combatIndicatorSize = 10,
+                raidMarkerAttachTo = "Frame", raidMarkerPoint = "Center", raidMarkerRelativePoint = "Top", raidMarkerX = 0, raidMarkerY = 0,
+                leaderIndicator = false, leaderIndicatorSize = 14,
+                leaderIndicatorAttachTo = "Frame", leaderIndicatorPoint = "Center", leaderIndicatorRelativePoint = "Top Left", leaderIndicatorX = 0, leaderIndicatorY = 0,
+                combatIndicator = false, combatIndicatorSize = 10,
+                combatIndicatorAttachTo = "Frame", combatIndicatorPoint = "Center", combatIndicatorRelativePoint = "Top Right", combatIndicatorX = 0, combatIndicatorY = 0,
             },
         },
     },

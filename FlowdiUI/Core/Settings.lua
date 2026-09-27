@@ -566,13 +566,44 @@ local function BuildUnitFrames(page)
     castNote:SetText("Target and Focus cast bars are enabled by default. The Player mini cast bar is optional.")
 
     local indicators = panels.Indicators
-    AddSection(indicators, "Frame indicators", -4)
-    AddCheckbox(indicators, "Raid marker", 6, -25, function() return Current().raidMarker end, function(v) Current().raidMarker = v end)
-    AddSlider(indicators, "Marker size", 330, -22, 270, 10, 48, 1, function() return Current().raidMarkerSize end, function(v) Current().raidMarkerSize = v end, function(v) return string.format("%d px", v) end)
-    AddCheckbox(indicators, "Leader indicator", 6, -105, function() return Current().leaderIndicator end, function(v) Current().leaderIndicator = v end)
-    AddSlider(indicators, "Leader icon size", 330, -102, 270, 8, 36, 1, function() return Current().leaderIndicatorSize end, function(v) Current().leaderIndicatorSize = v end, function(v) return string.format("%d px", v) end)
-    AddCheckbox(indicators, "Combat indicator", 6, -185, function() return Current().combatIndicator end, function(v) Current().combatIndicator = v end)
-    AddSlider(indicators, "Combat icon size", 330, -182, 270, 6, 30, 1, function() return Current().combatIndicatorSize end, function(v) Current().combatIndicatorSize = v end, function(v) return string.format("%d px", v) end)
+    local indicatorPrefixes = { ["Raid Marker"] = "raidMarker", ["Leader"] = "leaderIndicator", ["Combat"] = "combatIndicator" }
+    local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
+    local function IndicatorPrefix() return indicatorPrefixes[unitDB.selectedIndicator or "Raid Marker"] or "raidMarker" end
+    local function IndicatorValue(suffix, fallback)
+        local value = Current()[IndicatorPrefix() .. suffix]
+        if value == nil then return fallback end
+        return value
+    end
+    local function SetIndicatorValue(suffix, value) Current()[IndicatorPrefix() .. suffix] = value end
+    AddSection(indicators, "Indicator selection", -4)
+    AddCycle(indicators, "Editing indicator", 6, -28, 240, { "Raid Marker", "Leader", "Combat" },
+        function() return unitDB.selectedIndicator or "Raid Marker" end,
+        function(v) unitDB.selectedIndicator = v RefreshCurrentPanel() end)
+    AddCheckbox(indicators, "Enabled", 330, -48,
+        function() return IndicatorValue("", true) end,
+        function(v) SetIndicatorValue("", v) end)
+    AddSection(indicators, "Attachment & alignment", -102)
+    AddCycle(indicators, "Attach to", 6, -126, 240, { "Frame", "Health Bar", "Power Bar", "Portrait" },
+        function() return IndicatorValue("AttachTo", "Frame") end,
+        function(v) SetIndicatorValue("AttachTo", v) end)
+    AddCycle(indicators, "Icon anchor", 330, -126, 240, anchorValues,
+        function() return IndicatorValue("Point", "Center") end,
+        function(v) SetIndicatorValue("Point", v) end)
+    AddCycle(indicators, "Attach point", 6, -202, 240, anchorValues,
+        function() return IndicatorValue("RelativePoint", "Top") end,
+        function(v) SetIndicatorValue("RelativePoint", v) end)
+    AddSlider(indicators, "Icon size", 330, -202, 270, 6, 64, 1,
+        function() return IndicatorValue("Size", 20) end,
+        function(v) SetIndicatorValue("Size", v) end,
+        function(v) return string.format("%d px", v) end)
+    AddSlider(indicators, "X offset", 6, -278, 270, -150, 150, 1,
+        function() return IndicatorValue("X", 0) end,
+        function(v) SetIndicatorValue("X", v) end,
+        function(v) return string.format("%d px", v) end)
+    AddSlider(indicators, "Y offset", 330, -278, 270, -150, 150, 1,
+        function() return IndicatorValue("Y", 0) end,
+        function(v) SetIndicatorValue("Y", v) end,
+        function(v) return string.format("%d px", v) end)
 
     SelectTab("Display")
 end

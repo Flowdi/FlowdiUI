@@ -4,6 +4,12 @@ local FUI = ns.FUI
 local module = { frames = {} }
 FUI:RegisterModule("unitFrames", module)
 
+local anchorPoints = {
+    ["Top Left"] = "TOPLEFT", ["Top"] = "TOP", ["Top Right"] = "TOPRIGHT",
+    ["Left"] = "LEFT", ["Center"] = "CENTER", ["Right"] = "RIGHT",
+    ["Bottom Left"] = "BOTTOMLEFT", ["Bottom"] = "BOTTOM", ["Bottom Right"] = "BOTTOMRIGHT",
+}
+
 local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
 end
@@ -117,9 +123,18 @@ end
 function module:UpdateIndicators(frame)
     local settings = FrameSettings(frame.unit)
     if not settings then return end
-    local marker = SafeCall(GetRaidTargetIndex, frame.unit)
-    frame.raidMarker:SetShown(settings.raidMarker and marker ~= nil)
-    if marker then pcall(SetRaidTargetIconTexture, frame.raidMarker, marker) end
+    local marker = GetRaidTargetIndex(frame.unit)
+    if settings.raidMarker and marker then
+        frame.raidMarker:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+        if IsSecret(marker) and frame.raidMarker.SetSpriteSheetCell then
+            pcall(frame.raidMarker.SetSpriteSheetCell, frame.raidMarker, marker, 4, 4, 64, 64)
+        else
+            pcall(SetRaidTargetIconTexture, frame.raidMarker, marker)
+        end
+        frame.raidMarker:Show()
+    else
+        frame.raidMarker:Hide()
+    end
     local leader = SafeCall(UnitIsGroupLeader, frame.unit)
     frame.leaderIndicator:SetShown(settings.leaderIndicator and leader == true)
     local combat = SafeCall(UnitAffectingCombat, frame.unit)
@@ -210,13 +225,11 @@ function module:CreateUnitFrame(unit, positionKey)
     end)
 
     frame.raidMarker = frame:CreateTexture(nil, "OVERLAY")
-    frame.raidMarker:SetPoint("TOP", frame, "TOP", 0, 10)
+    frame.raidMarker:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
     frame.leaderIndicator = frame:CreateTexture(nil, "OVERLAY")
     frame.leaderIndicator:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
-    frame.leaderIndicator:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
     frame.combatIndicator = frame:CreateTexture(nil, "OVERLAY")
     frame.combatIndicator:SetColorTexture(1, 0.18, 0.08, 0.95)
-    frame.combatIndicator:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 2, 2)
 
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
@@ -285,6 +298,20 @@ local function TexturePath(settings)
     return FUI.textures[settings.texture] or FUI:GetStatusBarTexture(false)
 end
 
+local function ApplyIndicatorLayout(frame, texture, settings, prefix)
+    local targets = {
+        ["Frame"] = frame,
+        ["Health Bar"] = frame.health,
+        ["Power Bar"] = frame.power,
+        ["Portrait"] = frame.portrait,
+    }
+    local target = targets[settings[prefix .. "AttachTo"]] or frame
+    local point = anchorPoints[settings[prefix .. "Point"]] or "CENTER"
+    local relativePoint = anchorPoints[settings[prefix .. "RelativePoint"]] or "CENTER"
+    texture:ClearAllPoints()
+    texture:SetPoint(point, target, relativePoint, settings[prefix .. "X"] or 0, settings[prefix .. "Y"] or 0)
+end
+
 function module:ApplyFrame(frame, settings)
     local portraitShown = settings.showPortrait and settings.portraitMode ~= "None"
     local portraitSize = portraitShown and settings.portraitSize or 0
@@ -337,6 +364,9 @@ function module:ApplyFrame(frame, settings)
     frame.raidMarker:SetSize(settings.raidMarkerSize, settings.raidMarkerSize)
     frame.leaderIndicator:SetSize(settings.leaderIndicatorSize, settings.leaderIndicatorSize)
     frame.combatIndicator:SetSize(settings.combatIndicatorSize, settings.combatIndicatorSize)
+    ApplyIndicatorLayout(frame, frame.raidMarker, settings, "raidMarker")
+    ApplyIndicatorLayout(frame, frame.leaderIndicator, settings, "leaderIndicator")
+    ApplyIndicatorLayout(frame, frame.combatIndicator, settings, "combatIndicator")
     frame.FlowdiBackdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = settings.borderSize or 1 })
     frame.FlowdiBackdrop:SetBackdropColor(0.01, 0.015, 0.025, 0.95)
     frame.FlowdiBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))

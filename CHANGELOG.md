@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3
+
+- Fixed protected raid-marker indices and assigned the required marker sprite sheet.
+- Added independent attachment target, icon anchor, attachment point, X/Y offset, and size controls for every Unit Frame indicator.
+- Positioned raid markers on the upper frame edge by default.
+
 ## 0.7.2
 
 - Fixed Health, Health %, Power, and Power % text on the Forever client.
