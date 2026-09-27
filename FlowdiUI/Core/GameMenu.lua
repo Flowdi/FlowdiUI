@@ -11,118 +11,82 @@ local function OpenFlowdiUI()
 end
 
 local textureMethods = { "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture" }
+local textureStates = setmetatable({}, { __mode = "k" })
 
-local function SetNativeArtwork(button, visible)
-    for _, method in ipairs(textureMethods) do
-        local texture = button[method] and button[method](button)
-        if texture then
-            texture:SetAlpha(visible and 1 or 0)
-            if visible and texture.SetDesaturated then
-                texture:SetDesaturated(false)
-                texture:SetVertexColor(1, 1, 1, 1)
-            end
-        end
-    end
-    local text = button:GetFontString()
-    if text then text:SetAlpha(visible and 1 or 0) end
+local function SaveTexture(texture)
+    if not texture or textureStates[texture] then return end
+    textureStates[texture] = {
+        atlas = texture.GetAtlas and texture:GetAtlas(),
+        file = texture:GetTexture(),
+        alpha = texture:GetAlpha(),
+        vertex = { texture:GetVertexColor() },
+        texCoord = { texture:GetTexCoord() },
+    }
 end
 
-local function ResolveButtonLabel(button, branded)
-    if branded then return "FLOWDIUI" end
-    if button.FlowdiOriginalLabel and button.FlowdiOriginalLabel ~= "" then return button.FlowdiOriginalLabel end
-
-    local label = button.GetText and button:GetText()
-    local fontString = button.GetFontString and button:GetFontString()
-    if (not label or label == "") and fontString and fontString.GetText then label = fontString:GetText() end
-    for _, key in ipairs({ "Text", "text", "Label", "label" }) do
-        local region = button[key]
-        if (not label or label == "") and region and region.GetText then label = region:GetText() end
-    end
-    local name = button.GetName and button:GetName()
-    local namedText = name and _G[name .. "Text"]
-    if (not label or label == "") and namedText and namedText.GetText then label = namedText:GetText() end
-    if not label or label == "" then label = RETURN_TO_GAME or "Return to Game" end
-    button.FlowdiOriginalLabel = label
-    return label
+local function RestoreTexture(texture)
+    local state = texture and textureStates[texture]
+    if not state then return end
+    if state.atlas and texture.SetAtlas then texture:SetAtlas(state.atlas) else texture:SetTexture(state.file) end
+    texture:SetAlpha(state.alpha or 1)
+    texture:SetVertexColor(unpack(state.vertex))
+    texture:SetTexCoord(unpack(state.texCoord))
 end
 
-local function EnsureButtonOverlay(button)
-    if button.FlowdiDarkSurface then return end
-    local surface = button:CreateTexture(nil, "OVERLAY", nil, 6)
-    surface:SetPoint("TOPLEFT", 2, -2)
-    surface:SetPoint("BOTTOMRIGHT", -2, 2)
-    button.FlowdiDarkSurface = surface
+local function PaintTexture(texture, red, green, blue, alpha)
+    if not texture then return end
+    SaveTexture(texture)
+    texture:SetColorTexture(red, green, blue, alpha or 1)
+    texture:SetAlpha(alpha or 1)
+    texture:SetTexCoord(0, 1, 0, 1)
+end
 
-    button.FlowdiDarkEdges = {}
-    for index = 1, 4 do
-        local edge = button:CreateTexture(nil, "OVERLAY", nil, 7)
-        button.FlowdiDarkEdges[index] = edge
-    end
-    local top, bottom, left, right = unpack(button.FlowdiDarkEdges)
-    top:SetPoint("TOPLEFT", 1, -1)
-    top:SetPoint("TOPRIGHT", -1, -1)
-    top:SetHeight(1)
-    bottom:SetPoint("BOTTOMLEFT", 1, 1)
-    bottom:SetPoint("BOTTOMRIGHT", -1, 1)
-    bottom:SetHeight(1)
-    left:SetPoint("TOPLEFT", 1, -1)
-    left:SetPoint("BOTTOMLEFT", 1, 1)
-    left:SetWidth(1)
-    right:SetPoint("TOPRIGHT", -1, -1)
-    right:SetPoint("BOTTOMRIGHT", -1, 1)
-    right:SetWidth(1)
-
-    local textLayer = CreateFrame("Frame", nil, button)
-    textLayer:SetAllPoints()
-    textLayer:EnableMouse(false)
-    local text = textLayer:CreateFontString(nil, "OVERLAY")
-    text:SetPoint("CENTER", 0, 0)
-    button.FlowdiDarkTextLayer = textLayer
-    button.FlowdiDarkText = text
-    button:HookScript("OnEnter", function(self)
-        self.FlowdiHovered = true
-        if self.FlowdiRefreshStyle then self:FlowdiRefreshStyle() end
-    end)
-    button:HookScript("OnLeave", function(self)
-        self.FlowdiHovered = false
-        if self.FlowdiRefreshStyle then self:FlowdiRefreshStyle() end
-    end)
+local function EnsureButtonBorder(button)
+    if button.FlowdiDarkBorder then return button.FlowdiDarkBorder end
+    local border = CreateFrame("Frame", nil, button, "BackdropTemplate")
+    border:SetPoint("TOPLEFT", 0, 0)
+    border:SetPoint("BOTTOMRIGHT", 0, 0)
+    border:EnableMouse(false)
+    border:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    button.FlowdiDarkBorder = border
+    return border
 end
 
 local function ApplyButtonStyle(button, branded, darkEnabled)
     local enabled = branded or darkEnabled
-    local label = ResolveButtonLabel(button, branded)
-    EnsureButtonOverlay(button)
-    button.FlowdiDarkTextLayer:SetFrameLevel(button:GetFrameLevel() + 20)
-    button.FlowdiDarkTextLayer:SetShown(enabled)
-    button.FlowdiDarkSurface:SetShown(enabled)
-    button.FlowdiDarkText:SetShown(enabled)
-    for _, edge in ipairs(button.FlowdiDarkEdges) do edge:SetShown(enabled) end
-    SetNativeArtwork(button, not enabled)
-    if not enabled then return end
+    local border = EnsureButtonBorder(button)
+    border:SetFrameLevel(button:GetFrameLevel() + 10)
+    border:SetShown(enabled)
 
-    local accent = FUI.colors.accent or { 0.18, 0.55, 1, 1 }
-    local hovered = button.FlowdiHovered
-    local thickness = branded and 2 or 1
-    button.FlowdiDarkEdges[1]:SetHeight(thickness)
-    button.FlowdiDarkEdges[2]:SetHeight(thickness)
-    button.FlowdiDarkEdges[3]:SetWidth(thickness)
-    button.FlowdiDarkEdges[4]:SetWidth(thickness)
-    if branded then
-        button.FlowdiDarkSurface:SetColorTexture(hovered and 0.025 or 0.008, hovered and 0.16 or 0.035, hovered and 0.34 or 0.075, 1)
-        for _, edge in ipairs(button.FlowdiDarkEdges) do edge:SetColorTexture(accent[1], accent[2], accent[3], 1) end
-        button.FlowdiDarkText:SetTextColor(1, 1, 1, 1)
-    else
-        button.FlowdiDarkSurface:SetColorTexture(hovered and 0.10 or 0.035, hovered and 0.14 or 0.045, hovered and 0.20 or 0.065, 1)
-        for _, edge in ipairs(button.FlowdiDarkEdges) do
-            edge:SetColorTexture(hovered and 0.30 or 0.16, hovered and 0.58 or 0.22, hovered and 0.92 or 0.34, 1)
+    local normal = button.GetNormalTexture and button:GetNormalTexture()
+    local pushed = button.GetPushedTexture and button:GetPushedTexture()
+    local highlight = button.GetHighlightTexture and button:GetHighlightTexture()
+    local disabled = button.GetDisabledTexture and button:GetDisabledTexture()
+    if enabled then
+        PaintTexture(normal, 0.055, 0.055, 0.060, 1)
+        PaintTexture(pushed, 0.08, 0.12, 0.18, 1)
+        PaintTexture(highlight, 0.10, 0.30, 0.58, 0.55)
+        PaintTexture(disabled, 0.025, 0.025, 0.030, 0.85)
+        local accent = FUI.colors.accent or { 0.18, 0.55, 1, 1 }
+        if branded then
+            border:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
+            border:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
+        else
+            border:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 1 })
+            border:SetBackdropBorderColor(0.28, 0.30, 0.34, 1)
         end
-        button.FlowdiDarkText:SetTextColor(hovered and 1 or 0.92, hovered and 1 or 0.95, 1, 1)
+    else
+        for _, method in ipairs(textureMethods) do
+            local texture = button[method] and button[method](button)
+            RestoreTexture(texture)
+        end
     end
-    button.FlowdiDarkText:SetText(label)
-    button.FlowdiDarkText:SetFont(FUI:GetFontPath(FUI.db and FUI.db.global.font), branded and 13 or 12, "OUTLINE")
-    button.FlowdiRefreshStyle = function(self)
-        ApplyButtonStyle(self, branded, FUI.db and FUI.db.global.darkGameMenu)
+
+    local text = button.GetFontString and button:GetFontString()
+    if text then
+        text:SetAlpha(1)
+        text:SetTextColor(1, 1, 1, 1)
+        text:SetFont(FUI:GetFontPath(FUI.db and FUI.db.global.font), branded and 13 or 12, "OUTLINE")
     end
 end
 
@@ -199,7 +163,7 @@ local function PositionButton(menu)
     local lowerButtons = {}
     for button in pool:EnumerateActive() do
         local label = button:GetText()
-        if label == MACROS then anchor = button end
+        if label == OPTIONS then anchor = button end
     end
     if not anchor then
         for button in pool:EnumerateActive() do if button:GetText() == ADDONS then anchor = button end end
@@ -243,6 +207,7 @@ local function InstallGameMenuButton()
     button:SetScript("OnClick", OpenFlowdiUI)
     GameMenuFrame.FlowdiUIButton = button
     hooksecurefunc(GameMenuFrame, "Layout", PositionButton)
+    hooksecurefunc(GameMenuFrame, "InitButtons", function(menu) StyleAllButtons(menu) end)
     GameMenuFrame:HookScript("OnShow", function(menu) StyleAllButtons(menu) end)
 end
 

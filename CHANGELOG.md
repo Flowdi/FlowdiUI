@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.3
+
+- Replaced the layered menu-button treatment with direct native texture recoloring for reliable dark buttons.
+- Moved the FlowdiUI entry directly below Options and removed the fragile middle-menu insertion.
+- Preserved every native menu label and button, including Return to Game.
+
 ## 0.6.2
 
 - Replaced optional external status-bar aliases with self-contained game-media choices.
