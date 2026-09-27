@@ -1,0 +1,28 @@
+## Interface: 16001
+## Title: |cff55aaffFlowdiUI|r
+## Notes: Modular interface suite for World of Warcraft: Forever
+## Author: Flowdi
+## Version: 0.6.2
+## SavedVariables: FlowdiUIDB
+## IconTexture: Interface\AddOns\FlowdiUI\Media\Logo.tga
+## AddonCompartmentFunc: FlowdiUI_AddonCompartmentFunc
+
+Core\Core.lua
+Core\Media.lua
+Core\Skinning.lua
+Core\Settings.lua
+Core\GameMenu.lua
+Modules\ActionBars.lua
+Modules\Nameplates.lua
+Modules\UnitFrames.lua
+Modules\GroupFrames.lua
+Modules\Chat.lua
+Modules\Bags.lua
+Modules\DataPanels.lua
+Modules\DarkMode.lua
+Skins\Character.lua
+Skins\Quest.lua
+Skins\BankBags.lua
+Skins\Merchant.lua
+Skins\Mail.lua
+Skins\WorldMap.lua
