@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2
+
+- Fixed Health, Health %, Power, and Power % text on the Forever client.
+- Routed protected unit values directly through secure-compatible font-string formatting.
+- Kept a conventional numeric fallback for clients without the percentage APIs.
+
 ## 0.7.1
 
 - Made every non-interactive area of the settings window available as a drag surface.

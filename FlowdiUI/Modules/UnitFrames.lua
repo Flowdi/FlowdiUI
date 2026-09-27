@@ -14,34 +14,40 @@ local function SafeCall(callback, ...)
     return a, b, c
 end
 
-local function SetSafeText(font, value)
-    if font then pcall(font.SetText, font, value or "") end
-end
-
-local function Abbreviate(value)
-    value = tonumber(value) or 0
-    if value >= 1000000 then return string.format("%.1fm", value / 1000000):gsub("%.0m", "m") end
-    if value >= 1000 then return string.format("%.1fk", value / 1000):gsub("%.0k", "k") end
-    return tostring(math.floor(value + 0.5))
-end
-
-local function TextValue(kind, unit, health, maxHealth, power, maxPower)
-    local ok, text = pcall(function()
-        if kind == "None" then return "" end
-        local name = UnitName(unit) or ""
-        if kind == "Name" then return name end
-        if kind == "Level + Name" then
-            local level = UnitLevel(unit)
-            return level and level > 0 and (level .. " " .. name) or name
+local function SetUnitText(font, kind, unit)
+    if not font then return end
+    local ok = pcall(function()
+        if kind == "None" then
+            font:SetText("")
+        elseif kind == "Name" then
+            font:SetText(UnitName(unit))
+        elseif kind == "Level + Name" then
+            font:SetFormattedText("%d %s", UnitLevel(unit), UnitName(unit))
+        elseif kind == "Health %" then
+            if UnitHealthPercent and CurveConstants and CurveConstants.ScaleTo100 then
+                font:SetFormattedText("%d%%", UnitHealthPercent(unit, true, CurveConstants.ScaleTo100))
+            else
+                local current, maximum = UnitHealth(unit), UnitHealthMax(unit)
+                font:SetFormattedText("%d%%", maximum > 0 and current / maximum * 100 or 0)
+            end
+        elseif kind == "Health" then
+            font:SetFormattedText("%d", UnitHealth(unit))
+        elseif kind == "Health / Max" then
+            font:SetFormattedText("%d / %d", UnitHealth(unit), UnitHealthMax(unit))
+        elseif kind == "Power %" then
+            if UnitPowerPercent and CurveConstants and CurveConstants.ScaleTo100 then
+                font:SetFormattedText("%d%%", UnitPowerPercent(unit, UnitPowerType(unit), true, CurveConstants.ScaleTo100))
+            else
+                local current, maximum = UnitPower(unit), UnitPowerMax(unit)
+                font:SetFormattedText("%d%%", maximum > 0 and current / maximum * 100 or 0)
+            end
+        elseif kind == "Power" then
+            font:SetFormattedText("%d", UnitPower(unit))
+        else
+            font:SetText("")
         end
-        if kind == "Health %" then return maxHealth > 0 and string.format("%d%%", health / maxHealth * 100 + 0.5) or "0%" end
-        if kind == "Health" then return Abbreviate(health) end
-        if kind == "Health / Max" then return Abbreviate(health) .. " / " .. Abbreviate(maxHealth) end
-        if kind == "Power %" then return maxPower > 0 and string.format("%d%%", power / maxPower * 100 + 0.5) or "0%" end
-        if kind == "Power" then return Abbreviate(power) end
-        return ""
     end)
-    return ok and text or ""
+    if not ok then pcall(font.SetText, font, "") end
 end
 
 local function FrameSettings(unit)
@@ -133,11 +139,11 @@ function module:UpdateFrame(frame)
     pcall(frame.power.SetValue, frame.power, power)
     SetHealthColor(frame, settings)
     SetPowerColor(frame, settings)
-    SetSafeText(frame.leftText, TextValue(settings.leftText, unit, health, maxHealth, power, maxPower))
-    SetSafeText(frame.rightText, TextValue(settings.rightText, unit, health, maxHealth, power, maxPower))
-    SetSafeText(frame.centerText, TextValue(settings.centerText, unit, health, maxHealth, power, maxPower))
-    SetSafeText(frame.extraText, TextValue(settings.extraText, unit, health, maxHealth, power, maxPower))
-    SetSafeText(frame.powerText, TextValue(settings.powerText, unit, health, maxHealth, power, maxPower))
+    SetUnitText(frame.leftText, settings.leftText, unit)
+    SetUnitText(frame.rightText, settings.rightText, unit)
+    SetUnitText(frame.centerText, settings.centerText, unit)
+    SetUnitText(frame.extraText, settings.extraText, unit)
+    SetUnitText(frame.powerText, settings.powerText, unit)
     local dead, connected = SafeCall(UnitIsDeadOrGhost, unit), SafeCall(UnitIsConnected, unit)
     if dead == true then frame.state:SetText("DEAD") frame.state:Show()
     elseif connected == false then frame.state:SetText("OFFLINE") frame.state:Show()
