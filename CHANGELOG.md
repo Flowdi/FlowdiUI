@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.7
+
+- Matched the resting FlowdiUI button outline to the other Game Menu buttons while retaining the blue hover accent.
+
 ## 0.6.6
 
 - Added a dedicated two-pixel blue outline around the FlowdiUI Game Menu button.

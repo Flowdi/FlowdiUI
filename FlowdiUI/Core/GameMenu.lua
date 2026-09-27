@@ -93,12 +93,11 @@ local function ApplyButtonStyle(button, branded, darkEnabled)
         inset.background:SetColorTexture(hovered and 0.045 or 0.025, hovered and 0.15 or 0.075, hovered and 0.30 or 0.15, 1)
         inset:SetBackdropBorderColor(accent[1], accent[2], accent[3], 1)
         for _, edge in ipairs(EnsureBrandBorder(inset)) do
-            edge:SetColorTexture(
-                math.min(1, accent[1] + (hovered and 0.18 or 0)),
-                math.min(1, accent[2] + (hovered and 0.18 or 0)),
-                math.min(1, accent[3] + (hovered and 0.18 or 0)),
-                1
-            )
+            if hovered then
+                edge:SetColorTexture(math.min(1, accent[1] + 0.18), math.min(1, accent[2] + 0.18), math.min(1, accent[3] + 0.18), 1)
+            else
+                edge:SetColorTexture(0.24, 0.26, 0.30, 1)
+            end
             edge:Show()
         end
     else
