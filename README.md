@@ -29,7 +29,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - DataText tooltips and click actions
 - Chat copy window, timestamps, fading controls, and configurable visibility duration
 - Bag item-level text and quality-colored item borders
-- Movable FlowdiUI frames via `/fui` or `/fui unlock`
+- Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
 
 ## Installation
 
@@ -42,8 +42,8 @@ The folder structure must end in `FlowdiUI/FlowdiUI_Camelot.toc`.
 ## Commands
 
 - `/fui` or `/flowdi` — open settings
-- `/fui unlock` — unlock movable FlowdiUI frames
-- `/fui lock` — lock the layout
+- `/fui unlock` — open the central Unlock Mode
+- `/fui lock` — save and close Unlock Mode
 
 Module changes require `/reload` and the settings window provides a reload button.
 

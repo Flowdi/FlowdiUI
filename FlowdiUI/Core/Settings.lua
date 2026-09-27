@@ -349,7 +349,6 @@ local function BuildGeneral(page)
     local general = panels.General
     AddSection(general, "Display", -4)
     AddCheckbox(general, "Show login message", 6, -25, function() return FUI.db.global.loginMessage end, function(v) FUI.db.global.loginMessage = v end)
-    AddCheckbox(general, "Lock all movers", 280, -25, function() return FUI.db.locked end, function(v) FUI:SetLocked(v) end)
     AddSlider(general, "FlowdiUI scale", 6, -75, 270, 0.75, 1.25, 0.05, function() return FUI.db.scale end, function(v) FUI.db.scale = v end, function(v) return string.format("%d%%", v * 100) end)
     AddSlider(general, "Game menu scale", 330, -75, 270, 0.75, 1.35, 0.05, function() return FUI.db.global.gameMenuScale end, function(v) FUI.db.global.gameMenuScale = v end, function(v) return string.format("%d%%", v * 100) end)
     AddSection(general, "Combat & camera", -158)
@@ -358,9 +357,8 @@ local function BuildGeneral(page)
     AddSection(general, "Automation", -260)
     AddCycle(general, "Auto repair", 6, -282, 180, { "None", "Player", "Guild" }, function() return FUI.db.global.autoRepair end, function(v) FUI.db.global.autoRepair = v end)
     AddCheckbox(general, "Auto track reputation", 270, -303, function() return FUI.db.global.autoTrackReputation end, function(v) FUI.db.global.autoTrackReputation = v end)
-    AddButton(general, "Unlock movers", 6, -370, 150, function() FUI:SetLocked(false) end)
-    AddButton(general, "Reset positions", 168, -370, 150, function() FUI:ResetPositions() end)
-    AddButton(general, "Reset all settings", 330, -370, 170, function() FlowdiUIDB = nil ReloadUI() end)
+    AddButton(general, "Reset positions", 6, -370, 150, function() FUI:ResetPositions() end)
+    AddButton(general, "Reset all settings", 168, -370, 170, function() FlowdiUIDB = nil ReloadUI() end)
 
     local style = panels.Style
     AddSection(style, "Style presets", -4)
@@ -538,8 +536,10 @@ local function BuildUnitFrames(page)
     AddSlider(display, "Border size", 6, -150, 270, 1, 4, 1, function() return Current().borderSize end, function(v) Current().borderSize = v end, function(v) return string.format("%d px", v) end)
     AddCheckbox(display, "Hover border", 330, -171, function() return Current().hoverBorder end, function(v) Current().hoverBorder = v end)
     AddCheckbox(display, "Show unit tooltip", 500, -171, function() return Current().showTooltip end, function(v) Current().showTooltip = v end)
-    AddButton(display, "Unlock frames", 6, -245, 170, function() FUI:SetLocked(false) end)
-    AddButton(display, "Lock frames", 190, -245, 170, function() FUI:SetLocked(true) end)
+    local moverNote = FUI:CreateFont(display, 11)
+    moverNote:SetPoint("TOPLEFT", 6, -245)
+    moverNote:SetTextColor(0.58, 0.7, 0.88)
+    moverNote:SetText("Use Unlock Mode in the left navigation to move every FlowdiUI frame.")
 
     local health = panels.Health
     AddSection(health, "Dimensions & texture", -4)
@@ -613,8 +613,6 @@ local function BuildUnitFrames(page)
 
     local castPosition = castPanels.Position
     AddCheckbox(castPosition, "Detached and draggable", 6, -8, function() return Current().castDetached end, function(v) Current().castDetached = v end)
-    AddButton(castPosition, "Unlock movers", 330, -4, 130, function() FUI:SetLocked(false) end)
-    AddButton(castPosition, "Lock movers", 470, -4, 130, function() FUI:SetLocked(true) end)
     AddCycle(castPosition, "Attach to", 6, -62, 240, { "Frame", "Health Bar", "Power Bar", "Portrait" }, function() return Current().castAttachTo end, function(v) Current().castAttachTo = v end)
     AddCycle(castPosition, "Frame strata", 330, -62, 240, { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "TOOLTIP" }, function() return Current().castFrameStrata end, function(v) Current().castFrameStrata = v end)
     AddCycle(castPosition, "Bar anchor", 6, -138, 240, anchorValues, function() return Current().castPoint end, function(v) Current().castPoint = v end)
@@ -633,7 +631,7 @@ local function BuildUnitFrames(page)
     castNote:SetWidth(590)
     castNote:SetJustifyH("LEFT")
     castNote:SetTextColor(0.58, 0.7, 0.88)
-    castNote:SetText("Unlock movers to drag the selected frame's cast bar. Dragging automatically enables detached placement.")
+    castNote:SetText("Use the global Unlock Mode to drag cast bars. Moving one automatically enables detached placement.")
     SelectCastTab(unitDB.selectedCastTab or activeCastTab)
 
     local healing = panels.Healing
@@ -801,7 +799,7 @@ local function BuildDataPanels(page)
     info:SetWidth(590)
     info:SetJustifyH("LEFT")
     info:SetTextColor(0.58, 0.7, 0.88)
-    info:SetText("Unlock movers to drag the primary and second panels. The Minimap panel follows the Minimap automatically.")
+    info:SetText("Use the global Unlock Mode to move both panels. The Minimap panel follows the Minimap automatically.")
 
     local providerNames = FUI.modules.dataPanels and FUI.modules.dataPanels:GetProviderNames() or { "None", "System", "Bags", "Gold", "Durability", "Time" }
     local counts = { 1, 2, 3, 4, 5 }
@@ -936,11 +934,30 @@ function FUI:CreateSettings()
 
     frame.pages = {}
     frame.navButtons = {}
+    local unlock = CreateFrame("Button", nil, sidebar)
+    unlock:SetSize(198, 34)
+    unlock:SetPoint("TOPLEFT", 11, -195)
+    unlock:SetNormalFontObject(GameFontNormal)
+    unlock:SetText("Unlock Mode")
+    unlock:GetFontString():SetFont(self.media.font, 12)
+    unlock:GetFontString():ClearAllPoints()
+    unlock:GetFontString():SetPoint("LEFT", 13, 0)
+    unlock:GetFontString():SetJustifyH("LEFT")
+    unlock:GetFontString():SetTextColor(0.35, 0.75, 1)
+    local unlockHover = unlock:CreateTexture(nil, "HIGHLIGHT")
+    unlockHover:SetAllPoints()
+    unlockHover:SetColorTexture(0.08, 0.28, 0.58, 0.35)
+    local unlockIcon = self:CreateFont(unlock, 15)
+    unlockIcon:SetPoint("RIGHT", -12, 0)
+    unlockIcon:SetText("▶")
+    unlockIcon:SetTextColor(0.35, 0.75, 1)
+    unlock:SetScript("OnClick", function() FUI:EnterUnlockMode() end)
+    frame.unlockButton = unlock
     for index, definition in ipairs(pages) do
         local pageKey = definition.key
         local button = CreateFrame("Button", nil, sidebar)
         button:SetSize(198, 34)
-        button:SetPoint("TOPLEFT", 11, -195 - (index - 1) * 39)
+        button:SetPoint("TOPLEFT", 11, -234 - (index - 1) * 39)
         button:SetNormalFontObject(GameFontNormal)
         button:SetText(definition.label)
         button:GetFontString():SetFont(self.media.font, 12)
@@ -991,7 +1008,7 @@ function FUI:CreateSettings()
             button:SetShown(matches)
             if matches then
                 button:ClearAllPoints()
-                button:SetPoint("TOPLEFT", 11, -195 - visibleIndex * 39)
+                button:SetPoint("TOPLEFT", 11, -234 - visibleIndex * 39)
                 visibleIndex = visibleIndex + 1
             end
         end

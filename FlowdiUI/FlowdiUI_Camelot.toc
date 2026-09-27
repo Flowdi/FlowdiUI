@@ -2,7 +2,7 @@
 ## Title: |cff55aaffFlowdiUI|r
 ## Notes: Modular interface suite for World of Warcraft: Forever
 ## Author: Flowdi
-## Version: 0.7.5
+## Version: 0.7.6
 ## SavedVariables: FlowdiUIDB
 ## IconTexture: Interface\AddOns\FlowdiUI\Media\Logo.tga
 ## AddonCompartmentFunc: FlowdiUI_AddonCompartmentFunc
@@ -11,6 +11,7 @@ Core\Core.lua
 Core\Media.lua
 Core\Skinning.lua
 Core\Settings.lua
+Core\UnlockMode.lua
 Core\GameMenu.lua
 Modules\ActionBars.lua
 Modules\Nameplates.lua

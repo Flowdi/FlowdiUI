@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.6
+
+- Replaced scattered mover lock controls with one central Unlock Mode in the settings sidebar.
+- Added labeled mover proxies for all movable FlowdiUI frames, including currently hidden or conditional frames.
+- Added an optional adjustable layout grid and a top toolbar with Save & Exit.
+- Forced a safe locked layout after login and preserved all moved positions in the active profile.
+
 ## 0.7.5
 
 - Made every slider value box directly editable, including negative X/Y offsets.

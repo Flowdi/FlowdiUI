@@ -262,6 +262,10 @@ function module:CreateUnitFrame(unit, positionKey)
     frame.castbar = CreateFrame("StatusBar", nil, UIParent)
     frame.castbar.owner = frame
     frame.castbar.positionKey = unit .. "Castbar"
+    FUI:RegisterMover(frame.castbar, frame.castbar.positionKey, unit:gsub("^%l", string.upper) .. " Cast Bar", function()
+        local settings = FrameSettings(unit)
+        if settings then settings.castDetached = true end
+    end)
     frame.castbar:SetMovable(true)
     frame.castbar:SetClampedToScreen(true)
     frame.castbar:RegisterForDrag("LeftButton")

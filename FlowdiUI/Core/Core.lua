@@ -5,15 +5,16 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.5"
+FUI.version = "0.7.6"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
 FUI.pendingApply = false
 FUI.reputationValues = {}
+FUI.movers = {}
 
 local defaults = {
-    profileVersion = 10,
+    profileVersion = 11,
     locked = true,
     scale = 1,
     global = {
@@ -30,6 +31,8 @@ local defaults = {
         maxCameraDistance = 2.6,
         gameMenuScale = 1,
         optionsScale = 1,
+        moverGrid = true,
+        moverGridSize = 32,
         lagTolerance = 400,
         combatTextSize = 1,
         showCombatDamage = true,
@@ -373,6 +376,7 @@ function FUI:UpdateTrackedReputation(selectChanged)
 end
 
 function FUI:MakeMovable(frame, key)
+    self:RegisterMover(frame, key)
     frame:SetMovable(true)
     frame:SetClampedToScreen(true)
     frame:RegisterForDrag("LeftButton")
@@ -385,6 +389,17 @@ function FUI:MakeMovable(frame, key)
         self:StopMovingOrSizing()
         FUI:SavePosition(self, key)
     end)
+end
+
+function FUI:RegisterMover(frame, key, label, onMoved)
+    if not frame or not key then return end
+    local labels = {
+        player = "Player Frame", target = "Target Frame", focus = "Focus Frame",
+        playerCastbar = "Player Cast Bar", targetCastbar = "Target Cast Bar", focusCastbar = "Focus Cast Bar",
+        party = "Party Frames", raid = "Raid Frames",
+        dataPanel = "Primary Data Panel", dataPanel2 = "Second Data Panel",
+    }
+    self.movers[key] = { frame = frame, key = key, label = label or labels[key] or key, onMoved = onMoved }
 end
 
 function FUI:SetLocked(locked)
@@ -424,7 +439,8 @@ function FUI:Initialize()
         end
     end
 
-    self:SetLocked(self.db.locked)
+    self.db.locked = true
+    self:SetLocked(true)
     if self.db.global.loginMessage then
         self:Print("v" .. self.version .. " loaded. Type /fui to open settings.")
     end
@@ -469,11 +485,9 @@ SLASH_FLOWDIUI2 = "/fui"
 SlashCmdList.FLOWDIUI = function(message)
     message = (message or ""):lower():match("^%s*(.-)%s*$")
     if message == "unlock" then
-        FUI:SetLocked(false)
-        FUI:Print("Frames unlocked. Drag them with the left mouse button.")
+        FUI:EnterUnlockMode()
     elseif message == "lock" then
-        FUI:SetLocked(true)
-        FUI:Print("Frames locked.")
+        FUI:ExitUnlockMode(false)
     else
         FUI:OpenSettings()
     end
