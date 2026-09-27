@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+- Added a configurable standalone Pet Unit Frame.
+- Added optional attached pet frames for every Party and Raid member, including preview, height, and spacing controls.
+- Added configurable 40-yard range fading for Target, Party, and Raid frames.
+- Enabled Party and Raid buff-duration text by default and fixed the upgrade path for existing profiles.
+- Added an explicit `Only my buffs` source filter for group-frame buffs.
+
 ## 0.7.9
 
 - Added explicit Vertical and Horizontal orientations for Party Frames.

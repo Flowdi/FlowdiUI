@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.7.9"
+FUI.version = "0.8.0"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -66,6 +66,11 @@ local function GroupProfileDefaults(party)
         growthY = "Down",
         showWhenSolo = false,
         showSelf = true,
+        showPets = true,
+        petHeight = party and 18 or 13,
+        petSpacing = 1,
+        rangeIndicator = true,
+        outOfRangeAlpha = 0.40,
         powerHeight = party and 5 or 3,
         healthColor = "Class",
         customHealthColor = { 0.10, 0.65, 0.32, 1 },
@@ -92,7 +97,7 @@ local function GroupProfileDefaults(party)
     profile.auras.buff.growthX = "Left"
     profile.auras.buff.x = -2
     profile.auras.buff.y = -2
-    profile.auras.buff.showDuration = false
+    profile.auras.buff.showDuration = true
     profile.auras.buff.clickThrough = true
     profile.auras.buff.tooltip = false
     profile.auras.debuff.enabled = true
@@ -110,7 +115,7 @@ local function GroupProfileDefaults(party)
 end
 
 local defaults = {
-    profileVersion = 14,
+    profileVersion = 15,
     locked = true,
     scale = 1,
     global = {
@@ -331,7 +336,9 @@ local defaults = {
         targettarget = { "CENTER", "CENTER", 500, -155 },
         targettargettarget = { "CENTER", "CENTER", 500, -205 },
         focus = { "CENTER", "CENTER", 280, -235 },
+        pet = { "CENTER", "CENTER", -280, -220 },
         playerCastbar = { "CENTER", "CENTER", -280, -220 },
+        petCastbar = { "CENTER", "CENTER", -280, -270 },
         targetCastbar = { "CENTER", "CENTER", 280, -220 },
         targettargetCastbar = { "CENTER", "CENTER", 500, -195 },
         targettargettargetCastbar = { "CENTER", "CENTER", 500, -245 },
@@ -354,6 +361,22 @@ defaults.unitFrames.frames.targettargettarget = CloneDefaults(defaults.unitFrame
 defaults.unitFrames.frames.targettargettarget.width = 135
 defaults.unitFrames.frames.targettargettarget.healthHeight = 26
 defaults.unitFrames.frames.targettargettarget.textSize = 10
+defaults.unitFrames.frames.pet = CloneDefaults(defaults.unitFrames.frames.focus)
+defaults.unitFrames.frames.pet.enabled = true
+defaults.unitFrames.frames.pet.width = 140
+defaults.unitFrames.frames.pet.healthHeight = 30
+defaults.unitFrames.frames.pet.powerHeight = 5
+defaults.unitFrames.frames.pet.leftText = "Name"
+defaults.unitFrames.frames.pet.rightText = "Health %"
+defaults.unitFrames.frames.pet.showPortrait = false
+defaults.unitFrames.frames.pet.showCastbar = false
+defaults.unitFrames.frames.pet.healPrediction = false
+defaults.unitFrames.frames.pet.leaderIndicator = false
+defaults.unitFrames.frames.pet.combatIndicator = false
+for unit, settings in pairs(defaults.unitFrames.frames) do
+    settings.rangeIndicator = unit == "target"
+    settings.outOfRangeAlpha = 0.40
+end
 
 local function CopyDefaults(source, destination)
     if type(destination) ~= "table" then
@@ -388,6 +411,14 @@ function FUI:SafeCall(label, callback, ...)
         self:Print(label .. " could not be loaded.")
     end
     return ok, result
+end
+
+function FUI:IsUnitInGroupRange(unit)
+    if not unit or not UnitInRange then return true end
+    local ok, inRange, checked = pcall(UnitInRange, unit)
+    if not ok or (issecretvalue and (issecretvalue(inRange) or issecretvalue(checked))) then return true end
+    if checked == false or inRange == nil then return true end
+    return inRange ~= false
 end
 
 function FUI:Print(message)
@@ -512,9 +543,9 @@ end
 function FUI:RegisterMover(frame, key, label, onMoved)
     if not frame or not key then return end
     local labels = {
-        player = "Player Frame", target = "Target Frame", focus = "Focus Frame",
+        player = "Player Frame", pet = "Pet Frame", target = "Target Frame", focus = "Focus Frame",
         targettarget = "Target of Target", targettargettarget = "Target of Target of Target",
-        playerCastbar = "Player Cast Bar", targetCastbar = "Target Cast Bar", focusCastbar = "Focus Cast Bar",
+        playerCastbar = "Player Cast Bar", petCastbar = "Pet Cast Bar", targetCastbar = "Target Cast Bar", focusCastbar = "Focus Cast Bar",
         targettargetCastbar = "Target of Target Cast Bar", targettargettargetCastbar = "Target of Target of Target Cast Bar",
         party = "Party Frames", raid = "Raid Frames",
         dataPanel = "Primary Data Panel", dataPanel2 = "Second Data Panel",
@@ -559,6 +590,10 @@ function FUI:Initialize()
         groupDB.raid.height = groupDB.raidHeight or groupDB.raid.height
         groupDB.party.fontSize = groupDB.fontSize or groupDB.party.fontSize
         groupDB.raid.fontSize = groupDB.fontSize or groupDB.raid.fontSize
+    end
+    if previousVersion < 15 then
+        self.db.groupFrames.party.auras.buff.showDuration = true
+        self.db.groupFrames.raid.auras.buff.showDuration = true
     end
     self.db.profileVersion = defaults.profileVersion
 

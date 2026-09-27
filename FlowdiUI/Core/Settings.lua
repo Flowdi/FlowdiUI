@@ -493,11 +493,11 @@ local function BuildUnitFrames(page)
     AddTitle(page, "Unit Frames", "Build independent player, target and focus frames from shared visual primitives.")
     local unitDB = FUI.db.unitFrames
     local unitLabels = {
-        player = "Player", target = "Target", targettarget = "Target of Target",
+        player = "Player", pet = "Pet", target = "Target", targettarget = "Target of Target",
         targettargettarget = "Target of Target of Target", focus = "Focus",
     }
     local labelUnits = {
-        Player = "player", Target = "target", ["Target of Target"] = "targettarget",
+        Player = "player", Pet = "pet", Target = "target", ["Target of Target"] = "targettarget",
         ["Target of Target of Target"] = "targettargettarget", Focus = "focus",
     }
     local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
@@ -527,7 +527,7 @@ local function BuildUnitFrames(page)
         panels[name] = panel
     end
 
-    AddCycle(page, "Editing frame", 24, -128, 250, { "Player", "Target", "Target of Target", "Target of Target of Target", "Focus" },
+    AddCycle(page, "Editing frame", 24, -128, 250, { "Player", "Pet", "Target", "Target of Target", "Target of Target of Target", "Focus" },
         function() return unitLabels[unitDB.selectedFrame or "player"] end,
         function(value) unitDB.selectedFrame = labelUnits[value] or "player" RefreshCurrentPanel() end)
     AddSlider(page, "Global frame scale", 350, -128, 270, 0.70, 1.35, 0.05,
@@ -769,6 +769,14 @@ local function BuildUnitFrames(page)
         function() return IndicatorValue("Y", 0) end,
         function(v) SetIndicatorValue("Y", v) end,
         function(v) return string.format("%d px", v) end)
+    AddSection(indicators, "40 yard range indicator", -350)
+    AddCheckbox(indicators, "Fade friendly group units out of range", 6, -374,
+        function() return Current().rangeIndicator end,
+        function(v) Current().rangeIndicator = v end)
+    AddSlider(indicators, "Out of range opacity", 330, -354, 270, 0.10, 1, 0.05,
+        function() return Current().outOfRangeAlpha or 0.40 end,
+        function(v) Current().outOfRangeAlpha = v end,
+        function(v) return string.format("%d%%", v * 100) end)
 
     SelectTab("Display")
 end
@@ -832,6 +840,13 @@ local function BuildGroupFrames(page)
         sample.buff:SetColorTexture(0.3, 0.85, 0.45, 1)
         sample.debuff = sample:CreateTexture(nil, "OVERLAY")
         sample.debuff:SetColorTexture(0.9, 0.25, 0.25, 1)
+        sample.pet = CreateFrame("Frame", nil, preview, "BackdropTemplate")
+        sample.pet:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+        sample.pet:SetBackdropColor(0.08, 0.20, 0.28, 0.92)
+        sample.pet:SetBackdropBorderColor(unpack(FUI.colors.border))
+        sample.petName = FUI:CreateFont(sample.pet, 7)
+        sample.petName:SetPoint("LEFT", 3, 0)
+        sample.petName:SetText("Pet")
         samples[index] = sample
     end
     local function UpdatePreview()
@@ -842,19 +857,22 @@ local function BuildGroupFrames(page)
         elseif db.selectedProfile == "Party" then perColumn = count
         else perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, count)) end
         local columns, rows = math.ceil(count / perColumn), math.min(perColumn, count)
+        local petExtra = profile.showPets and ((profile.petHeight or 14) + (profile.petSpacing or 1)) or 0
+        local stackHeight = profile.height + petExtra
         local rawWidth = columns * profile.width + math.max(0, columns - 1) * ((profile.spacing or 0) + (profile.groupSpacing or 0))
-        local rawHeight = rows * profile.height + math.max(0, rows - 1) * (profile.spacing or 0)
+        local rawHeight = rows * stackHeight + math.max(0, rows - 1) * (profile.spacing or 0)
         local scale = math.min(1, 410 / math.max(1, rawWidth), 102 / math.max(1, rawHeight))
         local frameWidth, frameHeight = profile.width * scale, profile.height * scale
         previewTitle:SetText((db.selectedProfile or "Party") .. " preview")
         for index, sample in ipairs(samples) do
             sample:SetShown(index <= count)
+            sample.pet:SetShown(index <= count and profile.showPets)
             if index <= count then
                 local column, row = math.floor((index - 1) / perColumn), (index - 1) % perColumn
                 if profile.growthX == "Left" then column = columns - 1 - column end
                 if profile.growthY == "Up" then row = rows - 1 - row end
                 sample:ClearAllPoints()
-                sample:SetPoint("TOPLEFT", preview, "TOPLEFT", 10 + column * (profile.width + (profile.spacing or 0) + (profile.groupSpacing or 0)) * scale, -22 - row * (profile.height + (profile.spacing or 0)) * scale)
+                sample:SetPoint("TOPLEFT", preview, "TOPLEFT", 10 + column * (profile.width + (profile.spacing or 0) + (profile.groupSpacing or 0)) * scale, -22 - row * (stackHeight + (profile.spacing or 0)) * scale)
                 sample:SetSize(frameWidth, frameHeight)
                 sample:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = profile.borderSize or 1 })
                 local color = profile.healthColor == "Class" and colors[(index - 1) % #colors + 1] or profile.customHealthColor
@@ -874,6 +892,10 @@ local function BuildGroupFrames(page)
                 sample.debuff:SetSize(debuffSize, debuffSize)
                 sample.debuff:SetPoint("BOTTOMRIGHT", -2, 2)
                 sample.debuff:SetShown(profile.auras.debuff.enabled)
+                sample.pet:ClearAllPoints()
+                sample.pet:SetPoint("TOPLEFT", sample, "BOTTOMLEFT", 0, -(profile.petSpacing or 1) * scale)
+                sample.pet:SetSize(frameWidth, math.max(3, (profile.petHeight or 14) * scale))
+                sample.petName:SetFont(FUI:GetModuleFontPath("groupFrames"), math.max(6, math.min(9, (profile.fontSize - 2) * scale)), FUI.db.global.fontOutline)
             end
         end
     end
@@ -891,6 +913,7 @@ local function BuildGroupFrames(page)
     AddSlider(general, "Scale", 6, -88, 270, 0.55, 1.50, 0.05, function() return CurrentProfile().scale end, function(v) CurrentProfile().scale = v end, function(v) return string.format("%d%%", v * 100) end)
     AddSlider(general, "Frame width", 330, -88, 270, 50, 320, 1, function() return CurrentProfile().width end, function(v) CurrentProfile().width = v end, function(v) return string.format("%d px", v) end)
     AddSlider(general, "Frame height", 6, -164, 270, 18, 90, 1, function() return CurrentProfile().height end, function(v) CurrentProfile().height = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(general, "Show pet frames", 330, -184, function() return CurrentProfile().showPets end, function(v) CurrentProfile().showPets = v end)
 
     local layout = panels.Layout
     AddSlider(layout, "Frame spacing", 6, -8, 270, -2, 20, 1, function() return CurrentProfile().spacing end, function(v) CurrentProfile().spacing = v end, function(v) return string.format("%d px", v) end)
@@ -899,6 +922,8 @@ local function BuildGroupFrames(page)
     AddCycle(layout, "Column growth", 330, -84, 240, { "Right", "Left" }, function() return CurrentProfile().growthX end, function(v) CurrentProfile().growthX = v end)
     AddCycle(layout, "Unit growth", 6, -160, 240, { "Down", "Up" }, function() return CurrentProfile().growthY end, function(v) CurrentProfile().growthY = v end)
     AddCycle(layout, "Party orientation", 330, -160, 240, { "Vertical", "Horizontal" }, function() return db.party.orientation end, function(v) db.party.orientation = v end)
+    AddSlider(layout, "Pet frame height", 6, -236, 270, 8, 40, 1, function() return CurrentProfile().petHeight end, function(v) CurrentProfile().petHeight = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(layout, "Pet spacing", 330, -236, 270, 0, 12, 1, function() return CurrentProfile().petSpacing end, function(v) CurrentProfile().petSpacing = v end, function(v) return string.format("%d px", v) end)
 
     local health = panels.Health
     AddCycle(health, "Health color", 6, -8, 240, { "Class", "Custom" }, function() return CurrentProfile().healthColor end, function(v) CurrentProfile().healthColor = v end)
@@ -916,7 +941,7 @@ local function BuildGroupFrames(page)
 
     local function BuildAuraPanel(panel, kind)
         AddCheckbox(panel, "Enabled", 6, -8, function() return CurrentAura(kind).enabled end, function(v) CurrentAura(kind).enabled = v end)
-        AddCheckbox(panel, "Only mine", 180, -8, function() return CurrentAura(kind).mineOnly end, function(v) CurrentAura(kind).mineOnly = v end)
+        AddCheckbox(panel, kind == "buff" and "Only my buffs" or "Only mine", 180, -8, function() return CurrentAura(kind).mineOnly end, function(v) CurrentAura(kind).mineOnly = v end)
         AddCheckbox(panel, "Tooltip", 340, -8, function() return CurrentAura(kind).tooltip end, function(v) CurrentAura(kind).tooltip = v end)
         AddCheckbox(panel, "Cooldown", 480, -8, function() return CurrentAura(kind).cooldown end, function(v) CurrentAura(kind).cooldown = v end)
         AddCheckbox(panel, "Click through", 6, -42, function() return CurrentAura(kind).clickThrough end, function(v) CurrentAura(kind).clickThrough = v end)
@@ -939,6 +964,8 @@ local function BuildGroupFrames(page)
     AddCheckbox(indicators, "Leader indicator", 220, -8, function() return CurrentProfile().showLeader end, function(v) CurrentProfile().showLeader = v end)
     AddCheckbox(indicators, "Raid marker", 430, -8, function() return CurrentProfile().showRaidMarker end, function(v) CurrentProfile().showRaidMarker = v end)
     AddCheckbox(indicators, "Ready check", 6, -48, function() return CurrentProfile().showReadyCheck end, function(v) CurrentProfile().showReadyCheck = v end)
+    AddCheckbox(indicators, "40 yd range fade", 220, -48, function() return CurrentProfile().rangeIndicator end, function(v) CurrentProfile().rangeIndicator = v end)
+    AddSlider(indicators, "Out of range opacity", 6, -92, 270, 0.10, 1, 0.05, function() return CurrentProfile().outOfRangeAlpha or 0.40 end, function(v) CurrentProfile().outOfRangeAlpha = v end, function(v) return string.format("%d%%", v * 100) end)
     SelectTab(activeTab)
 end
 

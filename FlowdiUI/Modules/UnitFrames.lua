@@ -10,7 +10,7 @@ local anchorPoints = {
     ["Bottom Left"] = "BOTTOMLEFT", ["Bottom"] = "BOTTOM", ["Bottom Right"] = "BOTTOMRIGHT",
 }
 local unitLabels = {
-    player = "Player", target = "Target", focus = "Focus",
+    player = "Player", target = "Target", focus = "Focus", pet = "Pet",
     targettarget = "Target of Target", targettargettarget = "Target of Target of Target",
 }
 
@@ -96,7 +96,11 @@ function module:UpdateVisibility(frame)
         elseif mode == "In Combat" then visible = InCombatLockdown()
         end
     end
-    frame:SetAlpha(visible and 1 or 0)
+    local alpha = visible and 1 or 0
+    if visible and settings.rangeIndicator and frame.unit ~= "player" and not FUI:IsUnitInGroupRange(frame.unit) then
+        alpha = settings.outOfRangeAlpha or 0.40
+    end
+    frame:SetAlpha(alpha)
 end
 
 function module:UpdateCast(frame)
@@ -203,6 +207,8 @@ local function ReadAura(unit, index, filter)
                 duration = data.duration,
                 expirationTime = data.expirationTime,
                 spellId = data.spellId,
+                sourceUnit = data.sourceUnit,
+                isFromPlayerOrPlayerPet = data.isFromPlayerOrPlayerPet,
             }
         end
     end
@@ -219,6 +225,7 @@ local function ReadAura(unit, index, filter)
         dispelName = values[5],
         duration = values[6],
         expirationTime = values[7],
+        sourceUnit = values[8],
         spellId = values[11],
     }
 end
@@ -236,6 +243,8 @@ local function CollectAuras(unit, filter)
                 duration = data.duration,
                 expirationTime = data.expirationTime,
                 spellId = data.spellId,
+                sourceUnit = data.sourceUnit,
+                isFromPlayerOrPlayerPet = data.isFromPlayerOrPlayerPet,
             }
         end, true)
         if ok then return auras end
@@ -247,6 +256,17 @@ local function CollectAuras(unit, filter)
         auras[#auras + 1] = aura
     end
     return auras
+end
+
+local function IsPlayerAura(aura)
+    if aura.isFromPlayerOrPlayerPet ~= nil and not IsSecret(aura.isFromPlayerOrPlayerPet) then
+        return aura.isFromPlayerOrPlayerPet == true
+    end
+    if not aura.sourceUnit or IsSecret(aura.sourceUnit) or not UnitIsUnit then return false end
+    local ok, mine = pcall(UnitIsUnit, aura.sourceUnit, "player")
+    if ok and mine then return true end
+    ok, mine = pcall(UnitIsUnit, aura.sourceUnit, "pet")
+    return ok and mine == true
 end
 
 local function FormatAuraTime(seconds)
@@ -334,8 +354,14 @@ function module:UpdateAuras(frame, kind)
     if not auraSettings.enabled then return end
 
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
-    if auraSettings.mineOnly then filter = filter .. "|PLAYER" end
     local auras = CollectAuras(frame.unit, filter)
+    if auraSettings.mineOnly then
+        local mine = {}
+        for _, aura in ipairs(auras) do
+            if IsPlayerAura(aura) then mine[#mine + 1] = aura end
+        end
+        auras = mine
+    end
     if auraSettings.sortBy ~= "Index" then
         pcall(table.sort, auras, function(a, b)
             local av, bv = AuraSortValue(a, auraSettings.sortBy), AuraSortValue(b, auraSettings.sortBy)
@@ -597,6 +623,12 @@ function module:CreateUnitFrame(unit, positionKey)
             end
         end
     end)
+    frame:SetScript("OnUpdate", function(self, elapsed)
+        self.rangeElapsed = (self.rangeElapsed or 0) + elapsed
+        if self.rangeElapsed < 0.20 then return end
+        self.rangeElapsed = 0
+        module:UpdateVisibility(self)
+    end)
     self.frames[unit] = frame
     return frame
 end
@@ -615,6 +647,7 @@ function module:HideDefaults()
     HideBlizzardFrame(PlayerFrame)
     HideBlizzardFrame(TargetFrame)
     HideBlizzardFrame(FocusFrame)
+    HideBlizzardFrame(PetFrame)
 end
 
 function module:SetLocked(locked)
@@ -799,6 +832,7 @@ end
 
 function module:Initialize()
     self:CreateUnitFrame("player", "player")
+    self:CreateUnitFrame("pet", "pet")
     self:CreateUnitFrame("target", "target")
     self:CreateUnitFrame("targettarget", "targettarget")
     self:CreateUnitFrame("targettargettarget", "targettargettarget")

@@ -1,7 +1,9 @@
 local _, ns = ...
 local FUI = ns.FUI
 
-local module = { frames = {}, partyFrames = {}, raidFrames = {}, unitFrames = {} }
+local module = {
+    frames = {}, partyFrames = {}, partyPetFrames = {}, raidFrames = {}, raidPetFrames = {}, unitFrames = {},
+}
 FUI:RegisterModule("groupFrames", module)
 
 local anchorPoints = {
@@ -44,6 +46,7 @@ local function CollectAuras(unit, filter)
             auras[#auras + 1] = {
                 index = #auras + 1, icon = data.icon, applications = data.applications,
                 duration = data.duration, expirationTime = data.expirationTime, dispelName = data.dispelName,
+                sourceUnit = data.sourceUnit, isFromPlayerOrPlayerPet = data.isFromPlayerOrPlayerPet,
             }
         end, true)
         if ok then return auras end
@@ -56,9 +59,21 @@ local function CollectAuras(unit, filter)
         auras[#auras + 1] = {
             index = index, icon = data.icon, applications = data.applications,
             duration = data.duration, expirationTime = data.expirationTime, dispelName = data.dispelName,
+            sourceUnit = data.sourceUnit, isFromPlayerOrPlayerPet = data.isFromPlayerOrPlayerPet,
         }
     end
     return auras
+end
+
+local function IsPlayerAura(aura)
+    if aura.isFromPlayerOrPlayerPet ~= nil and not IsSecret(aura.isFromPlayerOrPlayerPet) then
+        return aura.isFromPlayerOrPlayerPet == true
+    end
+    if not aura.sourceUnit or IsSecret(aura.sourceUnit) or not UnitIsUnit then return false end
+    local ok, mine = pcall(UnitIsUnit, aura.sourceUnit, "player")
+    if ok and mine then return true end
+    ok, mine = pcall(UnitIsUnit, aura.sourceUnit, "pet")
+    return ok and mine == true
 end
 
 local function FormatTime(seconds)
@@ -111,9 +126,8 @@ function module:UpdateAuras(button, kind)
     local settings = profile and profile.auras and profile.auras[kind]
     local buttons = button.auraButtons[kind]
     for _, auraButton in ipairs(buttons) do auraButton:Hide() end
-    if not settings or not settings.enabled then return end
+    if button.isPet or not settings or not settings.enabled then return end
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
-    if settings.mineOnly then filter = filter .. "|PLAYER" end
     local auras = CollectAuras(button.unit, filter)
     local perRow = math.max(1, settings.perRow or 3)
     local maximum = perRow * math.max(1, settings.rows or 1)
@@ -125,7 +139,8 @@ function module:UpdateAuras(button, kind)
     local shown = 0
     for _, aura in ipairs(auras) do
         local duration = AuraNumber(aura.duration, 0)
-        if (settings.maxDuration or 0) <= 0 or duration <= (settings.maxDuration or 0) then
+        local sourceAllowed = not settings.mineOnly or IsPlayerAura(aura)
+        if sourceAllowed and ((settings.maxDuration or 0) <= 0 or duration <= (settings.maxDuration or 0)) then
             shown = shown + 1
             if shown > maximum then break end
             local auraButton = buttons[shown] or self:CreateAuraButton(button, kind, shown)
@@ -173,20 +188,30 @@ function module:UpdateIndicators(button)
         end
         button.raidMarker:Show()
     else button.raidMarker:Hide() end
-    button.leader:SetShown(profile.showLeader and SafeUnitFlag(UnitIsGroupLeader, button.unit) == true)
+    button.leader:SetShown(not button.isPet and profile.showLeader and SafeUnitFlag(UnitIsGroupLeader, button.unit) == true)
     local role = UnitGroupRolesAssigned and UnitGroupRolesAssigned(button.unit) or "NONE"
     if IsSecret(role) then role = "NONE" end
-    button.role:SetText(profile.showRole and role and role ~= "NONE" and role:sub(1, 1) or "")
+    button.role:SetText(not button.isPet and profile.showRole and role and role ~= "NONE" and role:sub(1, 1) or "")
     local ready = GetReadyCheckStatus and GetReadyCheckStatus(button.unit)
     local textures = {
         ready = "Interface\\RaidFrame\\ReadyCheck-Ready",
         notready = "Interface\\RaidFrame\\ReadyCheck-NotReady",
         waiting = "Interface\\RaidFrame\\ReadyCheck-Waiting",
     }
-    if profile.showReadyCheck and ready and textures[ready] then
+    if not button.isPet and profile.showReadyCheck and ready and textures[ready] then
         button.ready:SetTexture(textures[ready])
         button.ready:Show()
     else button.ready:Hide() end
+end
+
+function module:UpdateRange(button)
+    local profile = Profile(button)
+    if not profile then return end
+    if profile.rangeIndicator and not FUI:IsUnitInGroupRange(button.unit) then
+        button:SetAlpha(profile.outOfRangeAlpha or 0.40)
+    else
+        button:SetAlpha(1)
+    end
 end
 
 function module:UpdateButton(button)
@@ -216,16 +241,17 @@ function module:UpdateButton(button)
     elseif connected == false then button.state:SetText("OFF") button.state:Show()
     else button.state:Hide() end
     self:UpdateIndicators(button)
+    self:UpdateRange(button)
 end
 
-function module:CreateButton(parent, unit, profileKey)
+function module:CreateButton(parent, unit, profileKey, isPet)
     local frameName = "FlowdiUI_Group_" .. unit:gsub("[^%w]", "")
     local button = CreateFrame("Button", frameName, parent, "SecureUnitButtonTemplate")
     button:SetAttribute("unit", unit)
     button:SetAttribute("type1", "target")
     button:SetAttribute("type2", "togglemenu")
     button:RegisterForClicks("AnyUp")
-    button.unit, button.profileKey = unit, profileKey
+    button.unit, button.profileKey, button.isPet = unit, profileKey, isPet == true
     RegisterUnitWatch(button)
     button.unitWatchEnabled = true
     if button.SetClipsChildren then button:SetClipsChildren(false) end
@@ -287,6 +313,12 @@ function module:CreateButton(parent, unit, profileKey)
             end
         end
     end)
+    button:SetScript("OnUpdate", function(self, elapsed)
+        self.rangeElapsed = (self.rangeElapsed or 0) + elapsed
+        if self.rangeElapsed < 0.20 then return end
+        self.rangeElapsed = 0
+        module:UpdateRange(self)
+    end)
     self.frames[#self.frames + 1] = button
     self.unitFrames[unit] = button
     return button
@@ -316,7 +348,9 @@ function module:CreatePartyFrames()
     FUI:MakeMovable(container, "party")
     self.party = container
     self.partyFrames[1] = self:CreateButton(container, "player", "party")
+    self.partyPetFrames[1] = self:CreateButton(container, "pet", "party", true)
     for index = 1, 4 do self.partyFrames[index + 1] = self:CreateButton(container, "party" .. index, "party") end
+    for index = 1, 4 do self.partyPetFrames[index + 1] = self:CreateButton(container, "partypet" .. index, "party", true) end
 end
 
 function module:CreateRaidFrames()
@@ -325,11 +359,13 @@ function module:CreateRaidFrames()
     FUI:MakeMovable(container, "raid")
     self.raid = container
     for index = 1, 40 do self.raidFrames[index] = self:CreateButton(container, "raid" .. index, "raid") end
+    for index = 1, 40 do self.raidPetFrames[index] = self:CreateButton(container, "raidpet" .. index, "raid", true) end
 end
 
 function module:ApplyButton(button, profile)
-    local powerHeight = math.max(0, profile.powerHeight or 0)
-    button:SetSize(profile.width, profile.height)
+    local frameHeight = button.isPet and (profile.petHeight or 14) or profile.height
+    local powerHeight = button.isPet and 0 or math.max(0, profile.powerHeight or 0)
+    button:SetSize(profile.width, frameHeight)
     button.health:ClearAllPoints()
     button.health:SetPoint("TOPLEFT", 1, -1)
     button.health:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, powerHeight > 0 and powerHeight + 2 or 1)
@@ -351,22 +387,25 @@ function module:ApplyButton(button, profile)
     button.name:SetPoint("RIGHT", button.health, "CENTER", 12, 0)
     button.healthText:ClearAllPoints()
     button.healthText:SetPoint("RIGHT", button.health, "RIGHT", -4, 0)
-    button.name:SetFont(FUI:GetModuleFontPath("groupFrames"), profile.fontSize, FUI.db.global.fontOutline)
-    button.healthText:SetFont(FUI:GetModuleFontPath("groupFrames"), math.max(7, profile.fontSize - 1), FUI.db.global.fontOutline)
+    local fontSize = button.isPet and math.max(7, profile.fontSize - 2) or profile.fontSize
+    button.name:SetFont(FUI:GetModuleFontPath("groupFrames"), fontSize, FUI.db.global.fontOutline)
+    button.healthText:SetFont(FUI:GetModuleFontPath("groupFrames"), math.max(7, fontSize - 1), FUI.db.global.fontOutline)
     self:UpdateButton(button)
     self:UpdateAuras(button, "buff")
     self:UpdateAuras(button, "debuff")
 end
 
-function module:LayoutFrames(container, frames, profile, isParty)
+function module:LayoutFrames(container, frames, petFrames, profile, isParty)
     local visibleFrames = {}
+    local petShouldShow = {}
     for index, button in ipairs(frames) do
         local show = not isParty or index > 1 or profile.showSelf
         if isParty and index == 1 then
             if show and not button.unitWatchEnabled then RegisterUnitWatch(button) button.unitWatchEnabled = true
             elseif not show and button.unitWatchEnabled then UnregisterUnitWatch(button) button.unitWatchEnabled = false button:Hide() end
         end
-        if show then visibleFrames[#visibleFrames + 1] = button end
+        petShouldShow[index] = show and profile.showPets
+        if show then visibleFrames[#visibleFrames + 1] = { button = button, index = index } end
     end
     local perColumn
     if isParty and profile.orientation == "Horizontal" then perColumn = 1
@@ -374,9 +413,22 @@ function module:LayoutFrames(container, frames, profile, isParty)
     else perColumn = math.max(1, math.min(profile.unitsPerColumn or 5, #visibleFrames)) end
     local columns = math.max(1, math.ceil(#visibleFrames / perColumn))
     local rows = math.min(perColumn, #visibleFrames)
+    local petExtra = profile.showPets and ((profile.petHeight or 14) + (profile.petSpacing or 1)) or 0
+    local stackHeight = profile.height + petExtra
     container:SetSize(columns * profile.width + math.max(0, columns - 1) * ((profile.spacing or 0) + (profile.groupSpacing or 0)),
-        rows * profile.height + math.max(0, rows - 1) * (profile.spacing or 0))
-    for displayIndex, button in ipairs(visibleFrames) do
+        rows * stackHeight + math.max(0, rows - 1) * (profile.spacing or 0))
+    for index, pet in ipairs(petFrames) do
+        if not petShouldShow[index] and pet.unitWatchEnabled then
+            UnregisterUnitWatch(pet)
+            pet.unitWatchEnabled = false
+            pet:Hide()
+        elseif petShouldShow[index] and not pet.unitWatchEnabled then
+            RegisterUnitWatch(pet)
+            pet.unitWatchEnabled = true
+        end
+    end
+    for displayIndex, entry in ipairs(visibleFrames) do
+        local button, pet = entry.button, petFrames[entry.index]
         self:ApplyButton(button, profile)
         local column = math.floor((displayIndex - 1) / perColumn)
         local row = (displayIndex - 1) % perColumn
@@ -385,7 +437,12 @@ function module:LayoutFrames(container, frames, profile, isParty)
         button:ClearAllPoints()
         button:SetPoint("TOPLEFT", container, "TOPLEFT",
             column * (profile.width + (profile.spacing or 0) + (profile.groupSpacing or 0)),
-            -row * (profile.height + (profile.spacing or 0)))
+            -row * (stackHeight + (profile.spacing or 0)))
+        if pet and profile.showPets then
+            self:ApplyButton(pet, profile)
+            pet:ClearAllPoints()
+            pet:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 0, -(profile.petSpacing or 1))
+        end
     end
 end
 
@@ -401,8 +458,8 @@ function module:Apply()
     local party, raid = db.party, db.raid
     self.party:SetScale((FUI.db.scale or 1) * party.scale)
     self.raid:SetScale((FUI.db.scale or 1) * raid.scale)
-    self:LayoutFrames(self.party, self.partyFrames, party, true)
-    self:LayoutFrames(self.raid, self.raidFrames, raid, false)
+    self:LayoutFrames(self.party, self.partyFrames, self.partyPetFrames, party, true)
+    self:LayoutFrames(self.raid, self.raidFrames, self.raidPetFrames, raid, false)
     UnregisterStateDriver(self.party, "visibility")
     UnregisterStateDriver(self.raid, "visibility")
     if party.enabled then
