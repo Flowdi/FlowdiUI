@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.9
+
+- Added a live coordinate panel beside the selected Unlock Mode mover; clicking a mover shows its centered X/Y coordinates and dragging updates them continuously.
+- Hidden Action Bar movers when their configured bar is disabled or its native bar is not active.
+- Explicitly synchronized native aura-container visibility and enabled state after binding Unit Frame and Party/Raid units, matching the complete protected-container lifecycle.
+
 ## 0.8.8
 
 - Deferred native Unit Frame and Party/Raid aura construction until the world is ready, and configured container flow layout before registering aura groups so Buffs and Debuffs can populate reliably.

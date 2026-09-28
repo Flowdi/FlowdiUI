@@ -71,6 +71,35 @@ function FUI:SyncMoverOverlay(mover)
     overlay:SetSize(math.max(16, target:GetWidth() * ratio), math.max(16, target:GetHeight() * ratio))
 end
 
+local function RoundedCoordinate(value)
+    return value >= 0 and math.floor(value + 0.5) or math.ceil(value - 0.5)
+end
+
+function FUI:UpdateMoverCoordinates(mover, showPanel)
+    local overlay = mover and mover.overlay
+    local panel = overlay and overlay.coordinatePanel
+    if not panel then return end
+    local centerX, centerY = overlay:GetCenter()
+    if not centerX or not centerY then return end
+    local x = RoundedCoordinate(centerX - UIParent:GetWidth() * 0.5)
+    local y = RoundedCoordinate(centerY - UIParent:GetHeight() * 0.5)
+    panel.text:SetFormattedText("X: %d   Y: %d", x, y)
+    panel:ClearAllPoints()
+    if centerX > UIParent:GetWidth() * 0.68 then
+        panel:SetPoint("RIGHT", overlay, "LEFT", -8, 0)
+    else
+        panel:SetPoint("LEFT", overlay, "RIGHT", 8, 0)
+    end
+    if showPanel then
+        if self.activeCoordinateMover and self.activeCoordinateMover ~= mover then
+            local previous = self.activeCoordinateMover.overlay
+            if previous and previous.coordinatePanel then previous.coordinatePanel:Hide() end
+        end
+        self.activeCoordinateMover = mover
+        panel:Show()
+    end
+end
+
 function FUI:CreateMoverOverlay(mover)
     if mover.overlay then return mover.overlay end
     local overlay = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
@@ -87,6 +116,17 @@ function FUI:CreateMoverOverlay(mover)
     label:SetPoint("CENTER")
     label:SetText(mover.label)
     label:SetTextColor(0.82, 0.93, 1)
+    local coordinatePanel = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+    coordinatePanel:SetSize(132, 28)
+    coordinatePanel:SetFrameStrata("TOOLTIP")
+    coordinatePanel:SetBackdrop({ bgFile = self.textures.Flat, edgeFile = self.textures.Flat, edgeSize = 1 })
+    coordinatePanel:SetBackdropColor(0.015, 0.035, 0.065, 0.96)
+    coordinatePanel:SetBackdropBorderColor(0.12, 0.62, 1, 1)
+    coordinatePanel:EnableMouse(false)
+    coordinatePanel.text = self:CreateFont(coordinatePanel, 11)
+    coordinatePanel.text:SetPoint("CENTER")
+    coordinatePanel:Hide()
+    overlay.coordinatePanel = coordinatePanel
     overlay:SetScript("OnEnter", function(self)
         self:SetBackdropColor(0.04, 0.18, 0.32, 0.88)
         self:SetBackdropBorderColor(0.35, 0.82, 1, 1)
@@ -96,10 +136,15 @@ function FUI:CreateMoverOverlay(mover)
         self:SetBackdropBorderColor(0.12, 0.62, 1, 1)
     end)
     overlay:SetScript("OnDragStart", function(self)
-        if not InCombatLockdown() then self:StartMoving() end
+        if not InCombatLockdown() then
+            self.isDragging = true
+            FUI:UpdateMoverCoordinates(mover, true)
+            self:StartMoving()
+        end
     end)
     overlay:SetScript("OnDragStop", function(self)
         self:StopMovingOrSizing()
+        self.isDragging = false
         local target = mover.frame
         local centerX, centerY = self:GetCenter()
         if centerX and centerY then
@@ -108,6 +153,11 @@ function FUI:CreateMoverOverlay(mover)
             FUI:SavePosition(target, mover.key)
             if mover.onMoved then mover.onMoved(mover) end
         end
+        FUI:UpdateMoverCoordinates(mover, true)
+    end)
+    overlay:SetScript("OnMouseDown", function() FUI:UpdateMoverCoordinates(mover, true) end)
+    overlay:SetScript("OnUpdate", function(self)
+        if self.isDragging then FUI:UpdateMoverCoordinates(mover, true) end
     end)
     overlay:Hide()
     mover.overlay = overlay
@@ -210,7 +260,9 @@ function FUI:EnterUnlockMode()
     for _, mover in pairs(self.movers) do
         local overlay = self:CreateMoverOverlay(mover)
         self:SyncMoverOverlay(mover)
-        overlay:Show()
+        local show = not mover.shouldShow or mover.shouldShow(mover) ~= false
+        overlay:SetShown(show)
+        if not show and overlay.coordinatePanel then overlay.coordinatePanel:Hide() end
     end
     mode.toolbar:Show()
 end
@@ -221,8 +273,12 @@ function FUI:ExitUnlockMode(openSettings)
         self.unlockMode.grid:Hide()
         self.unlockMode.toolbar:Hide()
         for _, mover in pairs(self.movers) do
-            if mover.overlay then mover.overlay:Hide() end
+            if mover.overlay then
+                mover.overlay:Hide()
+                if mover.overlay.coordinatePanel then mover.overlay.coordinatePanel:Hide() end
+            end
         end
+        self.activeCoordinateMover = nil
     end
     self:SetLocked(true)
     self:ApplySettings()

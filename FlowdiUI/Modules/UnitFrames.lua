@@ -429,9 +429,12 @@ function module:CreateNativeAuras(frame, kind)
         end
         return
     end
-    anchor:SetShown(auraSettings.enabled == true)
+    local enabled = auraSettings.enabled == true
+    anchor:SetShown(enabled)
     container:SetUnit(frame.unit)
-    if container.UpdateAllAuras then container:UpdateAllAuras() end
+    container:SetShown(enabled)
+    if container.SetEnabled then container:SetEnabled(enabled) end
+    if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
     frame.nativeAuraAnchors[kind] = anchor
@@ -457,6 +460,8 @@ function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     anchor:ClearAllPoints()
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     anchor:SetShown(enabled)
+    container:SetShown(enabled)
+    if container.SetEnabled then container:SetEnabled(enabled) end
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     return true
 end

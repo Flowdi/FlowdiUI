@@ -245,9 +245,12 @@ function module:CreateNativeAuras(button, kind)
         end
         return
     end
-    anchor:SetShown(settings.enabled == true)
+    local enabled = settings.enabled == true
+    anchor:SetShown(enabled)
     container:SetUnit(button.unit)
-    if container.UpdateAllAuras then container:UpdateAllAuras() end
+    container:SetShown(enabled)
+    if container.SetEnabled then container:SetEnabled(enabled) end
+    if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     button.nativeAuraAnchors = button.nativeAuraAnchors or {}
     button.nativeAuraContainers = button.nativeAuraContainers or {}
     button.nativeAuraAnchors[kind] = anchor
@@ -312,9 +315,12 @@ function module:UpdateAuras(button, kind, configure)
         if configure and settings then
             nativeAnchor:ClearAllPoints()
             nativeAnchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
-            nativeAnchor:SetShown(not button.isPet and settings.enabled == true)
+            local enabled = not button.isPet and settings.enabled == true
+            nativeAnchor:SetShown(enabled)
             if nativeContainer then
-                if settings.enabled and nativeContainer.UpdateAllAuras then nativeContainer:UpdateAllAuras() end
+                nativeContainer:SetShown(enabled)
+                if nativeContainer.SetEnabled then nativeContainer:SetEnabled(enabled) end
+                if enabled and nativeContainer.UpdateAllAuras then nativeContainer:UpdateAllAuras() end
             end
         elseif configure then
             nativeAnchor:Hide()

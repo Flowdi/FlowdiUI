@@ -155,7 +155,15 @@ function module:ApplyBar(definition)
     end
     bar:SetSize(columns * size + math.max(0, columns - 1) * spacing, rows * size + math.max(0, rows - 1) * spacing)
     local key = "actionBar" .. definition.key:sub(1, 1):upper() .. definition.key:sub(2)
-    if FUI.movers and FUI.movers[key] then FUI:SyncMoverOverlay(FUI.movers[key]) end
+    if FUI.movers and FUI.movers[key] then
+        local mover = FUI.movers[key]
+        FUI:SyncMoverOverlay(mover)
+        if FUI.unlockMode and FUI.unlockMode.active and mover.overlay then
+            local show = not mover.shouldShow or mover.shouldShow(mover) ~= false
+            mover.overlay:SetShown(show)
+            if not show and mover.overlay.coordinatePanel then mover.overlay.coordinatePanel:Hide() end
+        end
+    end
     self:UpdateBarVisibility(definition)
 end
 
@@ -203,6 +211,11 @@ function module:RegisterMovers()
                 FUI:RestorePosition(bar, key)
             end
             FUI:RegisterMover(bar, key, definition.label, function() module:ApplyBar(moverDefinition) end)
+            FUI.movers[key].shouldShow = function()
+                local currentSettings = BarSettings(moverDefinition)
+                local currentBar = ResolveBar(moverDefinition)
+                return currentSettings and currentSettings.enabled ~= false and currentBar and currentBar:IsShown()
+            end
         end
     end
 end
