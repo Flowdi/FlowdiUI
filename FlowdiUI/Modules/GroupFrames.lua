@@ -195,7 +195,6 @@ function module:CreateNativeAuras(button, kind)
         and math.max(1, profile.auraFilters.maxIcons or 8)
         or perRow * math.max(1, settings.rows or 1)
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
-    if settings.mineOnly then filter = filter .. "|PLAYER" end
     local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
     if setAnchor then pcall(setAnchor, container, anchorPoints[settings.point] or "TOPRIGHT") end
     local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
@@ -251,12 +250,12 @@ function module:CreateNativeAuras(button, kind)
         end
         return
     end
-    local enabled = settings.enabled == true
+    local enabled = true
     anchor:SetShown(enabled)
     container:SetShown(enabled)
-    if container.SetEnabled then container:SetEnabled(enabled) end
     local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
     container:SetUnit(unit or "none")
+    if container.SetEnabled then container:SetEnabled(enabled) end
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     button.nativeAuraAnchors = button.nativeAuraAnchors or {}
     button.nativeAuraContainers = button.nativeAuraContainers or {}
@@ -332,7 +331,7 @@ function module:UpdateAuras(button, kind, configure)
         if configure and settings then
             nativeAnchor:ClearAllPoints()
             nativeAnchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
-            local enabled = not button.isPet and settings.enabled == true
+            local enabled = not button.isPet
             nativeAnchor:SetShown(enabled)
             if nativeContainer then
                 nativeContainer:SetShown(enabled)

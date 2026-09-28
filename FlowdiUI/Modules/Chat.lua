@@ -34,36 +34,44 @@ function module:SuppressNativeEditMode()
     SuppressEditModeChild(ChatFrame1.EditModeResizeButton)
 end
 
+function module:PositionBackground()
+    local frame, background = ChatFrame1, self.background
+    if not frame or not background then return end
+    local left, bottom, right, top = frame:GetLeft(), frame:GetBottom(), frame:GetRight(), frame:GetTop()
+    if not left or not bottom or not right or not top then return end
+    if issecretvalue and (issecretvalue(left) or issecretvalue(bottom) or issecretvalue(right) or issecretvalue(top)) then return end
+    background:ClearAllPoints()
+    background:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left - 2, bottom - 2)
+    background:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", right + 2, top + 2)
+end
+
 function module:AnchorPrimaryChat()
-    local frame, anchor = ChatFrame1, self.anchor
-    if not frame or not anchor or self.anchoring then return end
+    local frame = ChatFrame1
+    if not frame or self.anchoring then return end
     self.anchoring = true
-    frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
-    frame:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+    FUI:RestorePosition(frame, "chat")
     self.anchoring = false
+    self:PositionBackground()
 end
 
 function module:CreateAnchor()
     if self.anchor or not ChatFrame1 then return self.anchor end
-    local anchor = CreateFrame("Frame", "FlowdiUI_ChatAnchor", UIParent)
-    anchor:SetSize(math.max(260, ChatFrame1:GetWidth()), math.max(120, ChatFrame1:GetHeight()))
-    if FUI.db.positions.chat then
-        FUI:RestorePosition(anchor, "chat")
-    else
-        local x, y = ChatFrame1:GetCenter()
-        anchor:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x or 260, y or 220)
-        FUI:SavePosition(anchor, "chat")
-    end
-    self.anchor = anchor
+    local anchor = ChatFrame1
+    self.anchor = ChatFrame1
+    self:AnchorPrimaryChat()
     local background = CreateFrame("Frame", "FlowdiUI_ChatBackground", UIParent, "BackdropTemplate")
-    background:SetAllPoints(anchor)
     background:SetFrameStrata("BACKGROUND")
     background:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     background:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
+    background:SetScript("OnUpdate", function(self, elapsed)
+        self.elapsed = (self.elapsed or 0) + elapsed
+        if self.elapsed < 0.20 then return end
+        self.elapsed = 0
+        module:PositionBackground()
+    end)
     self.background = background
-    FUI:RegisterMover(anchor, "chat", "Chat", function() module:AnchorPrimaryChat() end)
-    self:AnchorPrimaryChat()
+    self:PositionBackground()
+    FUI:RegisterMover(anchor, "chat", "Chat", function() module:PositionBackground() end)
     if hooksecurefunc and ChatFrame1.ApplySystemAnchor then
         hooksecurefunc(ChatFrame1, "ApplySystemAnchor", function()
             C_Timer.After(0, function()
@@ -78,7 +86,7 @@ function module:CreateAnchor()
         end)
     end
     self:SuppressNativeEditMode()
-    return anchor
+    return ChatFrame1
 end
 
 function module:CreateCopyWindow()
@@ -164,6 +172,11 @@ function module:StyleChatFrame(frame)
     frame:SetShadowOffset(0, 0)
     frame:SetFading(FUI.db.chat.fade)
     frame:SetTimeVisible(FUI.db.chat.timeVisible)
+    if frame.FontStringContainer then
+        frame.FontStringContainer:ClearAllPoints()
+        frame.FontStringContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
+        frame.FontStringContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 3, -3)
+    end
 
     if frame == ChatFrame1 and self.background then
         frame.FlowdiBackdrop = self.background
@@ -178,6 +191,11 @@ function module:StyleChatFrame(frame)
     end
     frame.FlowdiBackdrop:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
     HideChatControl(frame.buttonFrame)
+    if frame.buttonFrame then
+        frame.buttonFrame:ClearAllPoints()
+        frame.buttonFrame:SetPoint("TOP", frame, "BOTTOM", 0, -90000)
+        if frame.buttonFrame.SetClipsChildren then frame.buttonFrame:SetClipsChildren(true) end
+    end
 
     local name = frame:GetName()
     local editBox = name and _G[name .. "EditBox"]
@@ -243,6 +261,15 @@ function module:Initialize()
     if FCF_OpenTemporaryWindow then
         hooksecurefunc("FCF_OpenTemporaryWindow", function()
             module:StyleAll()
+        end)
+    end
+    if FCF_SetButtonSide then
+        hooksecurefunc("FCF_SetButtonSide", function(frame)
+            if frame and frame.buttonFrame then
+                frame.buttonFrame:ClearAllPoints()
+                frame.buttonFrame:SetPoint("TOP", frame, "BOTTOM", 0, -90000)
+                if frame.buttonFrame.SetClipsChildren then frame.buttonFrame:SetClipsChildren(true) end
+            end
         end)
     end
 end

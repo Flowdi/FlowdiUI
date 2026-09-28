@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.12"
+FUI.version = "0.8.13"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -15,7 +15,7 @@ FUI.movers = {}
 
 local function AuraDefaults(helpful)
     return {
-        enabled = false,
+        enabled = true,
         mineOnly = false,
         desaturate = false,
         tooltip = true,
@@ -98,7 +98,7 @@ local function GroupProfileDefaults(party)
             showDispellable = true,
         },
     }
-    profile.auras.buff.enabled = party
+    profile.auras.buff.enabled = true
     profile.auras.buff.size = party and 16 or 12
     profile.auras.buff.perRow = party and 3 or 2
     profile.auras.buff.rows = 1
@@ -138,7 +138,7 @@ local function ActionBarDefaults(vertical, maximum, iconSize)
 end
 
 local defaults = {
-    profileVersion = 20,
+    profileVersion = 21,
     locked = true,
     scale = 1,
     global = {
@@ -669,6 +669,22 @@ function FUI:Initialize()
     if previousVersion < 17 then
         self.db.groupFrames.party.auras.buff.mineOnly = true
         self.db.groupFrames.raid.auras.buff.mineOnly = true
+    end
+    if previousVersion < 21 then
+        for _, settings in pairs(self.db.unitFrames.frames) do
+            if settings.auras then
+                settings.auras.buff.enabled = true
+                settings.auras.buff.mineOnly = false
+                settings.auras.debuff.enabled = true
+                settings.auras.debuff.mineOnly = false
+            end
+        end
+        for _, profile in pairs({ self.db.groupFrames.party, self.db.groupFrames.raid }) do
+            profile.auras.buff.enabled = true
+            profile.auras.buff.mineOnly = false
+            profile.auras.debuff.enabled = true
+            profile.auras.debuff.mineOnly = false
+        end
     end
     self.db.profileVersion = defaults.profileVersion
 

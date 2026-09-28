@@ -371,7 +371,7 @@ function module:CreateNativeAuras(frame, kind)
     container.buttons = {}
     local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
     local baseFilter = kind == "buff" and "HELPFUL" or "HARMFUL"
-    local filter = auraSettings.mineOnly and (baseFilter .. "|PLAYER") or baseFilter
+    local filter = baseFilter
     local groupKey = nativeAuraGroups[kind]
     local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
     if setAnchor then pcall(setAnchor, container, anchorPoints[auraSettings.point] or "BOTTOMRIGHT") end
@@ -436,12 +436,12 @@ function module:CreateNativeAuras(frame, kind)
         end
         return
     end
-    local enabled = auraSettings.enabled == true
+    local enabled = true
     anchor:SetShown(enabled)
     container:SetShown(enabled)
-    if container.SetEnabled then container:SetEnabled(enabled) end
     local unit = frame.GetAttribute and frame:GetAttribute("unit") or frame.unit
     container:SetUnit(unit or "none")
+    if container.SetEnabled then container:SetEnabled(enabled) end
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
@@ -471,7 +471,7 @@ function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     local container = frame.nativeAuraContainers and frame.nativeAuraContainers[kind]
     local anchor = frame.nativeAuraAnchors and frame.nativeAuraAnchors[kind]
     if not container or not anchor or not auraSettings then return false end
-    local enabled = auraSettings.enabled == true
+    local enabled = true
     if not configure then
         return true
     end

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.13
+
+- Forced Buff and Debuff displays on for Player, Target, Party, and Raid frames, including migration of existing profiles to unfiltered aura visibility.
+- Corrected native aura activation order so fully configured containers bind their unit before being enabled and refreshed.
+- Replaced the separate Chat anchor with a single mover attached directly to the primary chat frame.
+- Made the independent Chat background follow the primary frame numerically and moved the native side-button frame out of the visible layout.
+
 ## 0.8.12
 
 - Restored deferred protected aura-container construction while leaving combat `UNIT_AURA` updates entirely to the client provider.
