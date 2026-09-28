@@ -34,24 +34,12 @@ function module:SuppressNativeEditMode()
     SuppressEditModeChild(ChatFrame1.EditModeResizeButton)
 end
 
-function module:PositionBackground()
-    local frame, background = ChatFrame1, self.background
-    if not frame or not background then return end
-    local left, bottom, right, top = frame:GetLeft(), frame:GetBottom(), frame:GetRight(), frame:GetTop()
-    if not left or not bottom or not right or not top then return end
-    if issecretvalue and (issecretvalue(left) or issecretvalue(bottom) or issecretvalue(right) or issecretvalue(top)) then return end
-    background:ClearAllPoints()
-    background:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left - 2, bottom - 2)
-    background:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", right + 2, top + 2)
-end
-
 function module:AnchorPrimaryChat()
     local frame = ChatFrame1
     if not frame or self.anchoring then return end
     self.anchoring = true
     FUI:RestorePosition(frame, "chat")
     self.anchoring = false
-    self:PositionBackground()
 end
 
 function module:CreateAnchor()
@@ -59,19 +47,7 @@ function module:CreateAnchor()
     local anchor = ChatFrame1
     self.anchor = ChatFrame1
     self:AnchorPrimaryChat()
-    local background = CreateFrame("Frame", "FlowdiUI_ChatBackground", UIParent, "BackdropTemplate")
-    background:SetFrameStrata("BACKGROUND")
-    background:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
-    background:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
-    background:SetScript("OnUpdate", function(self, elapsed)
-        self.elapsed = (self.elapsed or 0) + elapsed
-        if self.elapsed < 0.20 then return end
-        self.elapsed = 0
-        module:PositionBackground()
-    end)
-    self.background = background
-    self:PositionBackground()
-    FUI:RegisterMover(anchor, "chat", "Chat", function() module:PositionBackground() end)
+    FUI:RegisterMover(anchor, "chat", "Chat")
     if hooksecurefunc and ChatFrame1.ApplySystemAnchor then
         hooksecurefunc(ChatFrame1, "ApplySystemAnchor", function()
             C_Timer.After(0, function()
@@ -178,13 +154,11 @@ function module:StyleChatFrame(frame)
         frame.FontStringContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 3, -3)
     end
 
-    if frame == ChatFrame1 and self.background then
-        frame.FlowdiBackdrop = self.background
-    elseif not frame.FlowdiBackdrop then
-        local backdrop = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-        backdrop:SetPoint("TOPLEFT", frame, "TOPLEFT", -2, 2)
-        backdrop:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 2, -2)
-        backdrop:SetFrameStrata("BACKGROUND")
+    if not frame.FlowdiBackdrop then
+        local backdrop = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+        backdrop:SetAllPoints(frame)
+        backdrop:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+        backdrop:EnableMouse(false)
         backdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
         backdrop:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
         frame.FlowdiBackdrop = backdrop
@@ -214,7 +188,7 @@ function module:StyleChatFrame(frame)
 
 
     if not frame.FlowdiCopyButton then
-        local copyParent = frame == ChatFrame1 and self.anchor or frame
+        local copyParent = frame
         local copy = CreateFrame("Button", nil, copyParent, "BackdropTemplate")
         copy:SetSize(20, 20)
         copy:SetPoint("TOPRIGHT", copyParent, "TOPRIGHT", 4, 5)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.14
+
+- Replaced Unit Frame and Party/Raid aura displays with direct native containers attached to each unit button, removing the previous intermediary anchors and guarded-layout path.
+- Reduced aura regions to the native icon, cooldown, and stack interfaces so combat visibility is driven solely by the client aura provider.
+- Attached the Chat background directly to the primary chat frame and removed the independent geometry follower.
+- Registered the real primary chat frame as the only FlowdiUI mover and expanded its text container across the full frame width.
+
 ## 0.8.13
 
 - Forced Buff and Debuff displays on for Player, Target, Party, and Raid frames, including migration of existing profiles to unfiltered aura visibility.

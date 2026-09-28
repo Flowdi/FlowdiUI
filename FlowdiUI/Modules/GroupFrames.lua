@@ -171,13 +171,7 @@ function module:CreateNativeAuras(button, kind)
     local profile = Profile(button)
     local settings = profile and profile.auras and profile.auras[kind]
     if not settings then return end
-    local anchor = CreateFrame("Frame", nil, button)
-    anchor:SetSize(1, 1)
-    anchor:SetFrameLevel(button:GetFrameLevel() + 24)
-    anchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
-    if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
-        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, button, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then
         if not self.auraShellError then
             self.auraShellError = true
@@ -186,8 +180,9 @@ function module:CreateNativeAuras(button, kind)
         return
     end
     container:SetSize(1, 1)
-    container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", anchor, "CENTER", 0, 0)
-    container:SetFrameLevel(anchor:GetFrameLevel() + 1)
+    container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", button,
+        anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
+    container:SetFrameLevel(button:GetFrameLevel() + 25)
     if container.SetClipsChildren then container:SetClipsChildren(false) end
     local size, spacing = settings.size or 14, settings.spacing or 1
     local perRow = math.max(1, settings.perRow or 3)
@@ -225,22 +220,18 @@ function module:CreateNativeAuras(button, kind)
             local cooldown = CreateFrame("Cooldown", nil, auraButton, "CooldownFrameTemplate")
             cooldown:SetAllPoints(icon)
             if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
-            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
+            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(not settings.showDuration) end
             cooldown:SetShown(settings.cooldown ~= false)
             local textLayer = CreateFrame("Frame", nil, auraButton)
             textLayer:SetAllPoints(auraButton)
             textLayer:SetFrameLevel(cooldown:GetFrameLevel() + 2)
             textLayer:EnableMouse(false)
-            local duration = FUI:CreateFont(textLayer, settings.durationSize or 8)
-            duration:SetPoint("BOTTOM", 0, 1)
-            duration:SetAlpha(settings.showDuration and 1 or 0)
             local stacks = FUI:CreateFont(textLayer, settings.stackSize or 8)
             stacks:SetPoint("TOPRIGHT", -1, -1)
             stacks:SetAlpha(settings.showStacks and 1 or 0)
             auraButton:SetIcon(icon)
             auraButton:SetDurationCooldown(cooldown)
             auraButton:SetApplicationCount(stacks, {})
-            pcall(auraButton.SetDurationText, auraButton, duration, {})
         end,
     })
     if not added then
@@ -251,15 +242,12 @@ function module:CreateNativeAuras(button, kind)
         return
     end
     local enabled = true
-    anchor:SetShown(enabled)
     container:SetShown(enabled)
     local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
     container:SetUnit(unit or "none")
     if container.SetEnabled then container:SetEnabled(enabled) end
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
-    button.nativeAuraAnchors = button.nativeAuraAnchors or {}
     button.nativeAuraContainers = button.nativeAuraContainers or {}
-    button.nativeAuraAnchors[kind] = anchor
     button.nativeAuraContainers[kind] = container
 end
 
@@ -325,22 +313,9 @@ function module:UpdateAuras(button, kind, configure)
     local settings = profile and profile.auras and profile.auras[kind]
     local buttons = button.auraButtons[kind]
     for _, auraButton in ipairs(buttons) do auraButton:Hide() end
-    local nativeAnchor = button.nativeAuraAnchors and button.nativeAuraAnchors[kind]
     local nativeContainer = button.nativeAuraContainers and button.nativeAuraContainers[kind]
-    if nativeAnchor then
-        if configure and settings then
-            nativeAnchor:ClearAllPoints()
-            nativeAnchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
-            local enabled = not button.isPet
-            nativeAnchor:SetShown(enabled)
-            if nativeContainer then
-                nativeContainer:SetShown(enabled)
-                if nativeContainer.SetEnabled then nativeContainer:SetEnabled(enabled) end
-                if enabled and nativeContainer.UpdateAllAuras then nativeContainer:UpdateAllAuras() end
-            end
-        elseif configure then
-            nativeAnchor:Hide()
-        end
+    if nativeContainer then
+        nativeContainer:SetShown(not button.isPet)
         return
     end
     if button.isPet or not settings or not settings.enabled then return end
@@ -554,6 +529,8 @@ function module:CreateButton(parent, unit, profileKey, isPet)
             if event == "PLAYER_ENTERING_WORLD" then
                 module.worldReady = true
                 module:EnsureNativeAuras(self)
+                module:UpdateAuras(self, "buff")
+                module:UpdateAuras(self, "debuff")
             end
             if event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then module:BindNativeAuras(self, true) end
             module:UpdateButton(self)

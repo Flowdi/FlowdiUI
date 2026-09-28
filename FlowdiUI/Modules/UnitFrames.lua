@@ -350,13 +350,7 @@ function module:CreateNativeAuras(frame, kind)
     if not auraSettings then return end
     local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
     local target = targets[auraSettings.attachTo] or frame
-    local anchor = CreateFrame("Frame", nil, frame)
-    anchor:SetSize(1, 1)
-    anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
-    anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
-    if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
-        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, frame, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then
         if not self.auraShellError then
             self.auraShellError = true
@@ -365,8 +359,9 @@ function module:CreateNativeAuras(frame, kind)
         return
     end
     container:SetSize(1, 1)
-    container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
-    container:SetFrameLevel(anchor:GetFrameLevel() + 1)
+    container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", target,
+        anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
+    container:SetFrameLevel(frame:GetFrameLevel() + 31)
     if container.SetClipsChildren then container:SetClipsChildren(false) end
     container.buttons = {}
     local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
@@ -407,25 +402,21 @@ function module:CreateNativeAuras(frame, kind)
             local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
             cooldown:SetAllPoints(button)
             if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
-            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
+            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(not auraSettings.showDuration) end
             cooldown:SetShown(auraSettings.cooldown ~= false)
             local textLayer = CreateFrame("Frame", nil, button)
             textLayer:SetAllPoints(button)
             textLayer:SetFrameLevel(cooldown:GetFrameLevel() + 2)
             textLayer:EnableMouse(false)
-            local duration = FUI:CreateFont(textLayer, auraSettings.durationSize or 9)
-            ApplyAuraTextPosition(duration, auraSettings.durationPosition)
-            duration:SetAlpha(auraSettings.showDuration and 1 or 0)
             local stacks = FUI:CreateFont(textLayer, auraSettings.stackSize or 10)
             ApplyAuraTextPosition(stacks, auraSettings.stackPosition)
             stacks:SetAlpha(auraSettings.showStacks and 1 or 0)
             button:SetIcon(icon)
             button:SetDurationCooldown(cooldown)
             button:SetApplicationCount(stacks, {})
-            pcall(button.SetDurationText, button, duration, {})
             container.buttons[#container.buttons + 1] = {
                 button = button, border = border, icon = icon, cooldown = cooldown,
-                duration = duration, stacks = stacks,
+                stacks = stacks,
             }
         end,
     })
@@ -437,15 +428,12 @@ function module:CreateNativeAuras(frame, kind)
         return
     end
     local enabled = true
-    anchor:SetShown(enabled)
     container:SetShown(enabled)
     local unit = frame.GetAttribute and frame:GetAttribute("unit") or frame.unit
     container:SetUnit(unit or "none")
     if container.SetEnabled then container:SetEnabled(enabled) end
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
-    frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
-    frame.nativeAuraAnchors[kind] = anchor
     frame.nativeAuraContainers[kind] = container
 end
 
@@ -469,20 +457,8 @@ end
 
 function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     local container = frame.nativeAuraContainers and frame.nativeAuraContainers[kind]
-    local anchor = frame.nativeAuraAnchors and frame.nativeAuraAnchors[kind]
-    if not container or not anchor or not auraSettings then return false end
-    local enabled = true
-    if not configure then
-        return true
-    end
-    local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
-    local target = targets[auraSettings.attachTo] or frame
-    anchor:ClearAllPoints()
-    anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
-    anchor:SetShown(enabled)
-    container:SetShown(enabled)
-    if container.SetEnabled then container:SetEnabled(enabled) end
-    if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
+    if not container or not auraSettings then return false end
+    container:SetShown(true)
     return true
 end
 
@@ -823,6 +799,8 @@ function module:CreateUnitFrame(unit, positionKey)
             if event == "PLAYER_ENTERING_WORLD" then
                 module.worldReady = true
                 module:EnsureNativeAuras(self)
+                module:UpdateAuras(self, "buff")
+                module:UpdateAuras(self, "debuff")
             end
             if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
                 module:BindNativeAuras(self, true)
