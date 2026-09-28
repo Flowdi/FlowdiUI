@@ -176,7 +176,8 @@ function module:CreateNativeAuras(button, kind)
     anchor:SetFrameLevel(button:GetFrameLevel() + 24)
     anchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
+        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", anchor, "CENTER", 0, 0)
@@ -324,6 +325,8 @@ function module:UpdateAuras(button, kind, configure)
             end
         elseif configure then
             nativeAnchor:Hide()
+        elseif settings and settings.enabled and nativeContainer and nativeContainer.UpdateAllAuras then
+            nativeContainer:UpdateAllAuras()
         end
         return
     end

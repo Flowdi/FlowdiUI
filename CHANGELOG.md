@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.10
+
+- Kept native Unit Frame and Party/Raid auras refreshed on aura and roster events and protected their layout from restricted combat-data updates.
+- Suppressed the remaining native Action Button cast, interrupt, reticle, flash, highlight, new-action, and pushed artwork while retaining functional cooldowns.
+- Removed the left-side Chat voice, menu, and text-to-speech controls.
+- Rebuilt the Chat copy dialog around a clipped scrolling text area so copied history stays inside the window.
+- Added a Chat input-position option for placing the edit box above or below its chat frame.
+
 ## 0.8.9
 
 - Added a live coordinate panel beside the selected Unlock Mode mover; clicking a mover shows its centered X/Y coordinates and dragging updates them continuously.

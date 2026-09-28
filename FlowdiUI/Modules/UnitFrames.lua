@@ -355,7 +355,8 @@ function module:CreateNativeAuras(frame, kind)
     anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
+        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
@@ -454,7 +455,10 @@ function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     local anchor = frame.nativeAuraAnchors and frame.nativeAuraAnchors[kind]
     if not container or not anchor or not auraSettings then return false end
     local enabled = auraSettings.enabled == true
-    if not configure then return true end
+    if not configure then
+        if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
+        return true
+    end
     local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
     local target = targets[auraSettings.attachTo] or frame
     anchor:ClearAllPoints()

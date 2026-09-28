@@ -75,6 +75,28 @@ local function ButtonRegions(button)
         button and (button.Name or (name and _G[name .. "Name"]))
 end
 
+local function SuppressNativeButtonEffects(button)
+    if not button or button.FlowdiNativeEffectsSuppressed then return end
+    button.FlowdiNativeEffectsSuppressed = true
+    local name = button:GetName()
+    local flash = button.Flash or (name and _G[name .. "Flash"])
+    local action = button.NewActionTexture
+    local highlight = button.SpellHighlightTexture
+    local pushed = button.GetPushedTexture and button:GetPushedTexture()
+    for _, region in pairs({ flash, action, highlight, pushed }) do
+        if region then region:SetAlpha(0) end
+    end
+    for _, effect in pairs({ button.SpellCastAnimFrame, button.InterruptDisplay, button.TargetReticleAnimFrame }) do
+        if effect then
+            effect:SetAlpha(0)
+            if effect.HookScript and not effect.FlowdiHiddenHook then
+                effect.FlowdiHiddenHook = true
+                effect:HookScript("OnShow", function(self) self:SetAlpha(0) end)
+            end
+        end
+    end
+end
+
 function module:SkinActionButton(button, settings)
     if not button then return end
     FUI:SkinButton(button)
@@ -86,6 +108,7 @@ function module:SkinActionButton(button, settings)
     local normal = button.GetNormalTexture and button:GetNormalTexture()
     if normal then normal:SetAlpha(0) end
     if button.SlotBackground then button.SlotBackground:SetAlpha(0) end
+    SuppressNativeButtonEffects(button)
     if icon then icon:SetAlpha(empty and 0 or 1) end
     if hotkey then
         if _G.RANGE_INDICATOR and hotkey:GetText() == _G.RANGE_INDICATOR then

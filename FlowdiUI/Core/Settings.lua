@@ -1106,6 +1106,9 @@ local function BuildChat(page)
     AddCheckbox(page, "Show copy button", 480, -320,
         function() return FUI.db.chat.copyButton end,
         function(value) FUI.db.chat.copyButton = value end)
+    AddCycle(page, "Chat input position", 390, -365, 220, { "Below", "Above" },
+        function() return FUI.db.chat.editBoxPosition or "Below" end,
+        function(value) FUI.db.chat.editBoxPosition = value end)
     AddSlider(page, "Visible for", 24, -375, 310, 15, 300, 15,
         function() return FUI.db.chat.timeVisible end,
         function(value) FUI.db.chat.timeVisible = value end,

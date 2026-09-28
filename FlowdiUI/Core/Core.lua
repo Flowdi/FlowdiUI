@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.9"
+FUI.version = "0.8.10"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -326,6 +326,7 @@ local defaults = {
         timeVisible = 120,
         timestamps = true,
         copyButton = true,
+        editBoxPosition = "Below",
     },
     bags = {
         darkness = 0.82,

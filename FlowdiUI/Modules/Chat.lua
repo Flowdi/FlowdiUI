@@ -4,6 +4,19 @@ local FUI = ns.FUI
 local module = {}
 FUI:RegisterModule("chat", module)
 
+local function HideChatControl(frame)
+    if not frame then return end
+    frame:SetAlpha(0)
+    if frame.EnableMouse then frame:EnableMouse(false) end
+    if frame.HookScript and not frame.FlowdiHiddenHook then
+        frame.FlowdiHiddenHook = true
+        frame:HookScript("OnShow", function(self)
+            self:SetAlpha(0)
+            if self.EnableMouse then self:EnableMouse(false) end
+        end)
+    end
+end
+
 function module:CreateCopyWindow()
     if self.copyWindow then return self.copyWindow end
     local frame = CreateFrame("Frame", "FlowdiUIChatCopy", UIParent, "BackdropTemplate")
@@ -20,16 +33,40 @@ function module:CreateCopyWindow()
     title:SetPoint("TOPLEFT", 18, -16)
     title:SetText("Chat kopieren")
 
-    local editBox = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-    editBox:SetPoint("TOPLEFT", 18, -50)
-    editBox:SetPoint("BOTTOMRIGHT", -18, 48)
+    local textArea = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    textArea:SetPoint("TOPLEFT", 18, -50)
+    textArea:SetPoint("BOTTOMRIGHT", -18, 48)
+    textArea:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    textArea:SetBackdropColor(0.005, 0.012, 0.025, 0.98)
+    textArea:SetBackdropBorderColor(unpack(FUI.colors.border))
+
+    local scroll = CreateFrame("ScrollFrame", nil, textArea, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 8, -8)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 8)
+    scroll:EnableMouseWheel(true)
+    local editBox = CreateFrame("EditBox", nil, scroll)
+    editBox:SetPoint("TOPLEFT")
+    editBox:SetWidth(548)
+    editBox:SetHeight(1)
     editBox:SetMultiLine(true)
     editBox:SetAutoFocus(false)
     editBox:SetMaxLetters(0)
-    editBox:SetFont(FUI.media.font, 12, "")
-    editBox:SetTextInsets(8, 8, 8, 8)
+    editBox:SetFont(FUI:GetModuleFontPath("chat"), 12, "")
+    editBox:SetTextInsets(2, 2, 2, 2)
     editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
-    FUI:SkinEditBox(editBox)
+    editBox:SetScript("OnTextChanged", function(self)
+        local textHeight = self.GetTextHeight and self:GetTextHeight() or 1
+        self:SetHeight(math.max(scroll:GetHeight(), textHeight + 12))
+    end)
+    scroll:SetScript("OnSizeChanged", function(self, width)
+        editBox:SetWidth(math.max(40, width - 4))
+    end)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local maximum = math.max(0, editBox:GetHeight() - self:GetHeight())
+        self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 36)))
+    end)
+    scroll:SetScrollChild(editBox)
+    frame.scroll = scroll
     frame.editBox = editBox
 
     local close = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
@@ -51,6 +88,7 @@ function module:OpenCopyWindow(chatFrame)
         end
     end
     frame.editBox:SetText(table.concat(messages, "\n"))
+    frame.scroll:SetVerticalScroll(0)
     frame:Show()
     frame.editBox:HighlightText()
     frame.editBox:SetFocus()
@@ -73,12 +111,21 @@ function module:StyleChatFrame(frame)
         frame.FlowdiBackdrop = backdrop
     end
     frame.FlowdiBackdrop:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
+    HideChatControl(frame.buttonFrame)
 
     local name = frame:GetName()
     local editBox = name and _G[name .. "EditBox"]
     if editBox then
         FUI:CreateBackdrop(editBox, 2)
         editBox:SetAltArrowKeyMode(false)
+        editBox:ClearAllPoints()
+        if FUI.db.chat.editBoxPosition == "Above" then
+            editBox:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", -5, 7)
+            editBox:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 5, 7)
+        else
+            editBox:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", -5, -7)
+            editBox:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", 5, -7)
+        end
     end
 
 
@@ -114,8 +161,11 @@ function module:StyleAll()
         self:StyleChatFrame(_G["ChatFrame" .. index])
     end
 
-    if ChatFrameMenuButton then FUI:SkinButton(ChatFrameMenuButton) end
-    if ChatFrameChannelButton then FUI:SkinButton(ChatFrameChannelButton) end
+    for _, globalName in ipairs({ "ChatFrameMenuButton", "ChatFrameChannelButton", "ChatFrameToggleVoiceDeafenButton", "ChatFrameToggleVoiceMuteButton" }) do
+        HideChatControl(_G[globalName])
+    end
+    HideChatControl(TextToSpeechButtonFrame)
+    HideChatControl(TextToSpeechButton)
 end
 
 function module:Initialize()
