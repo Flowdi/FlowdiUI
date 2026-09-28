@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.11
+
+- Rebuilt Unit Frame and Party/Raid aura containers during initial frame construction, binds their actual secure unit token last, and leaves combat aura updates to the protected client provider.
+- Removed the premature Party/Raid spell-ID gate so enabled Buff and Debuff containers can populate before a later indicator-filter pass.
+- Added Chat to FlowdiUI Unlock Mode with its own persistent anchor, independent of the native Edit Mode position.
+- Removed the remaining social toast control and tightened the Chat background to the actual text frame.
+
 ## 0.8.10
 
 - Kept native Unit Frame and Party/Raid auras refreshed on aura and roster events and protected their layout from restricted combat-data updates.

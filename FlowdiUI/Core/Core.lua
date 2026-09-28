@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.10"
+FUI.version = "0.8.11"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -381,6 +381,7 @@ local defaults = {
         focusCastbar = { "CENTER", "CENTER", 280, -285 },
         party = { "LEFT", "LEFT", 42, 20 },
         raid = { "LEFT", "LEFT", 42, 20 },
+        chat = { "BOTTOMLEFT", "BOTTOMLEFT", 28, 52 },
         dataPanel = { "BOTTOM", "BOTTOM", 0, 4 },
         dataPanel2 = { "TOP", "TOP", 0, -4 },
         settings = { "CENTER", "CENTER", 0, 0 },
@@ -617,7 +618,7 @@ function FUI:RegisterMover(frame, key, label, onMoved)
         targettarget = "Target of Target", targettargettarget = "Target of Target of Target",
         playerCastbar = "Player Cast Bar", petCastbar = "Pet Cast Bar", targetCastbar = "Target Cast Bar", focusCastbar = "Focus Cast Bar",
         targettargetCastbar = "Target of Target Cast Bar", targettargettargetCastbar = "Target of Target of Target Cast Bar",
-        party = "Party Frames", raid = "Raid Frames",
+        party = "Party Frames", raid = "Raid Frames", chat = "Chat",
         dataPanel = "Primary Data Panel", dataPanel2 = "Second Data Panel",
     }
     self.movers[key] = { frame = frame, key = key, label = label or labels[key] or key, onMoved = onMoved }

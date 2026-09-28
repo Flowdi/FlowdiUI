@@ -355,8 +355,7 @@ function module:CreateNativeAuras(frame, kind)
     anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
-        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
@@ -432,9 +431,10 @@ function module:CreateNativeAuras(frame, kind)
     end
     local enabled = auraSettings.enabled == true
     anchor:SetShown(enabled)
-    container:SetUnit(frame.unit)
     container:SetShown(enabled)
     if container.SetEnabled then container:SetEnabled(enabled) end
+    local unit = frame.GetAttribute and frame:GetAttribute("unit") or frame.unit
+    container:SetUnit(unit or "none")
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
@@ -443,10 +443,20 @@ function module:CreateNativeAuras(frame, kind)
 end
 
 function module:EnsureNativeAuras(frame)
-    if not self.worldReady or frame.unit == "pet" then return end
+    if frame.unit == "pet" then return end
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
         if not frame.nativeAuraContainers[kind] then self:CreateNativeAuras(frame, kind) end
+    end
+end
+
+function module:BindNativeAuras(frame, refresh)
+    local unit = frame.GetAttribute and frame:GetAttribute("unit") or frame.unit
+    unit = unit or frame.unit or "none"
+    for _, container in pairs(frame.nativeAuraContainers or {}) do
+        local changed = not container.GetUnit or container:GetUnit() ~= unit
+        if changed then container:SetUnit(unit) end
+        if (changed or refresh) and container.UpdateAllAuras then container:UpdateAllAuras() end
     end
 end
 
@@ -456,7 +466,6 @@ function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     if not container or not anchor or not auraSettings then return false end
     local enabled = auraSettings.enabled == true
     if not configure then
-        if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
         return true
     end
     local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
@@ -804,15 +813,10 @@ function module:CreateUnitFrame(unit, positionKey)
     end
     frame:SetScript("OnEvent", function(self, event, eventUnit)
         if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
-            if event == "PLAYER_ENTERING_WORLD" then
-                module.worldReady = true
-                module:EnsureNativeAuras(self)
+            if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
+                module:BindNativeAuras(self, true)
             end
             module:UpdateFrame(self)
-            if event == "UNIT_AURA" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_TARGET" then
-                module:UpdateAuras(self, "buff")
-                module:UpdateAuras(self, "debuff")
-            end
         end
     end)
     frame:SetScript("OnUpdate", function(self, elapsed)
@@ -822,6 +826,7 @@ function module:CreateUnitFrame(unit, positionKey)
         module:UpdateVisibility(self)
     end)
     self.frames[unit] = frame
+    self:EnsureNativeAuras(frame)
     return frame
 end
 

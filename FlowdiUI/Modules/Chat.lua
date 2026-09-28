@@ -8,13 +8,49 @@ local function HideChatControl(frame)
     if not frame then return end
     frame:SetAlpha(0)
     if frame.EnableMouse then frame:EnableMouse(false) end
+    if frame.Hide then frame:Hide() end
     if frame.HookScript and not frame.FlowdiHiddenHook then
         frame.FlowdiHiddenHook = true
         frame:HookScript("OnShow", function(self)
             self:SetAlpha(0)
             if self.EnableMouse then self:EnableMouse(false) end
+            self:Hide()
         end)
     end
+end
+
+function module:AnchorPrimaryChat()
+    local frame, anchor = ChatFrame1, self.anchor
+    if not frame or not anchor or self.anchoring then return end
+    self.anchoring = true
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0)
+    frame:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", 0, 0)
+    self.anchoring = false
+end
+
+function module:CreateAnchor()
+    if self.anchor or not ChatFrame1 then return self.anchor end
+    local anchor = CreateFrame("Frame", "FlowdiUI_ChatAnchor", UIParent)
+    anchor:SetSize(math.max(260, ChatFrame1:GetWidth()), math.max(120, ChatFrame1:GetHeight()))
+    if FUI.db.positions.chat then
+        FUI:RestorePosition(anchor, "chat")
+    else
+        local x, y = ChatFrame1:GetCenter()
+        anchor:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x or 260, y or 220)
+        FUI:SavePosition(anchor, "chat")
+    end
+    self.anchor = anchor
+    FUI:RegisterMover(anchor, "chat", "Chat", function() module:AnchorPrimaryChat() end)
+    self:AnchorPrimaryChat()
+    if hooksecurefunc and ChatFrame1.SetPoint then
+        hooksecurefunc(ChatFrame1, "SetPoint", function()
+            if module.anchor and not module.anchoring and not InCombatLockdown() then
+                module:AnchorPrimaryChat()
+            end
+        end)
+    end
+    return anchor
 end
 
 function module:CreateCopyWindow()
@@ -103,8 +139,8 @@ function module:StyleChatFrame(frame)
 
     if not frame.FlowdiBackdrop then
         local backdrop = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-        backdrop:SetPoint("TOPLEFT", -7, 8)
-        backdrop:SetPoint("BOTTOMRIGHT", 7, -8)
+        backdrop:SetPoint("TOPLEFT", -2, 2)
+        backdrop:SetPoint("BOTTOMRIGHT", 2, -2)
         backdrop:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
         backdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
         backdrop:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
@@ -153,6 +189,8 @@ end
 
 function module:Apply()
     CHAT_TIMESTAMP_FORMAT = FUI.db.chat.timestamps and "[%H:%M] " or nil
+    self:CreateAnchor()
+    self:AnchorPrimaryChat()
     self:StyleAll()
 end
 
@@ -161,7 +199,7 @@ function module:StyleAll()
         self:StyleChatFrame(_G["ChatFrame" .. index])
     end
 
-    for _, globalName in ipairs({ "ChatFrameMenuButton", "ChatFrameChannelButton", "ChatFrameToggleVoiceDeafenButton", "ChatFrameToggleVoiceMuteButton" }) do
+    for _, globalName in ipairs({ "ChatFrameMenuButton", "ChatFrameChannelButton", "ChatFrameToggleVoiceDeafenButton", "ChatFrameToggleVoiceMuteButton", "QuickJoinToastButton" }) do
         HideChatControl(_G[globalName])
     end
     HideChatControl(TextToSpeechButtonFrame)

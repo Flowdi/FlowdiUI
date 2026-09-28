@@ -176,8 +176,7 @@ function module:CreateNativeAuras(button, kind)
     anchor:SetFrameLevel(button:GetFrameLevel() + 24)
     anchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
-        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", anchor, "CENTER", 0, 0)
@@ -202,7 +201,6 @@ function module:CreateNativeAuras(button, kind)
     end
     local added, addError = pcall(container.AddAuraGroup, container, kind == "buff" and "Buffs" or "Debuffs", filter, {
         maxFrameCount = maximum,
-        candidateFilters = NativeCandidateFilters(profile, kind),
         layout = {
             elementWidth = size, elementHeight = size,
             elementSpacing = spacing, lineSpacing = spacing,
@@ -248,9 +246,10 @@ function module:CreateNativeAuras(button, kind)
     end
     local enabled = settings.enabled == true
     anchor:SetShown(enabled)
-    container:SetUnit(button.unit)
     container:SetShown(enabled)
     if container.SetEnabled then container:SetEnabled(enabled) end
+    local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
+    container:SetUnit(unit or "none")
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     button.nativeAuraAnchors = button.nativeAuraAnchors or {}
     button.nativeAuraContainers = button.nativeAuraContainers or {}
@@ -259,10 +258,20 @@ function module:CreateNativeAuras(button, kind)
 end
 
 function module:EnsureNativeAuras(button)
-    if not self.worldReady or button.isPet then return end
+    if button.isPet then return end
     button.nativeAuraContainers = button.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
         if not button.nativeAuraContainers[kind] then self:CreateNativeAuras(button, kind) end
+    end
+end
+
+function module:BindNativeAuras(button, refresh)
+    local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
+    unit = unit or button.unit or "none"
+    for _, container in pairs(button.nativeAuraContainers or {}) do
+        local changed = not container.GetUnit or container:GetUnit() ~= unit
+        if changed then container:SetUnit(unit) end
+        if (changed or refresh) and container.UpdateAllAuras then container:UpdateAllAuras() end
     end
 end
 
@@ -325,8 +334,6 @@ function module:UpdateAuras(button, kind, configure)
             end
         elseif configure then
             nativeAnchor:Hide()
-        elseif settings and settings.enabled and nativeContainer and nativeContainer.UpdateAllAuras then
-            nativeContainer:UpdateAllAuras()
         end
         return
     end
@@ -538,15 +545,8 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     }) do button:RegisterEvent(event) end
     button:SetScript("OnEvent", function(self, event, eventUnit)
         if not eventUnit or eventUnit == self.unit or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
-            if event == "PLAYER_ENTERING_WORLD" then
-                module.worldReady = true
-                module:EnsureNativeAuras(self)
-            end
+            if event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then module:BindNativeAuras(self, true) end
             module:UpdateButton(self)
-            if event == "UNIT_AURA" or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
-                module:UpdateAuras(self, "buff")
-                module:UpdateAuras(self, "debuff")
-            end
         end
     end)
     button:SetScript("OnUpdate", function(self, elapsed)
@@ -557,6 +557,7 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     end)
     self.frames[#self.frames + 1] = button
     self.unitFrames[unit] = button
+    self:EnsureNativeAuras(button)
     return button
 end
 
