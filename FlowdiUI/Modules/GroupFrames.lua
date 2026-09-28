@@ -176,8 +176,15 @@ function module:CreateNativeAuras(button, kind)
     anchor:SetFrameLevel(button:GetFrameLevel() + 24)
     anchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
-    if not ok or not container or not container.AddAuraGroup then return end
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
+        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    if not ok or not container or not container.AddAuraGroup then
+        if not self.auraShellError then
+            self.auraShellError = true
+            FUI:Print("Group aura container setup failed: " .. tostring(container))
+        end
+        return
+    end
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", anchor, "CENTER", 0, 0)
     container:SetFrameLevel(anchor:GetFrameLevel() + 1)
@@ -258,7 +265,7 @@ function module:CreateNativeAuras(button, kind)
 end
 
 function module:EnsureNativeAuras(button)
-    if button.isPet then return end
+    if not self.worldReady or button.isPet then return end
     button.nativeAuraContainers = button.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
         if not button.nativeAuraContainers[kind] then self:CreateNativeAuras(button, kind) end
@@ -545,6 +552,10 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     }) do button:RegisterEvent(event) end
     button:SetScript("OnEvent", function(self, event, eventUnit)
         if not eventUnit or eventUnit == self.unit or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
+            if event == "PLAYER_ENTERING_WORLD" then
+                module.worldReady = true
+                module:EnsureNativeAuras(self)
+            end
             if event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then module:BindNativeAuras(self, true) end
             module:UpdateButton(self)
         end
@@ -557,7 +568,6 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     end)
     self.frames[#self.frames + 1] = button
     self.unitFrames[unit] = button
-    self:EnsureNativeAuras(button)
     return button
 end
 

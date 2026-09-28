@@ -8,15 +8,30 @@ local function HideChatControl(frame)
     if not frame then return end
     frame:SetAlpha(0)
     if frame.EnableMouse then frame:EnableMouse(false) end
-    if frame.Hide then frame:Hide() end
     if frame.HookScript and not frame.FlowdiHiddenHook then
         frame.FlowdiHiddenHook = true
         frame:HookScript("OnShow", function(self)
             self:SetAlpha(0)
             if self.EnableMouse then self:EnableMouse(false) end
-            self:Hide()
         end)
     end
+end
+
+local function SuppressEditModeChild(frame)
+    if not frame then return end
+    frame:SetAlpha(0)
+    if frame.SetMouseClickEnabled then
+        frame:SetMouseClickEnabled(false)
+        frame:SetMouseMotionEnabled(false)
+    elseif frame.EnableMouse then
+        frame:EnableMouse(false)
+    end
+end
+
+function module:SuppressNativeEditMode()
+    if not ChatFrame1 then return end
+    SuppressEditModeChild(ChatFrame1.Selection)
+    SuppressEditModeChild(ChatFrame1.EditModeResizeButton)
 end
 
 function module:AnchorPrimaryChat()
@@ -41,15 +56,28 @@ function module:CreateAnchor()
         FUI:SavePosition(anchor, "chat")
     end
     self.anchor = anchor
+    local background = CreateFrame("Frame", "FlowdiUI_ChatBackground", UIParent, "BackdropTemplate")
+    background:SetAllPoints(anchor)
+    background:SetFrameStrata("BACKGROUND")
+    background:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    background:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
+    self.background = background
     FUI:RegisterMover(anchor, "chat", "Chat", function() module:AnchorPrimaryChat() end)
     self:AnchorPrimaryChat()
-    if hooksecurefunc and ChatFrame1.SetPoint then
-        hooksecurefunc(ChatFrame1, "SetPoint", function()
-            if module.anchor and not module.anchoring and not InCombatLockdown() then
-                module:AnchorPrimaryChat()
-            end
+    if hooksecurefunc and ChatFrame1.ApplySystemAnchor then
+        hooksecurefunc(ChatFrame1, "ApplySystemAnchor", function()
+            C_Timer.After(0, function()
+                if module.anchor and not InCombatLockdown() then module:AnchorPrimaryChat() end
+            end)
         end)
     end
+    if EditModeManagerFrame and not self.editModeHooked then
+        self.editModeHooked = true
+        EditModeManagerFrame:HookScript("OnShow", function()
+            C_Timer.After(0, function() module:SuppressNativeEditMode() end)
+        end)
+    end
+    self:SuppressNativeEditMode()
     return anchor
 end
 
@@ -137,11 +165,13 @@ function module:StyleChatFrame(frame)
     frame:SetFading(FUI.db.chat.fade)
     frame:SetTimeVisible(FUI.db.chat.timeVisible)
 
-    if not frame.FlowdiBackdrop then
-        local backdrop = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-        backdrop:SetPoint("TOPLEFT", -2, 2)
-        backdrop:SetPoint("BOTTOMRIGHT", 2, -2)
-        backdrop:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+    if frame == ChatFrame1 and self.background then
+        frame.FlowdiBackdrop = self.background
+    elseif not frame.FlowdiBackdrop then
+        local backdrop = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+        backdrop:SetPoint("TOPLEFT", frame, "TOPLEFT", -2, 2)
+        backdrop:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 2, -2)
+        backdrop:SetFrameStrata("BACKGROUND")
         backdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
         backdrop:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
         frame.FlowdiBackdrop = backdrop
@@ -166,9 +196,10 @@ function module:StyleChatFrame(frame)
 
 
     if not frame.FlowdiCopyButton then
-        local copy = CreateFrame("Button", nil, frame, "BackdropTemplate")
+        local copyParent = frame == ChatFrame1 and self.anchor or frame
+        local copy = CreateFrame("Button", nil, copyParent, "BackdropTemplate")
         copy:SetSize(20, 20)
-        copy:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 4, 5)
+        copy:SetPoint("TOPRIGHT", copyParent, "TOPRIGHT", 4, 5)
         copy:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
         copy:SetBackdropColor(0.02, 0.04, 0.08, 0.9)
         copy:SetBackdropBorderColor(unpack(FUI.colors.border))
@@ -204,6 +235,7 @@ function module:StyleAll()
     end
     HideChatControl(TextToSpeechButtonFrame)
     HideChatControl(TextToSpeechButton)
+    self:SuppressNativeEditMode()
 end
 
 function module:Initialize()

@@ -355,8 +355,15 @@ function module:CreateNativeAuras(frame, kind)
     anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
-    if not ok or not container or not container.AddAuraGroup then return end
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor,
+        "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    if not ok or not container or not container.AddAuraGroup then
+        if not self.auraShellError then
+            self.auraShellError = true
+            FUI:Print("Aura container setup failed: " .. tostring(container))
+        end
+        return
+    end
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
     container:SetFrameLevel(anchor:GetFrameLevel() + 1)
@@ -443,7 +450,7 @@ function module:CreateNativeAuras(frame, kind)
 end
 
 function module:EnsureNativeAuras(frame)
-    if frame.unit == "pet" then return end
+    if not self.worldReady or frame.unit == "pet" then return end
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
         if not frame.nativeAuraContainers[kind] then self:CreateNativeAuras(frame, kind) end
@@ -813,6 +820,10 @@ function module:CreateUnitFrame(unit, positionKey)
     end
     frame:SetScript("OnEvent", function(self, event, eventUnit)
         if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
+            if event == "PLAYER_ENTERING_WORLD" then
+                module.worldReady = true
+                module:EnsureNativeAuras(self)
+            end
             if event == "PLAYER_ENTERING_WORLD" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
                 module:BindNativeAuras(self, true)
             end
@@ -826,7 +837,6 @@ function module:CreateUnitFrame(unit, positionKey)
         module:UpdateVisibility(self)
     end)
     self.frames[unit] = frame
-    self:EnsureNativeAuras(frame)
     return frame
 end
 

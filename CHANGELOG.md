@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.12
+
+- Restored deferred protected aura-container construction while leaving combat `UNIT_AURA` updates entirely to the client provider.
+- Removed the Party/Raid candidate prefilter and added a visible one-time diagnostic if native aura-container creation fails.
+- Moved the primary Chat background and copy control onto an independent FlowdiUI host.
+- Suppressed the native Chat Edit Mode selection and resize surfaces; Chat placement remains owned by FlowdiUI Unlock Mode.
+
 ## 0.8.11
 
 - Rebuilt Unit Frame and Party/Raid aura containers during initial frame construction, binds their actual secure unit token last, and leaves combat aura updates to the protected client provider.
