@@ -15,9 +15,29 @@ local unitLabels = {
 }
 local _, playerClass = UnitClass("player")
 local friendlyRangeSpells = {
-    PRIEST = 2061, PALADIN = 19750, SHAMAN = 8004,
-    DRUID = 8936, MONK = 116670, EVOKER = 361469,
+    PRIEST = { 2061, 17, 139 }, PALADIN = { 19750, 20473, 633 },
+    SHAMAN = { 8004, 1064, 331 }, DRUID = { 8936, 774, 5185 },
+    MONK = { 116670, 124682, 115175 }, EVOKER = { 361469, 355913, 364343 },
 }
+local friendlyRangeSpell
+
+local function GetFriendlyRangeSpell()
+    if friendlyRangeSpell then return friendlyRangeSpell end
+    for _, spellID in ipairs(friendlyRangeSpells[playerClass] or {}) do
+        local known
+        if C_SpellBook and C_SpellBook.IsSpellInSpellBook and Enum and Enum.SpellBookSpellBank then
+            known = C_SpellBook.IsSpellInSpellBook(spellID, Enum.SpellBookSpellBank.Player, true)
+        elseif IsSpellKnownOrOverridesKnown then
+            known = IsSpellKnownOrOverridesKnown(spellID)
+        elseif IsSpellKnown then
+            known = IsSpellKnown(spellID)
+        end
+        if not (issecretvalue and issecretvalue(known)) and known then
+            friendlyRangeSpell = spellID
+            return spellID
+        end
+    end
+end
 
 local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
@@ -130,9 +150,16 @@ function module:UpdateVisibility(frame)
         frame:SetAlpha(alpha)
         return
     elseif visible and friendlyRange and not IsSecret(hostile) and not hostile
-        and C_Spell and C_Spell.IsSpellInRange and frame.SetAlphaFromBoolean then
-        local spellID = friendlyRangeSpells[playerClass]
-        if spellID then
+        and frame.SetAlphaFromBoolean then
+        if UnitInRange then
+            local inRange, wasChecked = UnitInRange(frame.unit)
+            if IsSecret(wasChecked) or wasChecked == true then
+                frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
+                return
+            end
+        end
+        local spellID = GetFriendlyRangeSpell()
+        if spellID and C_Spell and C_Spell.IsSpellInRange then
             local inRange = C_Spell.IsSpellInRange(spellID, frame.unit)
             if IsSecret(inRange) or inRange ~= nil then
                 frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
@@ -350,7 +377,6 @@ function module:CreateNativeAuras(frame, kind)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
     local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
-    container:SetEnabled(false)
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
     container:SetFrameLevel(anchor:GetFrameLevel() + 1)
@@ -425,7 +451,6 @@ function module:CreateNativeAuras(frame, kind)
     end
     anchor:SetShown(auraSettings.enabled == true)
     container:SetUnit(frame.unit)
-    container:SetEnabled(auraSettings.enabled == true)
     if container.UpdateAllAuras then container:UpdateAllAuras() end
     frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
@@ -444,7 +469,6 @@ function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     anchor:ClearAllPoints()
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     anchor:SetShown(enabled)
-    container:SetEnabled(enabled)
     if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     return true
 end

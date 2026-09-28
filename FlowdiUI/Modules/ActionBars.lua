@@ -20,6 +20,33 @@ module.barOrder = {
 local definitionsByPrefix = {}
 for _, definition in ipairs(module.barOrder) do definitionsByPrefix[definition.prefix] = definition end
 local function IsSecret(value) return issecretvalue and issecretvalue(value) end
+local function ResolveBar(definition)
+    return _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
+end
+
+local function SuppressMainPager()
+    local bar = MainActionBar
+    local pager = bar and bar.ActionBarPageNumber
+    if pager then
+        pager:SetAlpha(0)
+        if pager.EnableMouse then pager:EnableMouse(false) end
+        if pager.EnableMouseClicks then pager:EnableMouseClicks(false) end
+        if pager.EnableMouseMotion then pager:EnableMouseMotion(false) end
+        if pager.GetChildren then
+            for index = 1, pager:GetNumChildren() do
+                local child = select(index, pager:GetChildren())
+                if child then
+                    child:SetAlpha(0)
+                    if child.EnableMouse then child:EnableMouse(false) end
+                    if child.EnableMouseClicks then child:EnableMouseClicks(false) end
+                    if child.EnableMouseMotion then child:EnableMouseMotion(false) end
+                end
+            end
+        end
+    end
+    if MainMenuBarPageNumber then MainMenuBarPageNumber:Hide() end
+end
+
 local function ButtonIsEmpty(button)
     if button.HasAction then
         local ok, hasAction = pcall(button.HasAction, button)
@@ -87,7 +114,7 @@ end
 
 function module:ApplyBar(definition)
     local settings = BarSettings(definition)
-    local bar = _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
+    local bar = ResolveBar(definition)
     if not settings or not bar or InCombatLockdown() then return end
     local count = math.max(1, math.min(definition.maximum, math.floor(settings.buttons or definition.maximum)))
     local rows = math.max(1, math.min(count, math.floor(settings.rows or 1)))
@@ -132,7 +159,7 @@ end
 
 function module:UpdateBarVisibility(definition)
     local settings = BarSettings(definition)
-    local bar = _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
+    local bar = ResolveBar(definition)
     if not settings or not bar then return end
     local visible = settings.enabled ~= false
     local mode = settings.visibility or "Always"
@@ -156,10 +183,31 @@ function module:Apply()
     if InCombatLockdown() then FUI.pendingApply = true return end
     for _, definition in ipairs(self.barOrder) do self:ApplyBar(definition) end
     self:SkinAllButtons()
+    SuppressMainPager()
+end
+
+function module:RegisterMovers()
+    for _, definition in ipairs(self.barOrder) do
+        local moverDefinition = definition
+        local bar = ResolveBar(definition)
+        if bar then
+            local key = "actionBar" .. definition.key:sub(1, 1):upper() .. definition.key:sub(2)
+            if not FUI.db.positions[key] then
+                local centerX, centerY = bar:GetCenter()
+                if centerX and centerY then
+                    FUI.db.positions[key] = { "CENTER", "BOTTOMLEFT", centerX, centerY }
+                end
+            else
+                FUI:RestorePosition(bar, key)
+            end
+            FUI:RegisterMover(bar, key, definition.label, function() module:ApplyBar(moverDefinition) end)
+        end
+    end
 end
 
 function module:Initialize()
     self:Apply()
+    self:RegisterMovers()
     local eventFrame = CreateFrame("Frame")
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")

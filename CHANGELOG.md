@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.7
+
+- Removed the explicit disable/enable cycle that prevented otherwise valid native Aura Containers from registering and rendering their Unit Frame and Party/Raid groups.
+- Friendly Target range now prefers the client's checked group-range result and falls back to the first known class healing spell instead of one hard-coded spell.
+- Registered all player, Pet, and Stance Action Bars with the central Unlock Mode and preserves their positions.
+- Suppressed the native Main Action Bar page-number and previous/next controls visually and for mouse input.
+
 ## 0.8.6
 
 - Rebuilt native Unit Frame and Party/Raid aura activation around the client's plain custom aura container lifecycle; failed native group creation now reports its actual error instead of silently hiding all auras.
