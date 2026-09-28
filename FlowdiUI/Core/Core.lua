@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.2"
+FUI.version = "0.8.3"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -88,6 +88,15 @@ local function GroupProfileDefaults(party)
         showRaidMarker = true,
         showReadyCheck = true,
         auras = { buff = AuraDefaults(true), debuff = AuraDefaults(false) },
+        auraFilters = {
+            mode = "Essential",
+            maxIcons = party and 8 or 6,
+            topLeftBuffs = "1243,1244,1245,2791,10937,10938,25389,48161,21562",
+            topRightBuffs = "17,592,600,3747,6065,6066,10898,10899,10900,10901,25217,25218,48065,48066,139,6074,6075,6076,6077,6078,10927,10928,10929,25315,25221,25222,48067,48068,41635,194384,77489,774,8936,33763,48438,119611,124682,115175,974,61295,53563,156910,200025,364343,366155,367364,355941,376788",
+            bottomLeftDebuffs = "6788",
+            centerDebuffs = "",
+            showDispellable = true,
+        },
     }
     profile.auras.buff.enabled = party
     profile.auras.buff.size = party and 16 or 12
@@ -101,6 +110,7 @@ local function GroupProfileDefaults(party)
     profile.auras.buff.showDuration = true
     profile.auras.buff.clickThrough = true
     profile.auras.buff.tooltip = false
+    profile.auras.buff.mineOnly = true
     profile.auras.debuff.enabled = true
     profile.auras.debuff.size = party and 18 or 13
     profile.auras.debuff.perRow = party and 3 or 2
@@ -116,7 +126,7 @@ local function GroupProfileDefaults(party)
 end
 
 local defaults = {
-    profileVersion = 16,
+    profileVersion = 17,
     locked = true,
     scale = 1,
     global = {
@@ -629,6 +639,10 @@ function FUI:Initialize()
     if previousVersion < 15 then
         self.db.groupFrames.party.auras.buff.showDuration = true
         self.db.groupFrames.raid.auras.buff.showDuration = true
+    end
+    if previousVersion < 17 then
+        self.db.groupFrames.party.auras.buff.mineOnly = true
+        self.db.groupFrames.raid.auras.buff.mineOnly = true
     end
     self.db.profileVersion = defaults.profileVersion
 

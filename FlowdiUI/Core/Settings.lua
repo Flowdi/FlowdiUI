@@ -318,6 +318,40 @@ local function AddColor(parent, label, x, y, getter, setter)
     return button
 end
 
+local function AddTextInput(parent, label, x, y, width, getter, setter)
+    local title = FUI:CreateFont(parent, 11)
+    title:SetPoint("TOPLEFT", x, y)
+    title:SetText(label)
+
+    local holder = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    holder:SetSize(width, 25)
+    holder:SetPoint("TOPLEFT", x, y - 18)
+    holder:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    holder:SetBackdropColor(0.025, 0.04, 0.075, 0.98)
+    holder:SetBackdropBorderColor(0.12, 0.38, 0.72, 1)
+
+    local input = CreateFrame("EditBox", nil, holder)
+    input:SetPoint("TOPLEFT", 7, -2)
+    input:SetPoint("BOTTOMRIGHT", -7, 2)
+    input:SetAutoFocus(false)
+    input:SetFont(FUI:GetFontPath(FUI.db.global.font), 10, FUI.db.global.fontOutline or "OUTLINE")
+    input:SetTextColor(0.82, 0.9, 1)
+    input:SetScript("OnShow", function(self) self:SetText(tostring(getter() or "")) end)
+    input:SetScript("OnEscapePressed", function(self) self:SetText(tostring(getter() or "")) self:ClearFocus() end)
+    local function Commit(self)
+        local value = self:GetText() or ""
+        if value ~= tostring(getter() or "") then setter(value) FUI:ApplySettings() end
+        self:ClearFocus()
+    end
+    input:SetScript("OnEnterPressed", Commit)
+    input:SetScript("OnEditFocusLost", function(self)
+        local value = self:GetText() or ""
+        if value ~= tostring(getter() or "") then setter(value) FUI:ApplySettings() end
+    end)
+    parent.controls[#parent.controls + 1] = input
+    return input
+end
+
 local function AddModuleSwitch(page, moduleKey)
     AddCheckbox(page, "Enable module", 24, -98,
         function() return FUI.db.modules[moduleKey] ~= false end,
@@ -816,8 +850,8 @@ local function BuildGroupFrames(page)
         for key, panel in pairs(panels) do panel:SetShown(key == name) end
         for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
-    for index, name in ipairs({ "General", "Layout", "Health", "Text", "Buffs", "Debuffs", "Indicators" }) do
-        tabs[name] = AddButton(page, name, 18 + (index - 1) * 98, -88, 90, function() SelectTab(name) end)
+    for index, name in ipairs({ "General", "Layout", "Health", "Text", "Buffs", "Debuffs", "Filters", "Indicators" }) do
+        tabs[name] = AddButton(page, name, 18 + (index - 1) * 84, -88, 78, function() SelectTab(name) end)
         local panel = CreateFrame("Frame", nil, page)
         panel:SetPoint("TOPLEFT", 18, -266)
         panel:SetPoint("BOTTOMRIGHT", -18, 8)
@@ -978,6 +1012,36 @@ local function BuildGroupFrames(page)
     end
     BuildAuraPanel(panels.Buffs, "buff")
     BuildAuraPanel(panels.Debuffs, "debuff")
+
+    local filters = panels.Filters
+    AddCycle(filters, "Display mode", 6, -8, 220, { "Essential", "All" },
+        function() return CurrentProfile().auraFilters.mode end,
+        function(v) CurrentProfile().auraFilters.mode = v end)
+    AddCheckbox(filters, "Dispellable debuffs at Bottom Right", 330, -28,
+        function() return CurrentProfile().auraFilters.showDispellable end,
+        function(v) CurrentProfile().auraFilters.showDispellable = v end)
+    AddTextInput(filters, "Top Left buffs", 6, -72, 300,
+        function() return CurrentProfile().auraFilters.topLeftBuffs end,
+        function(v) CurrentProfile().auraFilters.topLeftBuffs = v end)
+    AddTextInput(filters, "Top Right healing buffs", 330, -72, 300,
+        function() return CurrentProfile().auraFilters.topRightBuffs end,
+        function(v) CurrentProfile().auraFilters.topRightBuffs = v end)
+    AddTextInput(filters, "Bottom Left debuffs", 6, -136, 300,
+        function() return CurrentProfile().auraFilters.bottomLeftDebuffs end,
+        function(v) CurrentProfile().auraFilters.bottomLeftDebuffs = v end)
+    AddTextInput(filters, "Center raid debuffs", 330, -136, 300,
+        function() return CurrentProfile().auraFilters.centerDebuffs end,
+        function(v) CurrentProfile().auraFilters.centerDebuffs = v end)
+    AddSlider(filters, "Max essential icons", 6, -200, 270, 1, 16, 1,
+        function() return CurrentProfile().auraFilters.maxIcons or 8 end,
+        function(v) CurrentProfile().auraFilters.maxIcons = v end,
+        function(v) return string.format("%d", v) end)
+    local filterNote = FUI:CreateFont(filters, 10)
+    filterNote:SetPoint("TOPLEFT", 330, -202)
+    filterNote:SetWidth(300)
+    filterNote:SetJustifyH("LEFT")
+    filterNote:SetTextColor(0.58, 0.7, 0.88)
+    filterNote:SetText("Enter spell IDs or exact spell names separated by commas. Essential mode hides every aura not assigned above; Bottom Right is reserved for debuffs your class can dispel.")
 
     local indicators = panels.Indicators
     AddCheckbox(indicators, "Role indicator", 6, -8, function() return CurrentProfile().showRole end, function(v) CurrentProfile().showRole = v end)

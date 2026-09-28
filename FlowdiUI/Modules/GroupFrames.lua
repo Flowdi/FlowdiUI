@@ -44,7 +44,8 @@ local function CollectAuras(unit, filter)
     if AuraUtil and AuraUtil.ForEachAura then
         local ok = pcall(AuraUtil.ForEachAura, unit, filter, 40, function(data)
             auras[#auras + 1] = {
-                index = #auras + 1, icon = data.icon, applications = data.applications,
+                index = #auras + 1, name = data.name, spellId = data.spellId or data.spellID,
+                icon = data.icon, applications = data.applications,
                 duration = data.duration, expirationTime = data.expirationTime, dispelName = data.dispelName,
                 sourceUnit = data.sourceUnit, isFromPlayerOrPlayerPet = data.isFromPlayerOrPlayerPet,
             }
@@ -57,7 +58,8 @@ local function CollectAuras(unit, filter)
         local ok, data = pcall(C_UnitAuras.GetAuraDataByIndex, unit, index, filter)
         if not ok or not data then break end
         auras[#auras + 1] = {
-            index = index, icon = data.icon, applications = data.applications,
+            index = index, name = data.name, spellId = data.spellId or data.spellID,
+            icon = data.icon, applications = data.applications,
             duration = data.duration, expirationTime = data.expirationTime, dispelName = data.dispelName,
             sourceUnit = data.sourceUnit, isFromPlayerOrPlayerPet = data.isFromPlayerOrPlayerPet,
         }
@@ -74,6 +76,65 @@ local function IsPlayerAura(aura)
     if ok and mine then return true end
     ok, mine = pcall(UnitIsUnit, aura.sourceUnit, "pet")
     return ok and mine == true
+end
+
+local parsedFilterCache = {}
+local function ParseSpellFilter(value)
+    value = tostring(value or "")
+    if parsedFilterCache[value] then return parsedFilterCache[value] end
+    local result = { ids = {}, names = {} }
+    for entry in value:gmatch("[^,;\n]+") do
+        entry = entry:match("^%s*(.-)%s*$")
+        local spellID = tonumber(entry)
+        if spellID then result.ids[spellID] = true
+        elseif entry ~= "" then result.names[entry:lower()] = true end
+    end
+    parsedFilterCache[value] = result
+    return result
+end
+
+local function AuraMatchesFilter(aura, value)
+    local filter = ParseSpellFilter(value)
+    local spellID = not IsSecret(aura.spellId) and tonumber(aura.spellId) or nil
+    if spellID and filter.ids[spellID] then return true end
+    local name = not IsSecret(aura.name) and type(aura.name) == "string" and aura.name:lower() or nil
+    return name and filter.names[name] == true or false
+end
+
+local _, playerClass = UnitClass("player")
+local dispelTypes = {
+    PRIEST = { Magic = true, Disease = true },
+    PALADIN = { Magic = true, Poison = true, Disease = true },
+    SHAMAN = { Magic = true, Curse = true },
+    DRUID = { Magic = true, Curse = true, Poison = true },
+    MONK = { Magic = true, Poison = true, Disease = true },
+    EVOKER = { Magic = true, Poison = true },
+    MAGE = { Curse = true },
+}
+
+local filterLayouts = {
+    ["Top Left"] = { point = "TOPLEFT", relativePoint = "TOPLEFT", x = 2, y = -2, xDirection = 1, yDirection = -1 },
+    ["Top Right"] = { point = "TOPRIGHT", relativePoint = "TOPRIGHT", x = -2, y = -2, xDirection = -1, yDirection = -1 },
+    ["Bottom Left"] = { point = "BOTTOMLEFT", relativePoint = "BOTTOMLEFT", x = 2, y = 2, xDirection = 1, yDirection = 1 },
+    ["Bottom Right"] = { point = "BOTTOMRIGHT", relativePoint = "BOTTOMRIGHT", x = -2, y = 2, xDirection = -1, yDirection = 1 },
+    ["Center"] = { point = "CENTER", relativePoint = "CENTER", x = 0, y = 0, xDirection = 1, yDirection = -1 },
+}
+
+local function FilteredAuraPosition(profile, kind, aura)
+    local filters = profile.auraFilters
+    if not filters or filters.mode ~= "Essential" then return nil end
+    if kind == "buff" then
+        if AuraMatchesFilter(aura, filters.topLeftBuffs) then return "Top Left" end
+        if AuraMatchesFilter(aura, filters.topRightBuffs) then return "Top Right" end
+        return false
+    end
+    if AuraMatchesFilter(aura, filters.bottomLeftDebuffs) then return "Bottom Left" end
+    if AuraMatchesFilter(aura, filters.centerDebuffs) then return "Center" end
+    local dispelName = not IsSecret(aura.dispelName) and aura.dispelName or nil
+    if filters.showDispellable and dispelName and dispelTypes[playerClass] and dispelTypes[playerClass][dispelName] then
+        return "Bottom Right"
+    end
+    return false
 end
 
 local function FormatTime(seconds)
@@ -128,27 +189,37 @@ function module:UpdateAuras(button, kind)
     for _, auraButton in ipairs(buttons) do auraButton:Hide() end
     if button.isPet or not settings or not settings.enabled then return end
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
+    if settings.mineOnly then filter = filter .. "|PLAYER" end
     local auras = CollectAuras(button.unit, filter)
     local perRow = math.max(1, settings.perRow or 3)
-    local maximum = perRow * math.max(1, settings.rows or 1)
+    local essentialFilters = profile.auraFilters and profile.auraFilters.mode == "Essential"
+    local maximum = essentialFilters and math.max(1, profile.auraFilters.maxIcons or 8) or perRow * math.max(1, settings.rows or 1)
     local size, spacing = settings.size or 14, settings.spacing or 1
     local point = anchorPoints[settings.point] or "TOPRIGHT"
     local relativePoint = anchorPoints[settings.relativePoint] or "TOPRIGHT"
     local xDirection = settings.growthX == "Left" and -1 or 1
     local yDirection = settings.growthY == "Down" and -1 or 1
     local shown = 0
+    local positionCounts = {}
     for _, aura in ipairs(auras) do
         local duration = AuraNumber(aura.duration, 0)
-        local sourceAllowed = not settings.mineOnly or IsPlayerAura(aura)
-        if sourceAllowed and ((settings.maxDuration or 0) <= 0 or duration <= (settings.maxDuration or 0)) then
+        local sourceAllowed = not settings.mineOnly or filter:find("PLAYER", 1, true) ~= nil or IsPlayerAura(aura)
+        local filteredPosition = FilteredAuraPosition(profile, kind, aura)
+        if sourceAllowed and filteredPosition ~= false and ((settings.maxDuration or 0) <= 0 or duration <= (settings.maxDuration or 0)) then
             shown = shown + 1
             if shown > maximum then break end
             local auraButton = buttons[shown] or self:CreateAuraButton(button, kind, shown)
-            local column, row = (shown - 1) % perRow, math.floor((shown - 1) / perRow)
+            local placement = filteredPosition and filterLayouts[filteredPosition]
+            local positionIndex = shown
+            if placement then
+                positionCounts[filteredPosition] = (positionCounts[filteredPosition] or 0) + 1
+                positionIndex = positionCounts[filteredPosition]
+            end
+            local column, row = (positionIndex - 1) % perRow, math.floor((positionIndex - 1) / perRow)
             auraButton:ClearAllPoints()
-            auraButton:SetPoint(point, button, relativePoint,
-                (settings.x or 0) + column * (size + spacing) * xDirection,
-                (settings.y or 0) + row * (size + spacing) * yDirection)
+            auraButton:SetPoint(placement and placement.point or point, button, placement and placement.relativePoint or relativePoint,
+                (placement and placement.x or settings.x or 0) + column * (size + spacing) * (placement and placement.xDirection or xDirection),
+                (placement and placement.y or settings.y or 0) + row * (size + spacing) * (placement and placement.yDirection or yDirection))
             auraButton:SetSize(size, size)
             auraButton:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = settings.borderSize or 1 })
             local border = FUI.colors.border
@@ -207,6 +278,15 @@ end
 function module:UpdateRange(button)
     local profile = Profile(button)
     if not profile then return end
+    if (profile.rangeFriendly or profile.rangeIndicator) and UnitInRange and button.SetAlphaFromBoolean then
+        local groupUnit = FUI:ResolveGroupUnit(button.unit)
+        if groupUnit then
+            local applied = pcall(function()
+                button:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, profile.outOfRangeAlpha or 0.40)
+            end)
+            if applied then return end
+        end
+    end
     if (profile.rangeFriendly or profile.rangeIndicator) and not FUI:IsUnitInConfiguredRange(button.unit, true, false) then
         button:SetAlpha(profile.outOfRangeAlpha or 0.40)
     else

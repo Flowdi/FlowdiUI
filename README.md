@@ -10,7 +10,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - Lightweight nameplate styling
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
 - Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs
-- Custom clickable party and raid frames with optional member-pet frames, range fading, independent profiles, and live settings previews
+- Custom clickable party and raid frames with optional member-pet frames, secret-safe range fading, healer-focused positional aura filters, independent profiles, and live settings previews
 - Chat styling
 - Dark bag styling while retaining Blizzard bag behavior
 - Two movable DataText panels plus an optional Minimap panel

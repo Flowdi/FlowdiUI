@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3
+
+- Made friendly Unit Frame and group-frame fading secret-safe with the client's native boolean-to-alpha API.
+- Fixed `Only my buffs` by applying the player-source filter while the client collects auras instead of inspecting protected source data afterwards.
+- Added an Essential aura mode for Party and Raid Frames with independent Top Left, Top Right, Bottom Left, Bottom Right, and Center assignments.
+- Added editable comma-separated spell-ID or exact-name lists for maintenance buffs, healing buffs, special debuffs, and raid debuffs.
+- Added class-aware dispellable Debuffs at Bottom Right and migrated existing profiles to the healer-focused buff filter.
+
 ## 0.8.2
 
 - Bundled Continuum Medium and Expressway as selectable FlowdiUI fonts.

@@ -13,6 +13,11 @@ local unitLabels = {
     player = "Player", target = "Target", focus = "Focus", pet = "Pet",
     targettarget = "Target of Target", targettargettarget = "Target of Target of Target",
 }
+local _, playerClass = UnitClass("player")
+local friendlyRangeSpells = {
+    PRIEST = 2061, PALADIN = 19750, SHAMAN = 8004,
+    DRUID = 8936, MONK = 116670, EVOKER = 361469,
+}
 
 local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
@@ -100,6 +105,29 @@ function module:UpdateVisibility(frame)
     local friendlyRange = settings.rangeFriendly
     local hostileRange = settings.rangeHostile
     if friendlyRange == nil and settings.rangeIndicator then friendlyRange = true end
+    if visible and friendlyRange and UnitInRange and frame.SetAlphaFromBoolean then
+        local groupUnit = FUI:ResolveGroupUnit(frame.unit)
+        if groupUnit then
+            local applied = pcall(function()
+                frame:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, settings.outOfRangeAlpha or 0.40)
+            end)
+            if applied then return end
+        end
+    end
+    if visible and friendlyRange and C_Spell and C_Spell.IsSpellInRange then
+        local spellID = friendlyRangeSpells[playerClass]
+        local assistOK, canAssist = pcall(UnitCanAssist, "player", frame.unit)
+        if spellID and assistOK and not IsSecret(canAssist) and canAssist == true then
+            local rangeOK, inRange = pcall(C_Spell.IsSpellInRange, spellID, frame.unit)
+            if rangeOK and IsSecret(inRange) and frame.SetAlphaFromBoolean then
+                local applied = pcall(frame.SetAlphaFromBoolean, frame, inRange, 1, settings.outOfRangeAlpha or 0.40)
+                if applied then return end
+            elseif rangeOK and inRange ~= nil then
+                frame:SetAlpha(inRange and 1 or settings.outOfRangeAlpha or 0.40)
+                return
+            end
+        end
+    end
     if visible and frame.unit ~= "player" and not FUI:IsUnitInConfiguredRange(frame.unit, friendlyRange, hostileRange) then
         alpha = settings.outOfRangeAlpha or 0.40
     end
