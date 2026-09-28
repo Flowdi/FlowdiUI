@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.3"
+FUI.version = "0.8.4"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -126,7 +126,7 @@ local function GroupProfileDefaults(party)
 end
 
 local defaults = {
-    profileVersion = 17,
+    profileVersion = 18,
     locked = true,
     scale = 1,
     global = {
@@ -184,8 +184,21 @@ local defaults = {
     },
     actionBars = {
         scale = 1,
+        selectedBar = "main",
         showHotkeys = true,
         showMacroText = true,
+        bars = {
+            main = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            bottomLeft = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            bottomRight = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            right = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 12, spacing = 2, vertical = true, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            left = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 12, spacing = 2, vertical = true, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            bar5 = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            bar6 = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            bar7 = { enabled = true, visibility = "Always", alpha = 1, iconSize = 36, buttons = 12, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            pet = { enabled = true, visibility = "Always", alpha = 1, iconSize = 32, buttons = 10, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+            stance = { enabled = true, visibility = "Always", alpha = 1, iconSize = 30, buttons = 10, rows = 1, spacing = 2, vertical = false, showEmpty = true, clickThrough = false, hotkeySize = 10, macroSize = 9, countSize = 11 },
+        },
     },
     nameplates = {
         width = 120,

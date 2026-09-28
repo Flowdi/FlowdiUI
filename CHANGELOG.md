@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.4
+
+- Fixed friendly range fading so the player is always in range and distant Party, Raid, and friendly Target units use the client's protected range result correctly.
+- Fixed secure Unit Frame Debuff containers by enabling them before unit assignment and added the same native Debuff path to the Player frame.
+- Fully suppresses the native Player cast bar, including its interrupted animation, while the FlowdiUI cast bar provider is selected.
+- Added independent settings for eight player action bars plus Pet and Stance bars.
+- Added per-bar enable state, visibility mode, opacity, click-through, empty-button display, icon size, button count, rows, spacing, orientation, and text sizing.
+
 ## 0.8.3
 
 - Made friendly Unit Frame and group-frame fading secret-safe with the client's native boolean-to-alpha API.

@@ -105,13 +105,22 @@ function module:UpdateVisibility(frame)
     local friendlyRange = settings.rangeFriendly
     local hostileRange = settings.rangeHostile
     if friendlyRange == nil and settings.rangeIndicator then friendlyRange = true end
+    if visible then
+        local isSelf = frame.unit == "player"
+        if not isSelf and UnitIsUnit then
+            local ok, sameUnit = pcall(UnitIsUnit, frame.unit, "player")
+            isSelf = ok and not IsSecret(sameUnit) and sameUnit == true
+        end
+        if isSelf then
+            frame:SetAlpha(1)
+            return
+        end
+    end
     if visible and friendlyRange and UnitInRange and frame.SetAlphaFromBoolean then
         local groupUnit = FUI:ResolveGroupUnit(frame.unit)
         if groupUnit then
-            local applied = pcall(function()
-                frame:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, settings.outOfRangeAlpha or 0.40)
-            end)
-            if applied then return end
+            frame:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, settings.outOfRangeAlpha or 0.40)
+            return
         end
     end
     if visible and friendlyRange and C_Spell and C_Spell.IsSpellInRange then
@@ -401,8 +410,10 @@ function module:CreateNativeDebuffs(frame)
         pcall(setGrowth, container, horizontal, vertical)
     end
     anchor:SetShown(auraSettings.enabled == true)
-    pcall(container.SetUnit, container, frame.unit)
-    pcall(container.SetEnabled, container, true)
+    -- SetEnabled must happen before SetUnit. Assigning a unit protects the
+    -- container; trying to enable it afterwards is rejected as addon taint.
+    container:SetEnabled(true)
+    container:SetUnit(frame.unit)
     if container.UpdateAllAuras then pcall(container.UpdateAllAuras, container) end
     frame.nativeDebuffAnchor = anchor
     frame.nativeDebuffs = container
@@ -738,7 +749,7 @@ function module:CreateUnitFrame(unit, positionKey)
         holder.buttons = {}
         frame.auraHolders[kind] = holder
     end
-    if unit ~= "player" and unit ~= "pet" then self:CreateNativeDebuffs(frame) end
+    if unit ~= "pet" then self:CreateNativeDebuffs(frame) end
 
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
@@ -811,9 +822,21 @@ end
 function module:ApplyPlayerCastbarProvider()
     local settings = FrameSettings("player")
     local useBlizzard = settings and settings.castbarProvider ~= "FlowdiUI"
+    if not self.hiddenCastbarParent then
+        self.hiddenCastbarParent = CreateFrame("Frame", nil, UIParent)
+        self.hiddenCastbarParent:Hide()
+    end
+    local hiddenParent = self.hiddenCastbarParent
+    local seen = {}
     for _, frameName in ipairs({ "PlayerCastingBarFrame", "CastingBarFrame" }) do
         local castbar = _G[frameName]
-        if castbar then
+        if castbar and not seen[castbar] then
+            seen[castbar] = true
+            castbar.FlowdiOriginalParent = castbar.FlowdiOriginalParent or castbar:GetParent() or UIParent
+            if not InCombatLockdown() then
+                castbar:SetParent(useBlizzard and castbar.FlowdiOriginalParent or hiddenParent)
+                if not useBlizzard then castbar:Hide() end
+            end
             castbar:SetAlpha(useBlizzard and 1 or 0)
             if castbar.EnableMouse then castbar:EnableMouse(useBlizzard) end
             if not castbar.FlowdiProviderHook then
@@ -822,8 +845,27 @@ function module:ApplyPlayerCastbarProvider()
                     local playerSettings = FrameSettings("player")
                     local native = playerSettings and playerSettings.castbarProvider ~= "FlowdiUI"
                     self:SetAlpha(native and 1 or 0)
-                    if self.EnableMouse then self:EnableMouse(native) end
+                    if self.EnableMouse and not InCombatLockdown() then self:EnableMouse(native) end
+                    if not native and not InCombatLockdown() then
+                        self:SetParent(hiddenParent)
+                        self:Hide()
+                    end
                 end)
+                if hooksecurefunc and castbar.SetParent then
+                    hooksecurefunc(castbar, "SetParent", function(self, parent)
+                        local playerSettings = FrameSettings("player")
+                        if playerSettings and playerSettings.castbarProvider == "FlowdiUI" and parent ~= hiddenParent and not InCombatLockdown() then
+                            C_Timer.After(0, function()
+                                local current = FrameSettings("player")
+                                if current and current.castbarProvider == "FlowdiUI" and not InCombatLockdown() then
+                                    self:SetParent(hiddenParent)
+                                    self:SetAlpha(0)
+                                    self:Hide()
+                                end
+                            end)
+                        end
+                    end)
+                end
             end
         end
     end

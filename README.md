@@ -6,7 +6,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 
 ## Included in the MVP
 
-- Action-bar styling without replacing secure Blizzard action buttons
+- Independent layouts and visibility controls for eight player action bars plus Pet and Stance bars without replacing secure Blizzard action buttons
 - Lightweight nameplate styling
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
 - Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs

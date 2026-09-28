@@ -488,18 +488,76 @@ local function BuildGeneral(page)
 end
 
 local function BuildActionBars(page)
-    AddTitle(page, "Action Bars", "Scale and label the secure Blizzard action buttons.")
-    AddModuleSwitch(page, "actionBars")
-    AddSlider(page, "Button scale", 24, -155, 310, 0.70, 1.30, 0.05,
-        function() return FUI.db.actionBars.scale end,
-        function(value) FUI.db.actionBars.scale = value end,
+    AddTitle(page, "Action Bars", "Configure every Blizzard action bar independently while retaining secure combat behavior.")
+    local outerPage = page
+    local scroll = CreateFrame("ScrollFrame", nil, outerPage, "UIPanelScrollFrameTemplate")
+    scroll:SetPoint("TOPLEFT", 8, -84)
+    scroll:SetPoint("BOTTOMRIGHT", -32, 6)
+    scroll:EnableMouseWheel(true)
+    local content = CreateFrame("Frame", nil, scroll)
+    content:SetSize(690, 680)
+    content.controls = outerPage.controls
+    scroll:SetScrollChild(content)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+        local maximum = math.max(0, content:GetHeight() - self:GetHeight())
+        self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 42)))
+    end)
+    page = content
+    AddCheckbox(page, "Enable module", 24, -18,
+        function() return FUI.db.modules.actionBars ~= false end,
+        function(value) FUI.db.modules.actionBars = value end, true)
+    local choices = {
+        { "Action Bar 1 (Main)", "main" }, { "Action Bar 2", "bottomLeft" },
+        { "Action Bar 3", "bottomRight" }, { "Action Bar 4", "right" },
+        { "Action Bar 5", "left" }, { "Action Bar 6", "bar5" },
+        { "Action Bar 7", "bar6" }, { "Action Bar 8", "bar7" },
+        { "Pet Bar", "pet" }, { "Stance Bar", "stance" },
+    }
+    local labels, labelKeys = {}, {}
+    for _, choice in ipairs(choices) do labels[#labels + 1] = choice[1] labelKeys[choice[1]] = choice[2] end
+    local function Current()
+        local db = FUI.db.actionBars
+        db.selectedBar = db.selectedBar or "main"
+        return db.bars[db.selectedBar]
+    end
+    local function CurrentLabel()
+        for _, choice in ipairs(choices) do if choice[2] == FUI.db.actionBars.selectedBar then return choice[1] end end
+        return labels[1]
+    end
+    local selector
+    local function RefreshControls()
+        C_Timer.After(0, function()
+            for _, control in ipairs(page.controls) do
+                if control ~= selector and control:IsShown() then control:Hide() control:Show() end
+            end
+        end)
+    end
+    selector = AddCycle(page, "Editing bar", 24, -118, 300, labels, CurrentLabel,
+        function(value) FUI.db.actionBars.selectedBar = labelKeys[value] or "main" RefreshControls() end)
+    AddSlider(page, "Global bar scale", 370, -118, 280, 0.70, 1.30, 0.05,
+        function() return FUI.db.actionBars.scale end, function(value) FUI.db.actionBars.scale = value end,
         function(value) return string.format("%d%%", value * 100) end)
-    AddCheckbox(page, "Show keybinds", 24, -230,
-        function() return FUI.db.actionBars.showHotkeys end,
-        function(value) FUI.db.actionBars.showHotkeys = value end)
-    AddCheckbox(page, "Show macro names", 300, -230,
-        function() return FUI.db.actionBars.showMacroText end,
-        function(value) FUI.db.actionBars.showMacroText = value end)
+
+    AddSection(page, "Visibility & interaction", -205)
+    AddCheckbox(page, "Enable selected bar", 24, -225, function() return Current().enabled end, function(v) Current().enabled = v end)
+    AddCycle(page, "Visibility", 250, -218, 190, { "Always", "Mouseover" }, function() return Current().visibility end, function(v) Current().visibility = v end)
+    AddSlider(page, "Bar opacity", 480, -218, 190, 0.05, 1, 0.05, function() return Current().alpha end, function(v) Current().alpha = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddCheckbox(page, "Click through", 24, -278, function() return Current().clickThrough end, function(v) Current().clickThrough = v end)
+    AddCheckbox(page, "Always show empty buttons", 250, -278, function() return Current().showEmpty end, function(v) Current().showEmpty = v end)
+
+    AddSection(page, "Layout", -327)
+    AddSlider(page, "Icon size", 24, -348, 280, 20, 64, 1, function() return Current().iconSize end, function(v) Current().iconSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(page, "Number of icons", 370, -348, 280, 1, 12, 1, function() return Current().buttons end, function(v) Current().buttons = v Current().rows = math.min(Current().rows, v) end, function(v) return string.format("%d", v) end)
+    AddSlider(page, "Rows", 24, -420, 280, 1, 12, 1, function() return Current().rows end, function(v) Current().rows = math.min(v, Current().buttons) end, function(v) return string.format("%d", v) end)
+    AddSlider(page, "Button spacing", 370, -420, 280, -2, 20, 1, function() return Current().spacing end, function(v) Current().spacing = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(page, "Vertical orientation", 24, -494, function() return Current().vertical end, function(v) Current().vertical = v end)
+
+    AddSection(page, "Text", -535)
+    AddCheckbox(page, "Show keybinds", 24, -555, function() return FUI.db.actionBars.showHotkeys end, function(v) FUI.db.actionBars.showHotkeys = v end)
+    AddCheckbox(page, "Show macro names", 210, -555, function() return FUI.db.actionBars.showMacroText end, function(v) FUI.db.actionBars.showMacroText = v end)
+    AddSlider(page, "Keybind size", 370, -542, 280, 7, 24, 1, function() return Current().hotkeySize end, function(v) Current().hotkeySize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(page, "Macro text size", 24, -610, 280, 7, 24, 1, function() return Current().macroSize end, function(v) Current().macroSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(page, "Count text size", 370, -610, 280, 7, 24, 1, function() return Current().countSize end, function(v) Current().countSize = v end, function(v) return string.format("%d px", v) end)
 end
 
 local function BuildNameplates(page)

@@ -278,13 +278,20 @@ end
 function module:UpdateRange(button)
     local profile = Profile(button)
     if not profile then return end
+    local isSelf = button.unit == "player"
+    if not isSelf and UnitIsUnit then
+        local ok, sameUnit = pcall(UnitIsUnit, button.unit, "player")
+        isSelf = ok and not IsSecret(sameUnit) and sameUnit == true
+    end
+    if isSelf then
+        button:SetAlpha(1)
+        return
+    end
     if (profile.rangeFriendly or profile.rangeIndicator) and UnitInRange and button.SetAlphaFromBoolean then
         local groupUnit = FUI:ResolveGroupUnit(button.unit)
         if groupUnit then
-            local applied = pcall(function()
-                button:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, profile.outOfRangeAlpha or 0.40)
-            end)
-            if applied then return end
+            button:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, profile.outOfRangeAlpha or 0.40)
+            return
         end
     end
     if (profile.rangeFriendly or profile.rangeIndicator) and not FUI:IsUnitInConfiguredRange(button.unit, true, false) then
