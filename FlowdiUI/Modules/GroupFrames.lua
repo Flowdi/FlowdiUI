@@ -171,8 +171,9 @@ function module:CreateNativeAuras(button, kind)
     anchor:SetFrameLevel(button:GetFrameLevel() + 24)
     anchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
+    container:SetEnabled(false)
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", anchor, "CENTER", 0, 0)
     container:SetFrameLevel(anchor:GetFrameLevel() + 1)
@@ -184,7 +185,7 @@ function module:CreateNativeAuras(button, kind)
         or perRow * math.max(1, settings.rows or 1)
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
     if settings.mineOnly then filter = filter .. "|PLAYER" end
-    local added = pcall(container.AddAuraGroup, container, kind == "buff" and "Buffs" or "Debuffs", filter, {
+    local added, addError = pcall(container.AddAuraGroup, container, kind == "buff" and "Buffs" or "Debuffs", filter, {
         maxFrameCount = maximum,
         candidateFilters = NativeCandidateFilters(profile, kind),
         layout = {
@@ -223,7 +224,13 @@ function module:CreateNativeAuras(button, kind)
             pcall(auraButton.SetDurationText, auraButton, duration, {})
         end,
     })
-    if not added then return end
+    if not added then
+        if not self.auraBuildError then
+            self.auraBuildError = true
+            FUI:Print("Could not create group aura display: " .. tostring(addError))
+        end
+        return
+    end
     local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
     if setAnchor then setAnchor(container, anchorPoints[settings.point] or "TOPRIGHT") end
     local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
@@ -236,6 +243,7 @@ function module:CreateNativeAuras(button, kind)
     end
     anchor:SetShown(settings.enabled == true)
     container:SetUnit(button.unit)
+    container:SetEnabled(settings.enabled == true)
     if container.UpdateAllAuras then container:UpdateAllAuras() end
     button.nativeAuraAnchors = button.nativeAuraAnchors or {}
     button.nativeAuraContainers = button.nativeAuraContainers or {}
@@ -288,13 +296,19 @@ function module:UpdateAuras(button, kind, configure)
     local buttons = button.auraButtons[kind]
     for _, auraButton in ipairs(buttons) do auraButton:Hide() end
     local nativeAnchor = button.nativeAuraAnchors and button.nativeAuraAnchors[kind]
+    local nativeContainer = button.nativeAuraContainers and button.nativeAuraContainers[kind]
     if nativeAnchor then
         if configure and settings then
             nativeAnchor:ClearAllPoints()
             nativeAnchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
             nativeAnchor:SetShown(not button.isPet and settings.enabled == true)
+            if nativeContainer then
+                nativeContainer:SetEnabled(not button.isPet and settings.enabled == true)
+                if settings.enabled and nativeContainer.UpdateAllAuras then nativeContainer:UpdateAllAuras() end
+            end
         elseif configure then
             nativeAnchor:Hide()
+            if nativeContainer then nativeContainer:SetEnabled(false) end
         end
         return
     end

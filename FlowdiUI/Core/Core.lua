@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.5"
+FUI.version = "0.8.6"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -132,12 +132,13 @@ local function ActionBarDefaults(vertical, maximum, iconSize)
         rows = vertical and (maximum or 12) or 1, spacing = 2, vertical = vertical == true,
         showEmpty = true, clickThrough = false,
         borderSize = 1, borderColor = { 0.05, 0.35, 0.90, 1 },
+        backgroundColor = { 0.015, 0.025, 0.045, 1 }, backgroundOpacity = 0.92,
         hotkeySize = 10, macroSize = 9, countSize = 11,
     }
 end
 
 local defaults = {
-    profileVersion = 19,
+    profileVersion = 20,
     locked = true,
     scale = 1,
     global = {

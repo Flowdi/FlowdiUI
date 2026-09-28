@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.6
+
+- Rebuilt native Unit Frame and Party/Raid aura activation around the client's plain custom aura container lifecycle; failed native group creation now reports its actual error instead of silently hiding all auras.
+- Replaced the invalid generic Target range path with separate hostile interact-range and friendly healing-spell checks, while leaving unknown or protected classifications fully visible.
+- Corrected the Main Action Bar host from the obsolete menu bar frame to the current `MainActionBar` frame.
+- Reworked empty Action Button detection around the button's native `HasAction` method and action attribute.
+- Suppressed native empty-slot backgrounds and range glyphs instead of clearing managed icon textures.
+- Added independent button-background color and opacity controls to every Action Bar.
+
 ## 0.8.5
 
 - Replaced Unit Frame and Party/Raid aura reads with native protected aura containers so Buffs and Debuffs remain visible when combat aura data becomes secret.

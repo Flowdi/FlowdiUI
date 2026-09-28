@@ -116,23 +116,31 @@ function module:UpdateVisibility(frame)
             return
         end
     end
-    if visible and friendlyRange and UnitInRange and frame.SetAlphaFromBoolean then
-        local inRange = UnitInRange(frame.unit)
+    local hostile = UnitCanAttack and UnitCanAttack("player", frame.unit)
+    if IsSecret(hostile) then
+        frame:SetAlpha(alpha)
+        return
+    end
+    if visible and hostileRange and hostile and CheckInteractDistance and frame.SetAlphaFromBoolean then
+        local inRange = CheckInteractDistance(frame.unit, 4)
         if IsSecret(inRange) or inRange ~= nil then
             frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
             return
         end
-    end
-    if visible and friendlyRange and C_Spell and C_Spell.IsSpellInRange and frame.SetAlphaFromBoolean then
+        frame:SetAlpha(alpha)
+        return
+    elseif visible and friendlyRange and not IsSecret(hostile) and not hostile
+        and C_Spell and C_Spell.IsSpellInRange and frame.SetAlphaFromBoolean then
         local spellID = friendlyRangeSpells[playerClass]
-        local canAssist = UnitCanAssist and UnitCanAssist("player", frame.unit)
-        if spellID and not IsSecret(canAssist) and canAssist == true then
+        if spellID then
             local inRange = C_Spell.IsSpellInRange(spellID, frame.unit)
             if IsSecret(inRange) or inRange ~= nil then
                 frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
                 return
             end
         end
+        frame:SetAlpha(alpha)
+        return
     end
     if visible and frame.unit ~= "player" and not FUI:IsUnitInConfiguredRange(frame.unit, friendlyRange, hostileRange) then
         alpha = settings.outOfRangeAlpha or 0.40
@@ -340,8 +348,9 @@ function module:CreateNativeAuras(frame, kind)
     anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
+    container:SetEnabled(false)
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
     container:SetFrameLevel(anchor:GetFrameLevel() + 1)
@@ -351,7 +360,7 @@ function module:CreateNativeAuras(frame, kind)
     local baseFilter = kind == "buff" and "HELPFUL" or "HARMFUL"
     local filter = auraSettings.mineOnly and (baseFilter .. "|PLAYER") or baseFilter
     local groupKey = nativeAuraGroups[kind]
-    local added = pcall(container.AddAuraGroup, container, groupKey, filter, {
+    local added, addError = pcall(container.AddAuraGroup, container, groupKey, filter, {
         maxFrameCount = maximum,
         layout = {
             elementWidth = auraSettings.size or 22,
@@ -396,7 +405,13 @@ function module:CreateNativeAuras(frame, kind)
             }
         end,
     })
-    if not added then return end
+    if not added then
+        if not self.auraBuildError then
+            self.auraBuildError = true
+            FUI:Print("Could not create aura display: " .. tostring(addError))
+        end
+        return
+    end
     local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
     if setAnchor then pcall(setAnchor, container, anchorPoints[auraSettings.point] or "BOTTOMRIGHT") end
     local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
@@ -410,6 +425,7 @@ function module:CreateNativeAuras(frame, kind)
     end
     anchor:SetShown(auraSettings.enabled == true)
     container:SetUnit(frame.unit)
+    container:SetEnabled(auraSettings.enabled == true)
     if container.UpdateAllAuras then container:UpdateAllAuras() end
     frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
@@ -428,6 +444,8 @@ function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     anchor:ClearAllPoints()
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     anchor:SetShown(enabled)
+    container:SetEnabled(enabled)
+    if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
     return true
 end
 
