@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2
+
+- Bundled Continuum Medium and Expressway as selectable FlowdiUI fonts.
+- Fixed friendly Target range fading by resolving the Target to its actual Party or Raid unit token before checking range.
+- Prevented hostile Debuff updates from repositioning or restyling protected aura objects after unit assignment.
+- Moved the hostile Debuff container onto a separate configurable anchor so normal aura events no longer taint its layout.
+
 ## 0.8.1
 
 - Replaced hostile Unit Frame Debuff reads with the secure native aura container used by the current client.

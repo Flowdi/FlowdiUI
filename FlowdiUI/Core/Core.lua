@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.1"
+FUI.version = "0.8.2"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -416,8 +416,8 @@ function FUI:SafeCall(label, callback, ...)
     return ok, result
 end
 
-function FUI:IsGroupUnit(unit)
-    if not unit or not UnitIsUnit then return false end
+function FUI:ResolveGroupUnit(unit)
+    if not unit or not UnitIsUnit then return nil end
     local candidates = { "player" }
     if IsInRaid and IsInRaid() then
         for index = 1, 40 do candidates[#candidates + 1] = "raid" .. index end
@@ -426,9 +426,13 @@ function FUI:IsGroupUnit(unit)
     end
     for _, candidate in ipairs(candidates) do
         local ok, same = pcall(UnitIsUnit, unit, candidate)
-        if ok and not (issecretvalue and issecretvalue(same)) and same == true then return true end
+        if ok and not (issecretvalue and issecretvalue(same)) and same == true then return candidate end
     end
-    return false
+    return nil
+end
+
+function FUI:IsGroupUnit(unit)
+    return self:ResolveGroupUnit(unit) ~= nil
 end
 
 function FUI:IsUnitInConfiguredRange(unit, friendlyRange, hostileRange)
@@ -442,8 +446,9 @@ function FUI:IsUnitInConfiguredRange(unit, friendlyRange, hostileRange)
     end
     local assistOK, canAssist = false, false
     if UnitCanAssist then assistOK, canAssist = pcall(UnitCanAssist, "player", unit) end
-    if friendlyRange and assistOK and not (issecretvalue and issecretvalue(canAssist)) and canAssist == true and self:IsGroupUnit(unit) and UnitInRange then
-        local ok, inRange, checked = pcall(UnitInRange, unit)
+    local groupUnit = friendlyRange and self:ResolveGroupUnit(unit)
+    if groupUnit and assistOK and not (issecretvalue and issecretvalue(canAssist)) and canAssist == true and UnitInRange then
+        local ok, inRange, checked = pcall(UnitInRange, groupUnit)
         if not ok or (issecretvalue and (issecretvalue(inRange) or issecretvalue(checked))) then return true end
         if checked == false then return true end
         return inRange == true

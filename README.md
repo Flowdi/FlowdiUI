@@ -18,7 +18,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - In-game module settings with the Flowdi logo
 - Full sidebar settings with live sliders and module-specific pages
 - Global style presets plus configurable fonts, outlines, textures, and interface colors
-- Dynamic SharedMedia font and texture discovery with preview dropdowns, refreshed when the settings UI opens
+- Bundled Expressway and Continuum Medium fonts plus dynamic SharedMedia font and texture discovery with preview dropdowns
 - Independent font selection for Action Bars, Nameplates, Unit Frames, Party/Raid Frames, Chat, and Data Panels
 - Movable settings window with a remembered screen position
 - Global Improvements controls for lag tolerance, combat text, tutorials, invites, borders, and icon cropping

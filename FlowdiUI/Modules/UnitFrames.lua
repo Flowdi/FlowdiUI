@@ -299,11 +299,19 @@ function module:CreateNativeDebuffs(frame)
     local settings = FrameSettings(frame.unit)
     local auraSettings = settings and settings.auras and settings.auras.debuff
     if not auraSettings then return end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, frame, "CustomAuraContainerTemplate")
+    local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
+    local target = targets[auraSettings.attachTo] or frame
+    local anchor = CreateFrame("Frame", nil, frame)
+    anchor:SetSize(1, 1)
+    anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
+    anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
+    if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
     container:SetEnabled(false)
     container:SetSize(1, 1)
-    container:SetFrameLevel(frame:GetFrameLevel() + 30)
+    container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
+    container:SetFrameLevel(anchor:GetFrameLevel() + 1)
     if container.SetClipsChildren then container:SetClipsChildren(false) end
     container.buttons = {}
     local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
@@ -322,21 +330,26 @@ function module:CreateNativeDebuffs(frame)
             border:SetAllPoints(button)
             border:SetColorTexture(0.01, 0.015, 0.025, 1)
             local icon = button:CreateTexture(nil, "ARTWORK")
-            icon:SetPoint("TOPLEFT", 1, -1)
-            icon:SetPoint("BOTTOMRIGHT", -1, 1)
+            local borderSize = math.max(0, auraSettings.borderSize or 1)
+            icon:SetPoint("TOPLEFT", borderSize, -borderSize)
+            icon:SetPoint("BOTTOMRIGHT", -borderSize, borderSize)
             icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            if icon.SetDesaturated then icon:SetDesaturated(auraSettings.desaturate == true) end
             local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
             cooldown:SetAllPoints(button)
             if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
             if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
+            cooldown:SetShown(auraSettings.cooldown ~= false)
             local textLayer = CreateFrame("Frame", nil, button)
             textLayer:SetAllPoints(button)
             textLayer:SetFrameLevel(cooldown:GetFrameLevel() + 2)
             textLayer:EnableMouse(false)
             local duration = FUI:CreateFont(textLayer, auraSettings.durationSize or 9)
             ApplyAuraTextPosition(duration, auraSettings.durationPosition)
+            duration:SetAlpha(auraSettings.showDuration and 1 or 0)
             local stacks = FUI:CreateFont(textLayer, auraSettings.stackSize or 10)
             ApplyAuraTextPosition(stacks, auraSettings.stackPosition)
+            stacks:SetAlpha(auraSettings.showStacks and 1 or 0)
             pcall(button.SetIcon, button, icon)
             pcall(button.SetDurationCooldown, button, cooldown)
             pcall(button.SetApplicationCount, button, stacks, {})
@@ -348,34 +361,6 @@ function module:CreateNativeDebuffs(frame)
         end,
     })
     if not added then return end
-    pcall(container.SetUnit, container, frame.unit)
-    frame.nativeDebuffs = container
-end
-
-function module:ApplyNativeDebuffs(frame, auraSettings)
-    local container = frame.nativeDebuffs
-    if not container or not auraSettings then return false end
-    local enabled = auraSettings.enabled == true
-    local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
-    local target = targets[auraSettings.attachTo] or frame
-    container:ClearAllPoints()
-    container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", target,
-        anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
-    local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
-    if container.SetAuraGroupFilterString then
-        pcall(container.SetAuraGroupFilterString, container, NATIVE_DEBUFF_GROUP, auraSettings.mineOnly and "HARMFUL|PLAYER" or "HARMFUL")
-    end
-    if container.SetAuraGroupMaxFrameCount then
-        pcall(container.SetAuraGroupMaxFrameCount, container, NATIVE_DEBUFF_GROUP, enabled and maximum or 0)
-    end
-    if container.SetAuraGroupLayout then
-        pcall(container.SetAuraGroupLayout, container, NATIVE_DEBUFF_GROUP, {
-            elementWidth = auraSettings.size or 22,
-            elementHeight = auraSettings.size or 22,
-            elementSpacing = auraSettings.spacing or 2,
-            lineSpacing = auraSettings.spacing or 2,
-        })
-    end
     local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
     if setAnchor then pcall(setAnchor, container, anchorPoints[auraSettings.point] or "BOTTOMRIGHT") end
     local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
@@ -387,22 +372,41 @@ function module:ApplyNativeDebuffs(frame, auraSettings)
         local vertical = auraSettings.growthY == "Down" and directions.Down or directions.Up
         pcall(setGrowth, container, horizontal, vertical)
     end
-    for _, regions in ipairs(container.buttons) do
-        local borderSize = math.max(0, auraSettings.borderSize or 1)
-        regions.icon:ClearAllPoints()
-        regions.icon:SetPoint("TOPLEFT", regions.button, "TOPLEFT", borderSize, -borderSize)
-        regions.icon:SetPoint("BOTTOMRIGHT", regions.button, "BOTTOMRIGHT", -borderSize, borderSize)
-        if regions.icon.SetDesaturated then pcall(regions.icon.SetDesaturated, regions.icon, auraSettings.desaturate == true) end
-        regions.cooldown:SetShown(auraSettings.cooldown ~= false)
-        regions.duration:SetFont(FUI:GetModuleFontPath("unitFrames"), auraSettings.durationSize or 9, FUI.db.global.fontOutline)
-        regions.stacks:SetFont(FUI:GetModuleFontPath("unitFrames"), auraSettings.stackSize or 10, FUI.db.global.fontOutline)
-        ApplyAuraTextPosition(regions.duration, auraSettings.durationPosition)
-        ApplyAuraTextPosition(regions.stacks, auraSettings.stackPosition)
-        pcall(regions.duration.SetAlpha, regions.duration, auraSettings.showDuration and 1 or 0)
-        pcall(regions.stacks.SetAlpha, regions.stacks, auraSettings.showStacks and 1 or 0)
+    anchor:SetShown(auraSettings.enabled == true)
+    pcall(container.SetUnit, container, frame.unit)
+    pcall(container.SetEnabled, container, true)
+    if container.UpdateAllAuras then pcall(container.UpdateAllAuras, container) end
+    frame.nativeDebuffAnchor = anchor
+    frame.nativeDebuffs = container
+end
+
+function module:ApplyNativeDebuffs(frame, auraSettings, configure)
+    local container = frame.nativeDebuffs
+    local anchor = frame.nativeDebuffAnchor
+    if not container or not anchor or not auraSettings then return false end
+    local enabled = auraSettings.enabled == true
+    if not configure then return true end
+    local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
+    local target = targets[auraSettings.attachTo] or frame
+    pcall(anchor.ClearAllPoints, anchor)
+    pcall(anchor.SetPoint, anchor, "CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
+    local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
+    if container.SetAuraGroupFilterString then
+        pcall(container.SetAuraGroupFilterString, container, NATIVE_DEBUFF_GROUP, auraSettings.mineOnly and "HARMFUL|PLAYER" or "HARMFUL")
     end
-    container:SetEnabled(enabled)
+    if container.SetAuraGroupMaxFrameCount then
+        pcall(container.SetAuraGroupMaxFrameCount, container, NATIVE_DEBUFF_GROUP, maximum)
+    end
+    if container.SetAuraGroupLayout then
+        pcall(container.SetAuraGroupLayout, container, NATIVE_DEBUFF_GROUP, {
+            elementWidth = auraSettings.size or 22,
+            elementHeight = auraSettings.size or 22,
+            elementSpacing = auraSettings.spacing or 2,
+            lineSpacing = auraSettings.spacing or 2,
+        })
+    end
     if enabled and container.UpdateAllAuras then pcall(container.UpdateAllAuras, container) end
+    pcall(anchor.SetShown, anchor, enabled)
     return true
 end
 
@@ -466,12 +470,12 @@ local function AuraSortValue(aura, sortBy)
     return aura.index
 end
 
-function module:UpdateAuras(frame, kind)
+function module:UpdateAuras(frame, kind, configure)
     local settings = FrameSettings(frame.unit)
     local auraSettings = settings and settings.auras and settings.auras[kind]
     local holder = frame.auraHolders and frame.auraHolders[kind]
     if not auraSettings or not holder then return end
-    if kind == "debuff" and self:ApplyNativeDebuffs(frame, auraSettings) then
+    if kind == "debuff" and self:ApplyNativeDebuffs(frame, auraSettings, configure) then
         for _, button in ipairs(holder.buttons) do button:Hide() end
         return
     end
@@ -964,8 +968,8 @@ function module:ApplyFrame(frame, settings)
         text:SetFont(FUI:GetModuleFontPath("unitFrames"), settings.textSize, FUI.db.global.fontOutline)
     end
     frame.powerText:SetFont(FUI:GetModuleFontPath("unitFrames"), math.max(8, settings.textSize - 2), FUI.db.global.fontOutline)
-    self:UpdateAuras(frame, "buff")
-    self:UpdateAuras(frame, "debuff")
+    self:UpdateAuras(frame, "buff", true)
+    self:UpdateAuras(frame, "debuff", true)
     self:UpdateFrame(frame)
 end
 
