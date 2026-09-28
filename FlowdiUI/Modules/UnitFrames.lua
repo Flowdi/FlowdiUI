@@ -117,22 +117,19 @@ function module:UpdateVisibility(frame)
         end
     end
     if visible and friendlyRange and UnitInRange and frame.SetAlphaFromBoolean then
-        local groupUnit = FUI:ResolveGroupUnit(frame.unit)
-        if groupUnit then
-            frame:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, settings.outOfRangeAlpha or 0.40)
+        local inRange = UnitInRange(frame.unit)
+        if IsSecret(inRange) or inRange ~= nil then
+            frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
             return
         end
     end
-    if visible and friendlyRange and C_Spell and C_Spell.IsSpellInRange then
+    if visible and friendlyRange and C_Spell and C_Spell.IsSpellInRange and frame.SetAlphaFromBoolean then
         local spellID = friendlyRangeSpells[playerClass]
-        local assistOK, canAssist = pcall(UnitCanAssist, "player", frame.unit)
-        if spellID and assistOK and not IsSecret(canAssist) and canAssist == true then
-            local rangeOK, inRange = pcall(C_Spell.IsSpellInRange, spellID, frame.unit)
-            if rangeOK and IsSecret(inRange) and frame.SetAlphaFromBoolean then
-                local applied = pcall(frame.SetAlphaFromBoolean, frame, inRange, 1, settings.outOfRangeAlpha or 0.40)
-                if applied then return end
-            elseif rangeOK and inRange ~= nil then
-                frame:SetAlpha(inRange and 1 or settings.outOfRangeAlpha or 0.40)
+        local canAssist = UnitCanAssist and UnitCanAssist("player", frame.unit)
+        if spellID and not IsSecret(canAssist) and canAssist == true then
+            local inRange = C_Spell.IsSpellInRange(spellID, frame.unit)
+            if IsSecret(inRange) or inRange ~= nil then
+                frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
                 return
             end
         end
@@ -328,13 +325,13 @@ local function ApplyAuraTextPosition(text, position)
     text:SetJustifyH(point:find("LEFT", 1, true) and "LEFT" or point:find("RIGHT", 1, true) and "RIGHT" or "CENTER")
 end
 
-local NATIVE_DEBUFF_GROUP = "Debuffs"
+local nativeAuraGroups = { buff = "Buffs", debuff = "Debuffs" }
 
-function module:CreateNativeDebuffs(frame)
+function module:CreateNativeAuras(frame, kind)
     if not C_AddOns then return end
     pcall(C_AddOns.LoadAddOn, "Blizzard_AuraContainer")
     local settings = FrameSettings(frame.unit)
-    local auraSettings = settings and settings.auras and settings.auras.debuff
+    local auraSettings = settings and settings.auras and settings.auras[kind]
     if not auraSettings then return end
     local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
     local target = targets[auraSettings.attachTo] or frame
@@ -343,16 +340,18 @@ function module:CreateNativeDebuffs(frame)
     anchor:SetFrameLevel(frame:GetFrameLevel() + 30)
     anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
     if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate")
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
     if not ok or not container or not container.AddAuraGroup then return end
-    container:SetEnabled(false)
     container:SetSize(1, 1)
     container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", anchor, "CENTER", 0, 0)
     container:SetFrameLevel(anchor:GetFrameLevel() + 1)
     if container.SetClipsChildren then container:SetClipsChildren(false) end
     container.buttons = {}
     local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
-    local added = pcall(container.AddAuraGroup, container, NATIVE_DEBUFF_GROUP, auraSettings.mineOnly and "HARMFUL|PLAYER" or "HARMFUL", {
+    local baseFilter = kind == "buff" and "HELPFUL" or "HARMFUL"
+    local filter = auraSettings.mineOnly and (baseFilter .. "|PLAYER") or baseFilter
+    local groupKey = nativeAuraGroups[kind]
+    local added = pcall(container.AddAuraGroup, container, groupKey, filter, {
         maxFrameCount = maximum,
         layout = {
             elementWidth = auraSettings.size or 22,
@@ -387,9 +386,9 @@ function module:CreateNativeDebuffs(frame)
             local stacks = FUI:CreateFont(textLayer, auraSettings.stackSize or 10)
             ApplyAuraTextPosition(stacks, auraSettings.stackPosition)
             stacks:SetAlpha(auraSettings.showStacks and 1 or 0)
-            pcall(button.SetIcon, button, icon)
-            pcall(button.SetDurationCooldown, button, cooldown)
-            pcall(button.SetApplicationCount, button, stacks, {})
+            button:SetIcon(icon)
+            button:SetDurationCooldown(cooldown)
+            button:SetApplicationCount(stacks, {})
             pcall(button.SetDurationText, button, duration, {})
             container.buttons[#container.buttons + 1] = {
                 button = button, border = border, icon = icon, cooldown = cooldown,
@@ -410,42 +409,25 @@ function module:CreateNativeDebuffs(frame)
         pcall(setGrowth, container, horizontal, vertical)
     end
     anchor:SetShown(auraSettings.enabled == true)
-    -- SetEnabled must happen before SetUnit. Assigning a unit protects the
-    -- container; trying to enable it afterwards is rejected as addon taint.
-    container:SetEnabled(true)
     container:SetUnit(frame.unit)
-    if container.UpdateAllAuras then pcall(container.UpdateAllAuras, container) end
-    frame.nativeDebuffAnchor = anchor
-    frame.nativeDebuffs = container
+    if container.UpdateAllAuras then container:UpdateAllAuras() end
+    frame.nativeAuraAnchors = frame.nativeAuraAnchors or {}
+    frame.nativeAuraContainers = frame.nativeAuraContainers or {}
+    frame.nativeAuraAnchors[kind] = anchor
+    frame.nativeAuraContainers[kind] = container
 end
 
-function module:ApplyNativeDebuffs(frame, auraSettings, configure)
-    local container = frame.nativeDebuffs
-    local anchor = frame.nativeDebuffAnchor
+function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
+    local container = frame.nativeAuraContainers and frame.nativeAuraContainers[kind]
+    local anchor = frame.nativeAuraAnchors and frame.nativeAuraAnchors[kind]
     if not container or not anchor or not auraSettings then return false end
     local enabled = auraSettings.enabled == true
     if not configure then return true end
     local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
     local target = targets[auraSettings.attachTo] or frame
-    pcall(anchor.ClearAllPoints, anchor)
-    pcall(anchor.SetPoint, anchor, "CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
-    local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
-    if container.SetAuraGroupFilterString then
-        pcall(container.SetAuraGroupFilterString, container, NATIVE_DEBUFF_GROUP, auraSettings.mineOnly and "HARMFUL|PLAYER" or "HARMFUL")
-    end
-    if container.SetAuraGroupMaxFrameCount then
-        pcall(container.SetAuraGroupMaxFrameCount, container, NATIVE_DEBUFF_GROUP, maximum)
-    end
-    if container.SetAuraGroupLayout then
-        pcall(container.SetAuraGroupLayout, container, NATIVE_DEBUFF_GROUP, {
-            elementWidth = auraSettings.size or 22,
-            elementHeight = auraSettings.size or 22,
-            elementSpacing = auraSettings.spacing or 2,
-            lineSpacing = auraSettings.spacing or 2,
-        })
-    end
-    if enabled and container.UpdateAllAuras then pcall(container.UpdateAllAuras, container) end
-    pcall(anchor.SetShown, anchor, enabled)
+    anchor:ClearAllPoints()
+    anchor:SetPoint("CENTER", target, anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
+    anchor:SetShown(enabled)
     return true
 end
 
@@ -514,7 +496,7 @@ function module:UpdateAuras(frame, kind, configure)
     local auraSettings = settings and settings.auras and settings.auras[kind]
     local holder = frame.auraHolders and frame.auraHolders[kind]
     if not auraSettings or not holder then return end
-    if kind == "debuff" and self:ApplyNativeDebuffs(frame, auraSettings, configure) then
+    if self:ApplyNativeAuras(frame, kind, auraSettings, configure) then
         for _, button in ipairs(holder.buttons) do button:Hide() end
         return
     end
@@ -749,7 +731,10 @@ function module:CreateUnitFrame(unit, positionKey)
         holder.buttons = {}
         frame.auraHolders[kind] = holder
     end
-    if unit ~= "pet" then self:CreateNativeDebuffs(frame) end
+    if unit ~= "pet" then
+        self:CreateNativeAuras(frame, "buff")
+        self:CreateNativeAuras(frame, "debuff")
+    end
 
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")

@@ -143,6 +143,106 @@ local function FormatTime(seconds)
     return string.format("%.1f", math.max(0, seconds))
 end
 
+local function NativeCandidateFilters(profile, kind)
+    local filters = profile.auraFilters
+    if not filters or filters.mode ~= "Essential" then return nil end
+    -- Dispellable debuffs cannot be selected by spell ID alone, so the native
+    -- harmful container must retain the complete list when that mode is active.
+    if kind == "debuff" and filters.showDispellable then return nil end
+    local values = kind == "buff"
+        and { filters.topLeftBuffs, filters.topRightBuffs }
+        or { filters.bottomLeftDebuffs, filters.centerDebuffs }
+    local include = {}
+    for _, value in ipairs(values) do
+        local parsed = ParseSpellFilter(value)
+        for spellID in pairs(parsed.ids) do include[spellID] = true end
+    end
+    return next(include) and { includeSpellIDs = include } or nil
+end
+
+function module:CreateNativeAuras(button, kind)
+    if button.isPet or not C_AddOns then return end
+    pcall(C_AddOns.LoadAddOn, "Blizzard_AuraContainer")
+    local profile = Profile(button)
+    local settings = profile and profile.auras and profile.auras[kind]
+    if not settings then return end
+    local anchor = CreateFrame("Frame", nil, button)
+    anchor:SetSize(1, 1)
+    anchor:SetFrameLevel(button:GetFrameLevel() + 24)
+    anchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
+    if anchor.SetClipsChildren then anchor:SetClipsChildren(false) end
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, anchor, "CustomAuraContainerTemplate, DisableUntrustedLayoutScriptsTemplate")
+    if not ok or not container or not container.AddAuraGroup then return end
+    container:SetSize(1, 1)
+    container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", anchor, "CENTER", 0, 0)
+    container:SetFrameLevel(anchor:GetFrameLevel() + 1)
+    if container.SetClipsChildren then container:SetClipsChildren(false) end
+    local size, spacing = settings.size or 14, settings.spacing or 1
+    local perRow = math.max(1, settings.perRow or 3)
+    local maximum = profile.auraFilters and profile.auraFilters.mode == "Essential"
+        and math.max(1, profile.auraFilters.maxIcons or 8)
+        or perRow * math.max(1, settings.rows or 1)
+    local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
+    if settings.mineOnly then filter = filter .. "|PLAYER" end
+    local added = pcall(container.AddAuraGroup, container, kind == "buff" and "Buffs" or "Debuffs", filter, {
+        maxFrameCount = maximum,
+        candidateFilters = NativeCandidateFilters(profile, kind),
+        layout = {
+            elementWidth = size, elementHeight = size,
+            elementSpacing = spacing, lineSpacing = spacing,
+        },
+        initializeFrame = function(auraButton)
+            if auraButton.SetMouseClickEnabled then pcall(auraButton.SetMouseClickEnabled, auraButton, false) end
+            local border = auraButton:CreateTexture(nil, "BACKGROUND")
+            border:SetAllPoints(auraButton)
+            border:SetColorTexture(unpack(FUI.colors.border))
+            local icon = auraButton:CreateTexture(nil, "ARTWORK")
+            local borderSize = math.max(0, settings.borderSize or 1)
+            icon:SetPoint("TOPLEFT", borderSize, -borderSize)
+            icon:SetPoint("BOTTOMRIGHT", -borderSize, borderSize)
+            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            if icon.SetDesaturated then icon:SetDesaturated(settings.desaturate == true) end
+            local cooldown = CreateFrame("Cooldown", nil, auraButton, "CooldownFrameTemplate")
+            cooldown:SetAllPoints(icon)
+            if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
+            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
+            cooldown:SetShown(settings.cooldown ~= false)
+            local textLayer = CreateFrame("Frame", nil, auraButton)
+            textLayer:SetAllPoints(auraButton)
+            textLayer:SetFrameLevel(cooldown:GetFrameLevel() + 2)
+            textLayer:EnableMouse(false)
+            local duration = FUI:CreateFont(textLayer, settings.durationSize or 8)
+            duration:SetPoint("BOTTOM", 0, 1)
+            duration:SetAlpha(settings.showDuration and 1 or 0)
+            local stacks = FUI:CreateFont(textLayer, settings.stackSize or 8)
+            stacks:SetPoint("TOPRIGHT", -1, -1)
+            stacks:SetAlpha(settings.showStacks and 1 or 0)
+            auraButton:SetIcon(icon)
+            auraButton:SetDurationCooldown(cooldown)
+            auraButton:SetApplicationCount(stacks, {})
+            pcall(auraButton.SetDurationText, auraButton, duration, {})
+        end,
+    })
+    if not added then return end
+    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
+    if setAnchor then setAnchor(container, anchorPoints[settings.point] or "TOPRIGHT") end
+    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
+    if setLine then setLine(container, perRow * (size + spacing)) end
+    local directions = AnchorUtil and AnchorUtil.FlowDirection
+    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
+    if directions and setGrowth then
+        setGrowth(container, settings.growthX == "Left" and directions.Left or directions.Right,
+            settings.growthY == "Down" and directions.Down or directions.Up)
+    end
+    anchor:SetShown(settings.enabled == true)
+    container:SetUnit(button.unit)
+    if container.UpdateAllAuras then container:UpdateAllAuras() end
+    button.nativeAuraAnchors = button.nativeAuraAnchors or {}
+    button.nativeAuraContainers = button.nativeAuraContainers or {}
+    button.nativeAuraAnchors[kind] = anchor
+    button.nativeAuraContainers[kind] = container
+end
+
 function module:CreateAuraButton(button, kind, index)
     local auraButton = CreateFrame("Button", nil, button, "BackdropTemplate")
     auraButton:SetFrameLevel(button:GetFrameLevel() + 20)
@@ -182,11 +282,22 @@ function module:CreateAuraButton(button, kind, index)
     return auraButton
 end
 
-function module:UpdateAuras(button, kind)
+function module:UpdateAuras(button, kind, configure)
     local profile = Profile(button)
     local settings = profile and profile.auras and profile.auras[kind]
     local buttons = button.auraButtons[kind]
     for _, auraButton in ipairs(buttons) do auraButton:Hide() end
+    local nativeAnchor = button.nativeAuraAnchors and button.nativeAuraAnchors[kind]
+    if nativeAnchor then
+        if configure and settings then
+            nativeAnchor:ClearAllPoints()
+            nativeAnchor:SetPoint("CENTER", button, anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
+            nativeAnchor:SetShown(not button.isPet and settings.enabled == true)
+        elseif configure then
+            nativeAnchor:Hide()
+        end
+        return
+    end
     if button.isPet or not settings or not settings.enabled then return end
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
     if settings.mineOnly then filter = filter .. "|PLAYER" end
@@ -288,11 +399,8 @@ function module:UpdateRange(button)
         return
     end
     if (profile.rangeFriendly or profile.rangeIndicator) and UnitInRange and button.SetAlphaFromBoolean then
-        local groupUnit = FUI:ResolveGroupUnit(button.unit)
-        if groupUnit then
-            button:SetAlphaFromBoolean(UnitInRange(groupUnit), 1, profile.outOfRangeAlpha or 0.40)
-            return
-        end
+        button:SetAlphaFromBoolean(UnitInRange(button.unit), 1, profile.outOfRangeAlpha or 0.40)
+        return
     end
     if (profile.rangeFriendly or profile.rangeIndicator) and not FUI:IsUnitInConfiguredRange(button.unit, true, false) then
         button:SetAlpha(profile.outOfRangeAlpha or 0.40)
@@ -378,6 +486,10 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     if button.externalAuraAnchor.SetClipsChildren then button.externalAuraAnchor:SetClipsChildren(false) end
     button.FlowdiAuraAnchor = button.externalAuraAnchor
     button.auraButtons = { buff = {}, debuff = {} }
+    if not button.isPet then
+        self:CreateNativeAuras(button, "buff")
+        self:CreateNativeAuras(button, "debuff")
+    end
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetColorTexture(0.15, 0.5, 1, 0.14)
@@ -478,8 +590,8 @@ function module:ApplyButton(button, profile)
     button.name:SetFont(FUI:GetModuleFontPath("groupFrames"), fontSize, FUI.db.global.fontOutline)
     button.healthText:SetFont(FUI:GetModuleFontPath("groupFrames"), math.max(7, fontSize - 1), FUI.db.global.fontOutline)
     self:UpdateButton(button)
-    self:UpdateAuras(button, "buff")
-    self:UpdateAuras(button, "debuff")
+    self:UpdateAuras(button, "buff", true)
+    self:UpdateAuras(button, "debuff", true)
 end
 
 function module:LayoutFrames(container, frames, petFrames, profile, isParty)

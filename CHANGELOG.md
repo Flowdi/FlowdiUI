@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.5
+
+- Replaced Unit Frame and Party/Raid aura reads with native protected aura containers so Buffs and Debuffs remain visible when combat aura data becomes secret.
+- Removed all combat-time layout writes from native aura updates and enabled the protected layout-script guard.
+- Fixed friendly Target and group-frame range fading by passing spell and group range results directly to the client's secret-safe alpha API.
+- Removed the ineffective Global Settings Style tab.
+- Added a Profiles page placeholder for future naming, assignment, copying, import, and export support.
+- Added independent Action Bar scaling plus configurable FlowdiUI border size and color.
+- Fixed Main Action Bar scaling, empty-slot icon cleanup, and missing-glyph boxes used by the action range indicator.
+
 ## 0.8.4
 
 - Fixed friendly range fading so the player is always in range and distant Party, Raid, and friendly Target units use the client's protected range result correctly.

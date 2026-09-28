@@ -11,6 +11,7 @@ local pages = {
     { key = "bags", label = "Bags" },
     { key = "dataPanels", label = "Data Panels" },
     { key = "darkMode", label = "Dark Mode & Skins" },
+    { key = "profiles", label = "Profiles" },
 }
 
 local function AddTitle(parent, title, description)
@@ -361,7 +362,7 @@ end
 
 local function BuildGeneral(page)
     AddTitle(page, "Global Settings", "Shared appearance, media and quality-of-life options for every FlowdiUI module.")
-    local tabNames = { "General", "Style", "Fonts", "Textures", "Colors", "Improvements" }
+    local tabNames = { "General", "Fonts", "Textures", "Colors", "Improvements" }
     local tabs, panels = {}, {}
     local function SelectTab(name)
         for key, panel in pairs(panels) do panel:SetShown(key == name) end
@@ -393,39 +394,6 @@ local function BuildGeneral(page)
     AddCheckbox(general, "Auto track reputation", 270, -303, function() return FUI.db.global.autoTrackReputation end, function(v) FUI.db.global.autoTrackReputation = v end)
     AddButton(general, "Reset positions", 6, -370, 150, function() FUI:ResetPositions() end)
     AddButton(general, "Reset all settings", 168, -370, 170, function() FlowdiUIDB = nil ReloadUI() end)
-
-    local style = panels.Style
-    AddSection(style, "Style presets", -4)
-    local function ApplyPreset(name)
-        local db = FUI.db.global
-        db.style = name
-        if name == "FlowdiUI" then
-            db.font = "Friz Quadrata"
-            db.primaryTexture = "FlowdiUI"
-            db.secondaryTexture = "FlowdiUI Blank"
-            db.accent = { 0.18, 0.55, 1, 1 }
-        elseif name == "Blizzard" then
-            db.font = "Friz Quadrata"
-            db.primaryTexture = "Blizzard"
-            db.accent = { 0.95, 0.72, 0.18, 1 }
-        else
-            db.font = "Morpheus"
-            db.primaryTexture = "Raid"
-            db.accent = { 0.62, 0.45, 0.25, 1 }
-        end
-        FUI:ApplySettings()
-    end
-    AddButton(style, "FlowdiUI", 6, -32, 180, function() ApplyPreset("FlowdiUI") end)
-    AddButton(style, "Blizzard", 210, -32, 180, function() ApplyPreset("Blizzard") end)
-    AddButton(style, "Classic", 414, -32, 180, function() ApplyPreset("Classic") end)
-    AddSection(style, "Current style", -92)
-    AddCycle(style, "Base style", 6, -116, 220, { "FlowdiUI", "Blizzard", "Classic" }, function() return FUI.db.global.style end, ApplyPreset)
-    local note = FUI:CreateFont(style, 12)
-    note:SetPoint("TOPLEFT", 6, -190)
-    note:SetWidth(590)
-    note:SetJustifyH("LEFT")
-    note:SetTextColor(0.58, 0.7, 0.88)
-    note:SetText("Presets provide a coherent starting point. Fonts, textures and colors remain independently adjustable in the tabs above.")
 
     local fonts = panels.Fonts
     AddSection(fonts, "Global font", -4)
@@ -495,7 +463,7 @@ local function BuildActionBars(page)
     scroll:SetPoint("BOTTOMRIGHT", -32, 6)
     scroll:EnableMouseWheel(true)
     local content = CreateFrame("Frame", nil, scroll)
-    content:SetSize(690, 680)
+    content:SetSize(690, 810)
     content.controls = outerPage.controls
     scroll:SetScrollChild(content)
     scroll:SetScript("OnMouseWheel", function(self, delta)
@@ -550,14 +518,19 @@ local function BuildActionBars(page)
     AddSlider(page, "Number of icons", 370, -348, 280, 1, 12, 1, function() return Current().buttons end, function(v) Current().buttons = v Current().rows = math.min(Current().rows, v) end, function(v) return string.format("%d", v) end)
     AddSlider(page, "Rows", 24, -420, 280, 1, 12, 1, function() return Current().rows end, function(v) Current().rows = math.min(v, Current().buttons) end, function(v) return string.format("%d", v) end)
     AddSlider(page, "Button spacing", 370, -420, 280, -2, 20, 1, function() return Current().spacing end, function(v) Current().spacing = v end, function(v) return string.format("%d px", v) end)
-    AddCheckbox(page, "Vertical orientation", 24, -494, function() return Current().vertical end, function(v) Current().vertical = v end)
+    AddSlider(page, "Selected bar scale", 24, -492, 280, 0.50, 2, 0.05, function() return Current().scale end, function(v) Current().scale = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddCheckbox(page, "Vertical orientation", 370, -512, function() return Current().vertical end, function(v) Current().vertical = v end)
 
-    AddSection(page, "Text", -535)
-    AddCheckbox(page, "Show keybinds", 24, -555, function() return FUI.db.actionBars.showHotkeys end, function(v) FUI.db.actionBars.showHotkeys = v end)
-    AddCheckbox(page, "Show macro names", 210, -555, function() return FUI.db.actionBars.showMacroText end, function(v) FUI.db.actionBars.showMacroText = v end)
-    AddSlider(page, "Keybind size", 370, -542, 280, 7, 24, 1, function() return Current().hotkeySize end, function(v) Current().hotkeySize = v end, function(v) return string.format("%d px", v) end)
-    AddSlider(page, "Macro text size", 24, -610, 280, 7, 24, 1, function() return Current().macroSize end, function(v) Current().macroSize = v end, function(v) return string.format("%d px", v) end)
-    AddSlider(page, "Count text size", 370, -610, 280, 7, 24, 1, function() return Current().countSize end, function(v) Current().countSize = v end, function(v) return string.format("%d px", v) end)
+    AddSection(page, "Border", -565)
+    AddSlider(page, "Border size", 24, -586, 280, 0, 5, 1, function() return Current().borderSize end, function(v) Current().borderSize = v end, function(v) return string.format("%d px", v) end)
+    AddColor(page, "Border color", 370, -588, function() return Current().borderColor end, function(v) Current().borderColor = v end)
+
+    AddSection(page, "Text", -660)
+    AddCheckbox(page, "Show keybinds", 24, -680, function() return FUI.db.actionBars.showHotkeys end, function(v) FUI.db.actionBars.showHotkeys = v end)
+    AddCheckbox(page, "Show macro names", 210, -680, function() return FUI.db.actionBars.showMacroText end, function(v) FUI.db.actionBars.showMacroText = v end)
+    AddSlider(page, "Keybind size", 370, -667, 280, 7, 24, 1, function() return Current().hotkeySize end, function(v) Current().hotkeySize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(page, "Macro text size", 24, -735, 280, 7, 24, 1, function() return Current().macroSize end, function(v) Current().macroSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(page, "Count text size", 370, -735, 280, 7, 24, 1, function() return Current().countSize end, function(v) Current().countSize = v end, function(v) return string.format("%d px", v) end)
 end
 
 local function BuildNameplates(page)
@@ -1244,6 +1217,40 @@ local function BuildDarkMode(page)
     AddCheckbox(page, "World Map", 430, -362, function() return skins.worldMap end, function(v) skins.worldMap = v end, true)
 end
 
+local function BuildProfiles(page)
+    AddTitle(page, "Profiles", "Save, name and share complete FlowdiUI configurations.")
+    AddSection(page, "Planned profile management", -112)
+    local activeLabel = FUI:CreateFont(page, 12)
+    activeLabel:SetPoint("TOPLEFT", 24, -140)
+    activeLabel:SetText("Active profile")
+    local active = CreateFrame("Frame", nil, page, "BackdropTemplate")
+    active:SetSize(300, 28)
+    active:SetPoint("TOPLEFT", 24, -160)
+    active:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    active:SetBackdropColor(0.025, 0.04, 0.075, 0.75)
+    active:SetBackdropBorderColor(0.12, 0.38, 0.72, 0.7)
+    local activeText = FUI:CreateFont(active, 12)
+    activeText:SetPoint("LEFT", 9, 0)
+    activeText:SetText("Default")
+    activeText:SetTextColor(0.6, 0.68, 0.8)
+    local actions = {
+        { "New profile", 24 }, { "Rename", 180 }, { "Delete", 336 },
+        { "Import", 24, -275 }, { "Export", 180, -275 }, { "Copy from", 336, -275 },
+    }
+    for index, info in ipairs(actions) do
+        local y = info[3] or -215
+        local button = AddButton(page, info[1], info[2], y, 140, function() end)
+        button:Disable()
+        button:GetFontString():SetTextColor(0.42, 0.48, 0.58)
+    end
+    local note = FUI:CreateFont(page, 12)
+    note:SetPoint("TOPLEFT", 24, -345)
+    note:SetWidth(620)
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(0.58, 0.7, 0.88)
+    note:SetText("The profile page is reserved now so the navigation and layout remain stable. Profile naming, character/spec assignment, copying, and import/export will be enabled when the profile backend is implemented.")
+end
+
 local builders = {
     general = BuildGeneral,
     actionBars = BuildActionBars,
@@ -1254,6 +1261,7 @@ local builders = {
     bags = BuildBags,
     dataPanels = BuildDataPanels,
     darkMode = BuildDarkMode,
+    profiles = BuildProfiles,
 }
 
 function FUI:SelectSettingsPage(key)

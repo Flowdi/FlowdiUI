@@ -2,11 +2,11 @@
 
 FlowdiUI is a modular interface MVP for **World of Warcraft: Forever**. It combines a clean blue/black visual language with a deliberately conservative implementation based on Blizzard's secure UI systems.
 
-FlowdiUI includes a fully English settings area with General, Style, Fonts, Textures, Colors, and Improvements tabs. Selectors use dropdown menus with font and texture previews, while sliders show their exact current value. Open it with `/fui`, the addon-compartment icon, or the FlowdiUI entry in the Escape menu.
+FlowdiUI includes a fully English settings area with General, Fonts, Textures, Colors, and Improvements tabs. Selectors use dropdown menus with font and texture previews, while sliders show their exact current value. Open it with `/fui`, the addon-compartment icon, or the FlowdiUI entry in the Escape menu.
 
 ## Included in the MVP
 
-- Independent layouts and visibility controls for eight player action bars plus Pet and Stance bars without replacing secure Blizzard action buttons
+- Independent layouts, scale, borders, text, and visibility controls for eight player action bars plus Pet and Stance bars without replacing secure Blizzard action buttons
 - Lightweight nameplate styling
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
 - Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs
@@ -17,7 +17,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - Darkmode treatment for common Blizzard windows
 - In-game module settings with the Flowdi logo
 - Full sidebar settings with live sliders and module-specific pages
-- Global style presets plus configurable fonts, outlines, textures, and interface colors
+- Configurable global fonts, outlines, textures, and interface colors
 - Bundled Expressway and Continuum Medium fonts plus dynamic SharedMedia font and texture discovery with preview dropdowns
 - Independent font selection for Action Bars, Nameplates, Unit Frames, Party/Raid Frames, Chat, and Data Panels
 - Movable settings window with a remembered screen position
@@ -31,6 +31,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - Chat copy window, timestamps, fading controls, and configurable visibility duration
 - Bag item-level text and quality-colored item borders
 - Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
+- Reserved Profiles page for the upcoming naming, assignment, copy, import, and export workflow
 
 ## Group-frame integrations
 

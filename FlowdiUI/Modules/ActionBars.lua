@@ -20,6 +20,12 @@ module.barOrder = {
 local definitionsByPrefix = {}
 for _, definition in ipairs(module.barOrder) do definitionsByPrefix[definition.prefix] = definition end
 local function IsSecret(value) return issecretvalue and issecretvalue(value) end
+local function ButtonIsEmpty(button)
+    if not button.action or not HasAction then return false end
+    local ok, hasAction = pcall(HasAction, button.action)
+    if not ok or IsSecret(hasAction) then return false end
+    return hasAction ~= true
+end
 
 local function BarSettings(definition)
     local db = FUI.db and FUI.db.actionBars
@@ -40,7 +46,11 @@ function module:SkinActionButton(button, settings)
     local name = button:GetName()
     local hotkey, count, macro = ButtonRegions(button)
     if hotkey then
-        hotkey:SetFont(FUI:GetModuleFontPath("actionBars"), settings.hotkeySize or 10, FUI.db.global.fontOutline)
+        if _G.RANGE_INDICATOR and hotkey:GetText() == _G.RANGE_INDICATOR then
+            hotkey:SetFont("Fonts\\ARIALN.TTF", 12, "OUTLINE")
+        else
+            hotkey:SetFont(FUI:GetModuleFontPath("actionBars"), settings.hotkeySize or 10, FUI.db.global.fontOutline)
+        end
         hotkey:SetTextColor(0.72, 0.82, 1)
         hotkey:SetShown(FUI.db.actionBars.showHotkeys ~= false)
     end
@@ -52,7 +62,9 @@ function module:SkinActionButton(button, settings)
     if settings.buttons and name then
         local index = tonumber(name:match("(%d+)$")) or 1
         local configured = index <= (settings.buttons or 12)
-        local empty = button.action and HasAction and not HasAction(button.action)
+        local empty = ButtonIsEmpty(button)
+        local icon = button.icon or button.Icon or _G[name .. "Icon"]
+        if empty and icon and not InCombatLockdown() then icon:SetTexture(nil) end
         button:SetAlpha(configured and (settings.showEmpty or not empty) and 1 or 0)
         if button.EnableMouse and not InCombatLockdown() then
             button:EnableMouse(configured and settings.enabled ~= false and not settings.clickThrough)
@@ -67,14 +79,21 @@ function module:ApplyBar(definition)
     local count = math.max(1, math.min(definition.maximum, math.floor(settings.buttons or definition.maximum)))
     local rows = math.max(1, math.min(count, math.floor(settings.rows or 1)))
     local columns = math.ceil(count / rows)
-    local size = settings.iconSize or 36
-    local spacing = settings.spacing or 2
-    bar:SetScale((FUI.db.scale or 1) * (FUI.db.actionBars.scale or 1))
+    local scale = (FUI.db.scale or 1) * (FUI.db.actionBars.scale or 1) * (settings.scale or 1)
+    local size = (settings.iconSize or 36) * scale
+    local spacing = (settings.spacing or 2) * scale
+    bar:SetScale(1)
 
     for index = 1, definition.maximum do
         local button = _G[definition.prefix .. index]
         if button then
             self:SkinActionButton(button, settings)
+            if button.FlowdiBackdrop then
+                local borderSize = math.max(0, settings.borderSize or 1)
+                button.FlowdiBackdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = borderSize > 0 and FUI.textures.Flat or nil, edgeSize = math.max(1, borderSize) })
+                local color = settings.borderColor or FUI.colors.border
+                button.FlowdiBackdrop:SetBackdropBorderColor(color[1], color[2], color[3], color[4] or 1)
+            end
             button:SetSize(size, size)
             button:ClearAllPoints()
             local row, column
@@ -87,7 +106,7 @@ function module:ApplyBar(definition)
             end
             button:SetPoint("TOPLEFT", bar, "TOPLEFT", column * (size + spacing), -row * (size + spacing))
             local configured = index <= count
-            local empty = button.action and HasAction and not HasAction(button.action)
+            local empty = ButtonIsEmpty(button)
             button:SetAlpha(configured and (settings.showEmpty or not empty) and 1 or 0)
             if button.EnableMouse then button:EnableMouse(configured and settings.enabled ~= false and not settings.clickThrough) end
         end
