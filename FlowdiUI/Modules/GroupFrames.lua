@@ -102,6 +102,11 @@ local function AuraMatchesFilter(aura, value)
 end
 
 local _, playerClass = UnitClass("player")
+local friendlyRangeSpells = {
+    PRIEST = { 2061, 17, 139 }, PALADIN = { 19750, 20473, 633 },
+    SHAMAN = { 8004, 1064, 331 }, DRUID = { 8936, 774, 5185 },
+    MONK = { 116670, 124682, 115175 }, EVOKER = { 361469, 355913, 364343 },
+}
 local dispelTypes = {
     PRIEST = { Magic = true, Disease = true },
     PALADIN = { Magic = true, Poison = true, Disease = true },
@@ -184,6 +189,16 @@ function module:CreateNativeAuras(button, kind)
         or perRow * math.max(1, settings.rows or 1)
     local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
     if settings.mineOnly then filter = filter .. "|PLAYER" end
+    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
+    if setAnchor then pcall(setAnchor, container, anchorPoints[settings.point] or "TOPRIGHT") end
+    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
+    if setLine then pcall(setLine, container, perRow * (size + spacing)) end
+    local directions = AnchorUtil and AnchorUtil.FlowDirection
+    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
+    if directions and setGrowth then
+        pcall(setGrowth, container, settings.growthX == "Left" and directions.Left or directions.Right,
+            settings.growthY == "Down" and directions.Down or directions.Up)
+    end
     local added, addError = pcall(container.AddAuraGroup, container, kind == "buff" and "Buffs" or "Debuffs", filter, {
         maxFrameCount = maximum,
         candidateFilters = NativeCandidateFilters(profile, kind),
@@ -230,16 +245,6 @@ function module:CreateNativeAuras(button, kind)
         end
         return
     end
-    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
-    if setAnchor then setAnchor(container, anchorPoints[settings.point] or "TOPRIGHT") end
-    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
-    if setLine then setLine(container, perRow * (size + spacing)) end
-    local directions = AnchorUtil and AnchorUtil.FlowDirection
-    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
-    if directions and setGrowth then
-        setGrowth(container, settings.growthX == "Left" and directions.Left or directions.Right,
-            settings.growthY == "Down" and directions.Down or directions.Up)
-    end
     anchor:SetShown(settings.enabled == true)
     container:SetUnit(button.unit)
     if container.UpdateAllAuras then container:UpdateAllAuras() end
@@ -247,6 +252,14 @@ function module:CreateNativeAuras(button, kind)
     button.nativeAuraContainers = button.nativeAuraContainers or {}
     button.nativeAuraAnchors[kind] = anchor
     button.nativeAuraContainers[kind] = container
+end
+
+function module:EnsureNativeAuras(button)
+    if not self.worldReady or button.isPet then return end
+    button.nativeAuraContainers = button.nativeAuraContainers or {}
+    for _, kind in ipairs({ "buff", "debuff" }) do
+        if not button.nativeAuraContainers[kind] then self:CreateNativeAuras(button, kind) end
+    end
 end
 
 function module:CreateAuraButton(button, kind, index)
@@ -408,9 +421,14 @@ function module:UpdateRange(button)
         button:SetAlpha(1)
         return
     end
-    if (profile.rangeFriendly or profile.rangeIndicator) and UnitInRange and button.SetAlphaFromBoolean then
-        button:SetAlphaFromBoolean(UnitInRange(button.unit), 1, profile.outOfRangeAlpha or 0.40)
-        return
+    if (profile.rangeFriendly or profile.rangeIndicator) and C_Spell and C_Spell.IsSpellInRange and button.SetAlphaFromBoolean then
+        for _, spellID in ipairs(friendlyRangeSpells[playerClass] or {}) do
+            local inRange = C_Spell.IsSpellInRange(spellID, button.unit)
+            if IsSecret(inRange) or inRange ~= nil then
+                button:SetAlphaFromBoolean(inRange, 1, profile.outOfRangeAlpha or 0.40)
+                return
+            end
+        end
     end
     if (profile.rangeFriendly or profile.rangeIndicator) and not FUI:IsUnitInConfiguredRange(button.unit, true, false) then
         button:SetAlpha(profile.outOfRangeAlpha or 0.40)
@@ -496,10 +514,6 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     if button.externalAuraAnchor.SetClipsChildren then button.externalAuraAnchor:SetClipsChildren(false) end
     button.FlowdiAuraAnchor = button.externalAuraAnchor
     button.auraButtons = { buff = {}, debuff = {} }
-    if not button.isPet then
-        self:CreateNativeAuras(button, "buff")
-        self:CreateNativeAuras(button, "debuff")
-    end
     local highlight = button:CreateTexture(nil, "HIGHLIGHT")
     highlight:SetAllPoints()
     highlight:SetColorTexture(0.15, 0.5, 1, 0.14)
@@ -515,6 +529,10 @@ function module:CreateButton(parent, unit, profileKey, isPet)
     }) do button:RegisterEvent(event) end
     button:SetScript("OnEvent", function(self, event, eventUnit)
         if not eventUnit or eventUnit == self.unit or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
+            if event == "PLAYER_ENTERING_WORLD" then
+                module.worldReady = true
+                module:EnsureNativeAuras(self)
+            end
             module:UpdateButton(self)
             if event == "UNIT_AURA" or event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ENTERING_WORLD" then
                 module:UpdateAuras(self, "buff")

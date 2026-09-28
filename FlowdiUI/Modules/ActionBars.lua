@@ -154,6 +154,8 @@ function module:ApplyBar(definition)
         end
     end
     bar:SetSize(columns * size + math.max(0, columns - 1) * spacing, rows * size + math.max(0, rows - 1) * spacing)
+    local key = "actionBar" .. definition.key:sub(1, 1):upper() .. definition.key:sub(2)
+    if FUI.movers and FUI.movers[key] then FUI:SyncMoverOverlay(FUI.movers[key]) end
     self:UpdateBarVisibility(definition)
 end
 

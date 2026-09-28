@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.8
+
+- Deferred native Unit Frame and Party/Raid aura construction until the world is ready, and configured container flow layout before registering aura groups so Buffs and Debuffs can populate reliably.
+- Replaced the misleading friendly `UnitInRange` shortcut with direct class-healing-spell range checks for Target, Party, and Raid frames.
+- Kept Action Bar mover overlays synchronized with every button-size and scale change, including compact bars below the previous mover minimum size.
+
 ## 0.8.7
 
 - Removed the explicit disable/enable cycle that prevented otherwise valid native Aura Containers from registering and rendering their Unit Frame and Party/Raid groups.

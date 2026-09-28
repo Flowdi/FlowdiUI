@@ -68,7 +68,7 @@ function FUI:SyncMoverOverlay(mover)
     end
     local uiScale = UIParent:GetEffectiveScale()
     local ratio = uiScale > 0 and target:GetEffectiveScale() / uiScale or 1
-    overlay:SetSize(math.max(48, target:GetWidth() * ratio), math.max(24, target:GetHeight() * ratio))
+    overlay:SetSize(math.max(16, target:GetWidth() * ratio), math.max(16, target:GetHeight() * ratio))
 end
 
 function FUI:CreateMoverOverlay(mover)

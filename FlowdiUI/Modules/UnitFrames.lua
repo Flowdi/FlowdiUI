@@ -19,28 +19,22 @@ local friendlyRangeSpells = {
     SHAMAN = { 8004, 1064, 331 }, DRUID = { 8936, 774, 5185 },
     MONK = { 116670, 124682, 115175 }, EVOKER = { 361469, 355913, 364343 },
 }
-local friendlyRangeSpell
-
-local function GetFriendlyRangeSpell()
-    if friendlyRangeSpell then return friendlyRangeSpell end
-    for _, spellID in ipairs(friendlyRangeSpells[playerClass] or {}) do
-        local known
-        if C_SpellBook and C_SpellBook.IsSpellInSpellBook and Enum and Enum.SpellBookSpellBank then
-            known = C_SpellBook.IsSpellInSpellBook(spellID, Enum.SpellBookSpellBank.Player, true)
-        elseif IsSpellKnownOrOverridesKnown then
-            known = IsSpellKnownOrOverridesKnown(spellID)
-        elseif IsSpellKnown then
-            known = IsSpellKnown(spellID)
-        end
-        if not (issecretvalue and issecretvalue(known)) and known then
-            friendlyRangeSpell = spellID
-            return spellID
-        end
-    end
-end
-
 local function IsSecret(value)
     return issecretvalue and issecretvalue(value)
+end
+
+local function ApplyFriendlySpellRange(frame, outOfRangeAlpha)
+    if not C_Spell or not C_Spell.IsSpellInRange or not frame.SetAlphaFromBoolean then return false end
+    -- Do not cache one spell here. Talents and spell overrides can change which
+    -- healing spell has a usable range result without a UI reload.
+    for _, spellID in ipairs(friendlyRangeSpells[playerClass] or {}) do
+        local inRange = C_Spell.IsSpellInRange(spellID, frame.unit)
+        if IsSecret(inRange) or inRange ~= nil then
+            frame:SetAlphaFromBoolean(inRange, 1, outOfRangeAlpha)
+            return true
+        end
+    end
+    return false
 end
 
 local function SafeCall(callback, ...)
@@ -151,21 +145,7 @@ function module:UpdateVisibility(frame)
         return
     elseif visible and friendlyRange and not IsSecret(hostile) and not hostile
         and frame.SetAlphaFromBoolean then
-        if UnitInRange then
-            local inRange, wasChecked = UnitInRange(frame.unit)
-            if IsSecret(wasChecked) or wasChecked == true then
-                frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
-                return
-            end
-        end
-        local spellID = GetFriendlyRangeSpell()
-        if spellID and C_Spell and C_Spell.IsSpellInRange then
-            local inRange = C_Spell.IsSpellInRange(spellID, frame.unit)
-            if IsSecret(inRange) or inRange ~= nil then
-                frame:SetAlphaFromBoolean(inRange, 1, settings.outOfRangeAlpha or 0.40)
-                return
-            end
-        end
+        if ApplyFriendlySpellRange(frame, settings.outOfRangeAlpha or 0.40) then return end
         frame:SetAlpha(alpha)
         return
     end
@@ -386,6 +366,17 @@ function module:CreateNativeAuras(frame, kind)
     local baseFilter = kind == "buff" and "HELPFUL" or "HARMFUL"
     local filter = auraSettings.mineOnly and (baseFilter .. "|PLAYER") or baseFilter
     local groupKey = nativeAuraGroups[kind]
+    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
+    if setAnchor then pcall(setAnchor, container, anchorPoints[auraSettings.point] or "BOTTOMRIGHT") end
+    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
+    if setLine then pcall(setLine, container, math.max(1, auraSettings.perRow or 8) * ((auraSettings.size or 22) + (auraSettings.spacing or 2))) end
+    local directions = AnchorUtil and AnchorUtil.FlowDirection
+    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
+    if directions and setGrowth then
+        local horizontal = auraSettings.growthX == "Left" and directions.Left or directions.Right
+        local vertical = auraSettings.growthY == "Down" and directions.Down or directions.Up
+        pcall(setGrowth, container, horizontal, vertical)
+    end
     local added, addError = pcall(container.AddAuraGroup, container, groupKey, filter, {
         maxFrameCount = maximum,
         layout = {
@@ -438,17 +429,6 @@ function module:CreateNativeAuras(frame, kind)
         end
         return
     end
-    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
-    if setAnchor then pcall(setAnchor, container, anchorPoints[auraSettings.point] or "BOTTOMRIGHT") end
-    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
-    if setLine then pcall(setLine, container, math.max(1, auraSettings.perRow or 8) * ((auraSettings.size or 22) + (auraSettings.spacing or 2))) end
-    local directions = AnchorUtil and AnchorUtil.FlowDirection
-    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
-    if directions and setGrowth then
-        local horizontal = auraSettings.growthX == "Left" and directions.Left or directions.Right
-        local vertical = auraSettings.growthY == "Down" and directions.Down or directions.Up
-        pcall(setGrowth, container, horizontal, vertical)
-    end
     anchor:SetShown(auraSettings.enabled == true)
     container:SetUnit(frame.unit)
     if container.UpdateAllAuras then container:UpdateAllAuras() end
@@ -456,6 +436,14 @@ function module:CreateNativeAuras(frame, kind)
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
     frame.nativeAuraAnchors[kind] = anchor
     frame.nativeAuraContainers[kind] = container
+end
+
+function module:EnsureNativeAuras(frame)
+    if not self.worldReady or frame.unit == "pet" then return end
+    frame.nativeAuraContainers = frame.nativeAuraContainers or {}
+    for _, kind in ipairs({ "buff", "debuff" }) do
+        if not frame.nativeAuraContainers[kind] then self:CreateNativeAuras(frame, kind) end
+    end
 end
 
 function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
@@ -773,11 +761,6 @@ function module:CreateUnitFrame(unit, positionKey)
         holder.buttons = {}
         frame.auraHolders[kind] = holder
     end
-    if unit ~= "pet" then
-        self:CreateNativeAuras(frame, "buff")
-        self:CreateNativeAuras(frame, "debuff")
-    end
-
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
     frame.centerText = CreateText(frame, "CENTER", "CENTER")
@@ -812,6 +795,10 @@ function module:CreateUnitFrame(unit, positionKey)
     end
     frame:SetScript("OnEvent", function(self, event, eventUnit)
         if not eventUnit or eventUnit == self.unit or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "UNIT_TARGET" then
+            if event == "PLAYER_ENTERING_WORLD" then
+                module.worldReady = true
+                module:EnsureNativeAuras(self)
+            end
             module:UpdateFrame(self)
             if event == "UNIT_AURA" or event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "UNIT_TARGET" then
                 module:UpdateAuras(self, "buff")
