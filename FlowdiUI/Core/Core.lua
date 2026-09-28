@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.0"
+FUI.version = "0.8.1"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -70,6 +70,7 @@ local function GroupProfileDefaults(party)
         petHeight = party and 18 or 13,
         petSpacing = 1,
         rangeIndicator = true,
+        rangeFriendly = true,
         outOfRangeAlpha = 0.40,
         powerHeight = party and 5 or 3,
         healthColor = "Class",
@@ -115,7 +116,7 @@ local function GroupProfileDefaults(party)
 end
 
 local defaults = {
-    profileVersion = 15,
+    profileVersion = 16,
     locked = true,
     scale = 1,
     global = {
@@ -208,7 +209,7 @@ local defaults = {
                 powerText = "None", textSize = 12, borderSize = 1, frameStrata = "MEDIUM",
                 hoverBorder = true, showTooltip = true, visibility = "Always",
                 showPortrait = true, portraitMode = "2D Portrait", portraitPosition = "Left", portraitSize = 46,
-                showCastbar = false, castWidth = 229, castHeight = 14, castOpacity = 1, showCastIcon = true,
+                showCastbar = false, castbarProvider = "Blizzard", castWidth = 229, castHeight = 14, castOpacity = 1, showCastIcon = true,
                 castColor = { 0.86, 0.82, 0.64, 1 }, castBackground = { 0.025, 0.03, 0.045, 1 }, castBackgroundOpacity = 0.8,
                 castTexture = "Global", castReverseFill = false, castDetached = false, castAttachTo = "Frame",
                 castPoint = "Top Left", castRelativePoint = "Bottom Left", castX = 0, castY = -3, castFrameStrata = "MEDIUM",
@@ -375,6 +376,8 @@ defaults.unitFrames.frames.pet.leaderIndicator = false
 defaults.unitFrames.frames.pet.combatIndicator = false
 for unit, settings in pairs(defaults.unitFrames.frames) do
     settings.rangeIndicator = unit == "target"
+    settings.rangeFriendly = unit == "target"
+    settings.rangeHostile = unit == "target"
     settings.outOfRangeAlpha = 0.40
 end
 
@@ -413,12 +416,39 @@ function FUI:SafeCall(label, callback, ...)
     return ok, result
 end
 
-function FUI:IsUnitInGroupRange(unit)
-    if not unit or not UnitInRange then return true end
-    local ok, inRange, checked = pcall(UnitInRange, unit)
-    if not ok or (issecretvalue and (issecretvalue(inRange) or issecretvalue(checked))) then return true end
-    if checked == false or inRange == nil then return true end
-    return inRange ~= false
+function FUI:IsGroupUnit(unit)
+    if not unit or not UnitIsUnit then return false end
+    local candidates = { "player" }
+    if IsInRaid and IsInRaid() then
+        for index = 1, 40 do candidates[#candidates + 1] = "raid" .. index end
+    else
+        for index = 1, 4 do candidates[#candidates + 1] = "party" .. index end
+    end
+    for _, candidate in ipairs(candidates) do
+        local ok, same = pcall(UnitIsUnit, unit, candidate)
+        if ok and not (issecretvalue and issecretvalue(same)) and same == true then return true end
+    end
+    return false
+end
+
+function FUI:IsUnitInConfiguredRange(unit, friendlyRange, hostileRange)
+    if not unit or unit == "player" then return true end
+    local attackOK, canAttack = false, false
+    if UnitCanAttack then attackOK, canAttack = pcall(UnitCanAttack, "player", unit) end
+    if hostileRange and attackOK and not (issecretvalue and issecretvalue(canAttack)) and canAttack == true and CheckInteractDistance then
+        local ok, inRange = pcall(CheckInteractDistance, unit, 4)
+        if ok and not (issecretvalue and issecretvalue(inRange)) then return inRange == true end
+        return true
+    end
+    local assistOK, canAssist = false, false
+    if UnitCanAssist then assistOK, canAssist = pcall(UnitCanAssist, "player", unit) end
+    if friendlyRange and assistOK and not (issecretvalue and issecretvalue(canAssist)) and canAssist == true and self:IsGroupUnit(unit) and UnitInRange then
+        local ok, inRange, checked = pcall(UnitInRange, unit)
+        if not ok or (issecretvalue and (issecretvalue(inRange) or issecretvalue(checked))) then return true end
+        if checked == false then return true end
+        return inRange == true
+    end
+    return true
 end
 
 function FUI:Print(message)

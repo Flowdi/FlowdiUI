@@ -97,7 +97,10 @@ function module:UpdateVisibility(frame)
         end
     end
     local alpha = visible and 1 or 0
-    if visible and settings.rangeIndicator and frame.unit ~= "player" and not FUI:IsUnitInGroupRange(frame.unit) then
+    local friendlyRange = settings.rangeFriendly
+    local hostileRange = settings.rangeHostile
+    if friendlyRange == nil and settings.rangeIndicator then friendlyRange = true end
+    if visible and frame.unit ~= "player" and not FUI:IsUnitInConfiguredRange(frame.unit, friendlyRange, hostileRange) then
         alpha = settings.outOfRangeAlpha or 0.40
     end
     frame:SetAlpha(alpha)
@@ -105,7 +108,10 @@ end
 
 function module:UpdateCast(frame)
     local settings = FrameSettings(frame.unit)
-    if not settings or not settings.showCastbar then frame.castbar:Hide() return end
+    if not settings or not settings.showCastbar or (frame.unit == "player" and settings.castbarProvider ~= "FlowdiUI") then
+        frame.castbar:Hide()
+        return
+    end
     local ok, cast = pcall(function()
         local name, text, texture, startTime, endTime, _, _, notInterruptible = UnitCastingInfo(frame.unit)
         local channeling = false
@@ -285,6 +291,121 @@ local function ApplyAuraTextPosition(text, position)
     text:SetJustifyH(point:find("LEFT", 1, true) and "LEFT" or point:find("RIGHT", 1, true) and "RIGHT" or "CENTER")
 end
 
+local NATIVE_DEBUFF_GROUP = "Debuffs"
+
+function module:CreateNativeDebuffs(frame)
+    if not C_AddOns then return end
+    pcall(C_AddOns.LoadAddOn, "Blizzard_AuraContainer")
+    local settings = FrameSettings(frame.unit)
+    local auraSettings = settings and settings.auras and settings.auras.debuff
+    if not auraSettings then return end
+    local ok, container = pcall(CreateFrame, "AuraContainer", nil, frame, "CustomAuraContainerTemplate")
+    if not ok or not container or not container.AddAuraGroup then return end
+    container:SetEnabled(false)
+    container:SetSize(1, 1)
+    container:SetFrameLevel(frame:GetFrameLevel() + 30)
+    if container.SetClipsChildren then container:SetClipsChildren(false) end
+    container.buttons = {}
+    local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
+    local added = pcall(container.AddAuraGroup, container, NATIVE_DEBUFF_GROUP, auraSettings.mineOnly and "HARMFUL|PLAYER" or "HARMFUL", {
+        maxFrameCount = maximum,
+        layout = {
+            elementWidth = auraSettings.size or 22,
+            elementHeight = auraSettings.size or 22,
+            elementSpacing = auraSettings.spacing or 2,
+            lineSpacing = auraSettings.spacing or 2,
+        },
+        initializeFrame = function(button)
+            if button.SetMouseClickEnabled then pcall(button.SetMouseClickEnabled, button, false)
+            else button:EnableMouse(false) end
+            local border = button:CreateTexture(nil, "BACKGROUND")
+            border:SetAllPoints(button)
+            border:SetColorTexture(0.01, 0.015, 0.025, 1)
+            local icon = button:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("TOPLEFT", 1, -1)
+            icon:SetPoint("BOTTOMRIGHT", -1, 1)
+            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            local cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+            cooldown:SetAllPoints(button)
+            if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
+            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
+            local textLayer = CreateFrame("Frame", nil, button)
+            textLayer:SetAllPoints(button)
+            textLayer:SetFrameLevel(cooldown:GetFrameLevel() + 2)
+            textLayer:EnableMouse(false)
+            local duration = FUI:CreateFont(textLayer, auraSettings.durationSize or 9)
+            ApplyAuraTextPosition(duration, auraSettings.durationPosition)
+            local stacks = FUI:CreateFont(textLayer, auraSettings.stackSize or 10)
+            ApplyAuraTextPosition(stacks, auraSettings.stackPosition)
+            pcall(button.SetIcon, button, icon)
+            pcall(button.SetDurationCooldown, button, cooldown)
+            pcall(button.SetApplicationCount, button, stacks, {})
+            pcall(button.SetDurationText, button, duration, {})
+            container.buttons[#container.buttons + 1] = {
+                button = button, border = border, icon = icon, cooldown = cooldown,
+                duration = duration, stacks = stacks,
+            }
+        end,
+    })
+    if not added then return end
+    pcall(container.SetUnit, container, frame.unit)
+    frame.nativeDebuffs = container
+end
+
+function module:ApplyNativeDebuffs(frame, auraSettings)
+    local container = frame.nativeDebuffs
+    if not container or not auraSettings then return false end
+    local enabled = auraSettings.enabled == true
+    local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
+    local target = targets[auraSettings.attachTo] or frame
+    container:ClearAllPoints()
+    container:SetPoint(anchorPoints[auraSettings.point] or "BOTTOMRIGHT", target,
+        anchorPoints[auraSettings.relativePoint] or "TOPRIGHT", auraSettings.x or 0, auraSettings.y or 3)
+    local maximum = math.max(1, auraSettings.perRow or 8) * math.max(1, auraSettings.rows or 1)
+    if container.SetAuraGroupFilterString then
+        pcall(container.SetAuraGroupFilterString, container, NATIVE_DEBUFF_GROUP, auraSettings.mineOnly and "HARMFUL|PLAYER" or "HARMFUL")
+    end
+    if container.SetAuraGroupMaxFrameCount then
+        pcall(container.SetAuraGroupMaxFrameCount, container, NATIVE_DEBUFF_GROUP, enabled and maximum or 0)
+    end
+    if container.SetAuraGroupLayout then
+        pcall(container.SetAuraGroupLayout, container, NATIVE_DEBUFF_GROUP, {
+            elementWidth = auraSettings.size or 22,
+            elementHeight = auraSettings.size or 22,
+            elementSpacing = auraSettings.spacing or 2,
+            lineSpacing = auraSettings.spacing or 2,
+        })
+    end
+    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
+    if setAnchor then pcall(setAnchor, container, anchorPoints[auraSettings.point] or "BOTTOMRIGHT") end
+    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
+    if setLine then pcall(setLine, container, math.max(1, auraSettings.perRow or 8) * ((auraSettings.size or 22) + (auraSettings.spacing or 2))) end
+    local directions = AnchorUtil and AnchorUtil.FlowDirection
+    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
+    if directions and setGrowth then
+        local horizontal = auraSettings.growthX == "Left" and directions.Left or directions.Right
+        local vertical = auraSettings.growthY == "Down" and directions.Down or directions.Up
+        pcall(setGrowth, container, horizontal, vertical)
+    end
+    for _, regions in ipairs(container.buttons) do
+        local borderSize = math.max(0, auraSettings.borderSize or 1)
+        regions.icon:ClearAllPoints()
+        regions.icon:SetPoint("TOPLEFT", regions.button, "TOPLEFT", borderSize, -borderSize)
+        regions.icon:SetPoint("BOTTOMRIGHT", regions.button, "BOTTOMRIGHT", -borderSize, borderSize)
+        if regions.icon.SetDesaturated then pcall(regions.icon.SetDesaturated, regions.icon, auraSettings.desaturate == true) end
+        regions.cooldown:SetShown(auraSettings.cooldown ~= false)
+        regions.duration:SetFont(FUI:GetModuleFontPath("unitFrames"), auraSettings.durationSize or 9, FUI.db.global.fontOutline)
+        regions.stacks:SetFont(FUI:GetModuleFontPath("unitFrames"), auraSettings.stackSize or 10, FUI.db.global.fontOutline)
+        ApplyAuraTextPosition(regions.duration, auraSettings.durationPosition)
+        ApplyAuraTextPosition(regions.stacks, auraSettings.stackPosition)
+        pcall(regions.duration.SetAlpha, regions.duration, auraSettings.showDuration and 1 or 0)
+        pcall(regions.stacks.SetAlpha, regions.stacks, auraSettings.showStacks and 1 or 0)
+    end
+    container:SetEnabled(enabled)
+    if enabled and container.UpdateAllAuras then pcall(container.UpdateAllAuras, container) end
+    return true
+end
+
 function module:CreateAuraButton(frame, kind, index)
     local holder = frame.auraHolders[kind]
     local button = CreateFrame("Button", nil, holder, "BackdropTemplate")
@@ -350,6 +471,10 @@ function module:UpdateAuras(frame, kind)
     local auraSettings = settings and settings.auras and settings.auras[kind]
     local holder = frame.auraHolders and frame.auraHolders[kind]
     if not auraSettings or not holder then return end
+    if kind == "debuff" and self:ApplyNativeDebuffs(frame, auraSettings) then
+        for _, button in ipairs(holder.buttons) do button:Hide() end
+        return
+    end
     for _, button in ipairs(holder.buttons) do button:Hide() end
     if not auraSettings.enabled then return end
 
@@ -581,6 +706,7 @@ function module:CreateUnitFrame(unit, positionKey)
         holder.buttons = {}
         frame.auraHolders[kind] = holder
     end
+    if unit ~= "player" and unit ~= "pet" then self:CreateNativeDebuffs(frame) end
 
     frame.leftText = CreateText(frame, "LEFT", "LEFT")
     frame.rightText = CreateText(frame, "RIGHT", "RIGHT")
@@ -648,6 +774,27 @@ function module:HideDefaults()
     HideBlizzardFrame(TargetFrame)
     HideBlizzardFrame(FocusFrame)
     HideBlizzardFrame(PetFrame)
+end
+
+function module:ApplyPlayerCastbarProvider()
+    local settings = FrameSettings("player")
+    local useBlizzard = settings and settings.castbarProvider ~= "FlowdiUI"
+    for _, frameName in ipairs({ "PlayerCastingBarFrame", "CastingBarFrame" }) do
+        local castbar = _G[frameName]
+        if castbar then
+            castbar:SetAlpha(useBlizzard and 1 or 0)
+            if castbar.EnableMouse then castbar:EnableMouse(useBlizzard) end
+            if not castbar.FlowdiProviderHook then
+                castbar.FlowdiProviderHook = true
+                castbar:HookScript("OnShow", function(self)
+                    local playerSettings = FrameSettings("player")
+                    local native = playerSettings and playerSettings.castbarProvider ~= "FlowdiUI"
+                    self:SetAlpha(native and 1 or 0)
+                    if self.EnableMouse then self:EnableMouse(native) end
+                end)
+            end
+        end
+    end
 end
 
 function module:SetLocked(locked)
@@ -824,6 +971,7 @@ end
 
 function module:Apply()
     if InCombatLockdown() then return end
+    self:ApplyPlayerCastbarProvider()
     for unit, frame in pairs(self.frames) do
         local settings = FrameSettings(unit)
         if settings then self:ApplyFrame(frame, settings) end

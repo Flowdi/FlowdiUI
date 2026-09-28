@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+- Replaced hostile Unit Frame Debuff reads with the secure native aura container used by the current client.
+- Added mouse-wheel scrolling and a visible scrollbar to every Unit Frame settings tab.
+- Split Unit Frame range fading into a 40-yard friendly-group check and an independent 30-yard hostile check.
+- Added a Player cast-bar provider selector that switches cleanly between the custom and native cast bars.
+- Added more built-in client fonts and refreshed SharedMedia discovery whenever the settings window is first created.
+
 ## 0.8.0
 
 - Added a configurable standalone Pet Unit Frame.

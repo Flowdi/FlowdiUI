@@ -7,9 +7,12 @@ FUI.media.font = "Fonts\\FRIZQT__.TTF"
 FUI.media.fontBold = "Fonts\\FRIZQT__.TTF"
 
 FUI.fonts = {
+    ["2002"] = "Fonts\\2002.TTF",
+    ["2002 Bold"] = "Fonts\\2002B.TTF",
     ["Friz Quadrata"] = "Fonts\\FRIZQT__.TTF",
     ["Arial Narrow"] = "Fonts\\ARIALN.TTF",
     ["Morpheus"] = "Fonts\\MORPHEUS.TTF",
+    ["Nimrod"] = "Fonts\\NIM_____.TTF",
     ["Skurri"] = "Fonts\\SKURRI.TTF",
 }
 

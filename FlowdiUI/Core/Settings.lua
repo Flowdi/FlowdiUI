@@ -501,7 +501,7 @@ local function BuildUnitFrames(page)
         ["Target of Target of Target"] = "targettargettarget", Focus = "focus",
     }
     local anchorValues = { "Top Left", "Top", "Top Right", "Left", "Center", "Right", "Bottom Left", "Bottom", "Bottom Right" }
-    local tabs, panels = {}, {}
+    local tabs, panels, panelScrolls = {}, {}, {}
     local activeTab = "Display"
     local function Current()
         local unit = unitDB.selectedFrame or "player"
@@ -509,22 +509,33 @@ local function BuildUnitFrames(page)
     end
     local function RefreshCurrentPanel()
         local panel = panels[activeTab]
-        if panel and panel:IsShown() then panel:Hide() panel:Show() end
+        local scroll = panel and panel.scrollFrame
+        if scroll and scroll:IsShown() then scroll:Hide() scroll:Show() end
     end
     local function SelectTab(name)
         activeTab = name
-        for key, panel in pairs(panels) do panel:SetShown(key == name) end
+        for key, scroll in pairs(panelScrolls) do scroll:SetShown(key == name) end
         for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
 
     for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Auras", "Healing", "Indicators" }) do
         tabs[name] = AddButton(page, name, 18 + (index - 1) * 78, -88, 74, function() SelectTab(name) end)
-        local panel = CreateFrame("Frame", nil, page)
-        panel:SetPoint("TOPLEFT", 18, -190)
-        panel:SetPoint("BOTTOMRIGHT", -18, 8)
+        local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 18, -190)
+        scroll:SetPoint("BOTTOMRIGHT", -34, 8)
+        scroll:EnableMouseWheel(true)
+        local panel = CreateFrame("Frame", nil, scroll)
+        panel:SetSize(670, 500)
         panel.controls = {}
-        panel:Hide()
+        panel.scrollFrame = scroll
+        scroll:SetScrollChild(panel)
+        scroll:SetScript("OnMouseWheel", function(self, delta)
+            local maximum = math.max(0, panel:GetHeight() - self:GetHeight())
+            self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 42)))
+        end)
+        scroll:Hide()
         panels[name] = panel
+        panelScrolls[name] = scroll
     end
 
     AddCycle(page, "Editing frame", 24, -128, 250, { "Player", "Pet", "Target", "Target of Target", "Target of Target of Target", "Focus" },
@@ -617,6 +628,12 @@ local function BuildUnitFrames(page)
     AddCycle(castGeneral, "Bar texture", 6, -198, 240, textureNames, function() return Current().castTexture end, function(v) Current().castTexture = v end, "texture")
     AddColor(castGeneral, "Fill color", 330, -198, function() return Current().castColor end, function(v) Current().castColor = v end)
     AddColor(castGeneral, "Background color", 330, -246, function() return Current().castBackground end, function(v) Current().castBackground = v end)
+    AddCycle(castGeneral, "Player only: cast bar provider", 6, -278, 240, { "Blizzard", "FlowdiUI" },
+        function() return unitDB.frames.player.castbarProvider or "Blizzard" end,
+        function(v)
+            unitDB.frames.player.castbarProvider = v
+            if v == "FlowdiUI" then unitDB.frames.player.showCastbar = true end
+        end)
 
     local castPosition = castPanels.Position
     AddCheckbox(castPosition, "Detached and draggable", 6, -8, function() return Current().castDetached end, function(v) Current().castDetached = v end)
@@ -769,11 +786,14 @@ local function BuildUnitFrames(page)
         function() return IndicatorValue("Y", 0) end,
         function(v) SetIndicatorValue("Y", v) end,
         function(v) return string.format("%d px", v) end)
-    AddSection(indicators, "40 yard range indicator", -350)
-    AddCheckbox(indicators, "Fade friendly group units out of range", 6, -374,
-        function() return Current().rangeIndicator end,
-        function(v) Current().rangeIndicator = v end)
-    AddSlider(indicators, "Out of range opacity", 330, -354, 270, 0.10, 1, 0.05,
+    AddSection(indicators, "Range indicators", -350)
+    AddCheckbox(indicators, "40 yd friendly heal range", 6, -374,
+        function() return Current().rangeFriendly end,
+        function(v) Current().rangeFriendly = v Current().rangeIndicator = v end)
+    AddCheckbox(indicators, "30 yd hostile spell range", 330, -374,
+        function() return Current().rangeHostile end,
+        function(v) Current().rangeHostile = v end)
+    AddSlider(indicators, "Out of range opacity", 6, -414, 270, 0.10, 1, 0.05,
         function() return Current().outOfRangeAlpha or 0.40 end,
         function(v) Current().outOfRangeAlpha = v end,
         function(v) return string.format("%d%%", v * 100) end)
@@ -964,7 +984,7 @@ local function BuildGroupFrames(page)
     AddCheckbox(indicators, "Leader indicator", 220, -8, function() return CurrentProfile().showLeader end, function(v) CurrentProfile().showLeader = v end)
     AddCheckbox(indicators, "Raid marker", 430, -8, function() return CurrentProfile().showRaidMarker end, function(v) CurrentProfile().showRaidMarker = v end)
     AddCheckbox(indicators, "Ready check", 6, -48, function() return CurrentProfile().showReadyCheck end, function(v) CurrentProfile().showReadyCheck = v end)
-    AddCheckbox(indicators, "40 yd range fade", 220, -48, function() return CurrentProfile().rangeIndicator end, function(v) CurrentProfile().rangeIndicator = v end)
+    AddCheckbox(indicators, "40 yd friendly range", 220, -48, function() return CurrentProfile().rangeFriendly end, function(v) CurrentProfile().rangeFriendly = v CurrentProfile().rangeIndicator = v end)
     AddSlider(indicators, "Out of range opacity", 6, -92, 270, 0.10, 1, 0.05, function() return CurrentProfile().outOfRangeAlpha or 0.40 end, function(v) CurrentProfile().outOfRangeAlpha = v end, function(v) return string.format("%d%%", v * 100) end)
     SelectTab(activeTab)
 end
@@ -1132,6 +1152,7 @@ end
 
 function FUI:CreateSettings()
     if self.settings then return self.settings end
+    self:DiscoverSharedMedia()
 
     local frame = CreateFrame("Frame", "FlowdiUISettings", UIParent, "BackdropTemplate")
     frame:SetSize(960, 620)

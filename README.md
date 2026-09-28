@@ -9,7 +9,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - Action-bar styling without replacing secure Blizzard action buttons
 - Lightweight nameplate styling
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
-- Configurable Buff and Debuff displays for player, target, and focus frames
+- Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs
 - Custom clickable party and raid frames with optional member-pet frames, range fading, independent profiles, and live settings previews
 - Chat styling
 - Dark bag styling while retaining Blizzard bag behavior
@@ -18,7 +18,7 @@ FlowdiUI includes a fully English settings area with General, Style, Fonts, Text
 - In-game module settings with the Flowdi logo
 - Full sidebar settings with live sliders and module-specific pages
 - Global style presets plus configurable fonts, outlines, textures, and interface colors
-- Dynamic SharedMedia font and texture discovery with preview dropdowns
+- Dynamic SharedMedia font and texture discovery with preview dropdowns, refreshed when the settings UI opens
 - Independent font selection for Action Bars, Nameplates, Unit Frames, Party/Raid Frames, Chat, and Data Panels
 - Movable settings window with a remembered screen position
 - Global Improvements controls for lag tolerance, combat text, tutorials, invites, borders, and icon cropping

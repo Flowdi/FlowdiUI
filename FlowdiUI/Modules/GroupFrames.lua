@@ -207,7 +207,7 @@ end
 function module:UpdateRange(button)
     local profile = Profile(button)
     if not profile then return end
-    if profile.rangeIndicator and not FUI:IsUnitInGroupRange(button.unit) then
+    if (profile.rangeFriendly or profile.rangeIndicator) and not FUI:IsUnitInConfiguredRange(button.unit, true, false) then
         button:SetAlpha(profile.outOfRangeAlpha or 0.40)
     else
         button:SetAlpha(1)
