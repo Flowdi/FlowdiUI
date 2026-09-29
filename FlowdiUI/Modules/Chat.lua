@@ -40,6 +40,16 @@ local nativeSuffixes = {
 
 local tabGhosts = {}
 local tabSlots = {}
+local lcaLib
+
+-- Blizzard owns the unread state even though FlowdiUI owns the visuals.
+-- LibChatAnims (embedded by a few popular addons) stores that state in its
+-- own table instead of tab.alerting, so support both sources.
+local function TabAlerting(tab)
+    if tab.alerting then return true end
+    lcaLib = lcaLib or (LibStub and LibStub("LibChatAnims", true))
+    return lcaLib and lcaLib.IsAlerting and lcaLib:IsAlerting(tab) and true or false
+end
 
 local function IsDockedChatFrame(frame)
     local frames = GENERAL_CHAT_DOCK and GENERAL_CHAT_DOCK.DOCKED_CHAT_FRAMES
@@ -92,6 +102,19 @@ end
 
 local function SuppressTabRegions(tab)
     if not tab or not tab.GetRegions then return end
+    -- Keep the live Blizzard tab as the click/drag plane, but never let its
+    -- fade or new-message animation become visible behind our mirror.
+    if not tab.FlowdiAlphaLock then
+        tab.FlowdiAlphaLock = true
+        hooksecurefunc(tab, "SetAlpha", function(self, alpha)
+            if alpha ~= 0 and not self.FlowdiSettingAlpha then
+                self.FlowdiSettingAlpha = true
+                self:SetAlpha(0)
+                self.FlowdiSettingAlpha = nil
+            end
+        end)
+    end
+    tab:SetAlpha(0)
     for index = 1, select("#", tab:GetRegions()) do
         local region = select(index, tab:GetRegions())
         if region and region.SetAlpha then region:SetAlpha(0) end
@@ -109,6 +132,34 @@ local function CreateTabGhost(index)
     ghost.label:SetPoint("RIGHT", -5, 0)
     ghost.label:SetJustifyH("CENTER")
     ghost.label:SetWordWrap(false)
+
+    -- Slow FlowdiUI unread pulse: a light-blue inner border instead of
+    -- Blizzard's orange tab sheet flashing through from underneath.
+    ghost.alertBorder = CreateFrame("Frame", nil, ghost, "BackdropTemplate")
+    ghost.alertBorder:SetPoint("TOPLEFT", ghost, "TOPLEFT", 2, -2)
+    ghost.alertBorder:SetPoint("BOTTOMRIGHT", ghost, "BOTTOMRIGHT", -2, 2)
+    ghost.alertBorder:SetFrameLevel(ghost:GetFrameLevel() + 2)
+    ghost.alertBorder:EnableMouse(false)
+    ghost.alertBorder:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    ghost.alertBorder:SetBackdropBorderColor(0.25, 0.72, 1, 1)
+    ghost.alertBorder:Hide()
+    ghost.alertPulse = ghost.alertBorder:CreateAnimationGroup()
+    ghost.alertPulse:SetLooping("BOUNCE")
+    local pulse = ghost.alertPulse:CreateAnimation("Alpha")
+    pulse:SetFromAlpha(0.18)
+    pulse:SetToAlpha(0.95)
+    pulse:SetDuration(0.9)
+    function ghost:StartAlertPulse()
+        if not self.alertPulse:IsPlaying() then
+            self.alertBorder:SetAlpha(0.18)
+            self.alertBorder:Show()
+            self.alertPulse:Play()
+        end
+    end
+    function ghost:StopAlertPulse()
+        if self.alertPulse:IsPlaying() then self.alertPulse:Stop() end
+        self.alertBorder:Hide()
+    end
     ghost:Hide()
     tabGhosts[index] = ghost
     return ghost
@@ -165,9 +216,15 @@ function module:RefreshTabs()
                 if active then
                     ghost:SetBackdropBorderColor(unpack(FUI.colors.accent))
                     ghost.label:SetTextColor(0.88, 0.96, 1, 1)
+                    ghost:StopAlertPulse()
                 else
                     ghost:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.9)
                     ghost.label:SetTextColor(0.55, 0.68, 0.82, 1)
+                    if TabAlerting(tab) then
+                        ghost:StartAlertPulse()
+                    else
+                        ghost:StopAlertPulse()
+                    end
                 end
                 -- Blizzard temporarily hides/fades the real tab strip while
                 -- its edit box owns focus. The visual mirror must stay up;
@@ -176,7 +233,10 @@ function module:RefreshTabs()
             end
         end
     end
-    for index = count + 1, #tabGhosts do tabGhosts[index]:Hide() end
+    for index = count + 1, #tabGhosts do
+        tabGhosts[index]:StopAlertPulse()
+        tabGhosts[index]:Hide()
+    end
     self:SuppressCombatLogChrome()
 end
 

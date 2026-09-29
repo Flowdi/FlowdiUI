@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.26
+
+- Locks Blizzard's live chat tabs fully transparent so their native new-message flash can no longer appear behind FlowdiUI.
+- Mirrors Blizzard's unread whisper state, including LibChatAnims compatibility, with a slow light-blue inner-border pulse on the corresponding FlowdiUI tab.
+- Stops the FlowdiUI unread pulse immediately when the tab is selected.
+
 ## 0.8.25
 
 - Suppresses the Combat Log quick-button/filter overlay and its child hit regions, removing the diagonal dark panel that blocked chat tabs.
