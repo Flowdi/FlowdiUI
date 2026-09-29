@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.21
+
+- The chat input backdrop is now focus-driven, fully strips Blizzard's internal edit-box artwork, and appears only while the player is typing.
+- Added FlowdiUI-styled visual overlays for the live Blizzard chat tabs while preserving their native click, context-menu, docking, and custom-window behavior.
+- All docked chat windows, including Combat Log and user-created tabs, now share the FlowdiUI chat container and its geometry.
+
 ## 0.8.20
 
 - Moved the primary chat content into a dedicated FlowdiUI-owned container so Blizzard's dock, tab, button, resize, and Edit Mode chrome no longer controls its footprint.
