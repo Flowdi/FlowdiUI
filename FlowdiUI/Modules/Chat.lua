@@ -35,7 +35,7 @@ function module:SuppressNativeEditMode()
 end
 
 local nativeSuffixes = {
-    "ButtonFrame", "ResizeButton", "MinimizeButton", "ScrollBar", "ScrollToBottomButton", "TabConversationIcon",
+    "ButtonFrame", "ResizeButton", "MinimizeButton", "TabConversationIcon",
 }
 
 local tabGhosts = {}
@@ -78,8 +78,9 @@ function module:RefreshTabs()
                 SuppressTabRegions(tab)
                 local ghost = tabGhosts[count] or CreateTabGhost(count)
                 ghost:ClearAllPoints()
-                ghost:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, 0)
+                ghost:SetPoint("TOPRIGHT", tab, "TOPRIGHT", 0, 0)
                 ghost:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 0, 0)
+                ghost:SetWidth(math.max(86, tab:GetWidth() or 86))
                 if chatFrame.isTemporary then
                     local label = chatFrame.chatTarget
                     if issecretvalue and issecretvalue(label) then
@@ -116,9 +117,6 @@ function module:HideNativeChrome(frame)
         for _, suffix in ipairs(nativeSuffixes) do HideChatControl(_G[name .. suffix]) end
     end
     HideChatControl(frame.buttonFrame)
-    HideChatControl(frame.ScrollBar)
-    HideChatControl(frame.scrollBar)
-    HideChatControl(frame.ScrollToBottomButton)
     HideChatControl(frame.ResizeButton)
     HideChatControl(frame.resizeButton)
     HideChatControl(frame.Selection)
@@ -132,13 +130,14 @@ function module:LayoutPrimaryChat()
     host:SetSize(math.max(260, FUI.db.chat.width or 470), math.max(120, FUI.db.chat.height or 260))
     local frames = GENERAL_CHAT_DOCK and GENERAL_CHAT_DOCK.DOCKED_CHAT_FRAMES
     if type(frames) ~= "table" then frames = { frame } end
+    local topInset = FUI.db.chat.editBoxPosition == "Above" and self.editBoxActive and 39 or 7
     for index = 1, #frames do
         local chatFrame = frames[index]
         if chatFrame then
             if chatFrame.SetParent and chatFrame:GetParent() ~= host then pcall(chatFrame.SetParent, chatFrame, host) end
             chatFrame:ClearAllPoints()
-            chatFrame:SetPoint("TOPLEFT", host, "TOPLEFT", 7, -7)
-            chatFrame:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -7, 7)
+            chatFrame:SetPoint("TOPLEFT", host, "TOPLEFT", 7, -topInset)
+            chatFrame:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -18, 7)
             chatFrame:SetFrameStrata(host:GetFrameStrata())
             chatFrame:SetFrameLevel(host:GetFrameLevel() + 2)
             if chatFrame.SetClampedToScreen then chatFrame:SetClampedToScreen(false) end
@@ -192,15 +191,15 @@ end
 function module:CreateCopyButton()
     if self.copyButton or not self.anchor then return self.copyButton end
     local copy = CreateFrame("Button", nil, self.anchor, "BackdropTemplate")
-    copy:SetSize(20, 20)
-    copy:SetPoint("TOPRIGHT", self.anchor, "TOPRIGHT", 4, 5)
+    copy:SetSize(82, 24)
+    copy:SetPoint("BOTTOMRIGHT", self.anchor, "TOPRIGHT", 0, 2)
     copy:SetFrameLevel(self.anchor:GetFrameLevel() + 20)
     copy:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     copy:SetBackdropColor(0.02, 0.04, 0.08, 0.95)
     copy:SetBackdropBorderColor(unpack(FUI.colors.border))
     local label = FUI:CreateFont(copy, 10)
     label:SetPoint("CENTER")
-    label:SetText("C")
+    label:SetText("Kopieren")
     copy:SetScript("OnClick", function()
         local selected = GENERAL_CHAT_DOCK and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
         module:OpenCopyWindow(selected or ChatFrame1)
@@ -213,6 +212,59 @@ function module:CreateCopyButton()
     copy:SetScript("OnLeave", GameTooltip_Hide)
     self.copyButton = copy
     return copy
+end
+
+function module:StyleChatScrollbar(frame)
+    local bar = frame and (frame.ScrollBar or frame.scrollBar)
+    if not bar then return end
+    FUI:StripTextures(bar)
+    if bar.Track then FUI:StripTextures(bar.Track) end
+    if bar.Back then FUI:StripTextures(bar.Back) end
+    if bar.Forward then FUI:StripTextures(bar.Forward) end
+    if bar.ScrollUpButton then FUI:StripTextures(bar.ScrollUpButton) end
+    if bar.ScrollDownButton then FUI:StripTextures(bar.ScrollDownButton) end
+
+    if not frame.FlowdiScrollTrack then
+        local track = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+        track:SetPoint("TOP", bar, "TOP", 0, -1)
+        track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 1)
+        track:SetWidth(8)
+        track:SetFrameLevel(bar:GetFrameLevel() + 4)
+        track:EnableMouse(false)
+        track:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+        track:SetBackdropColor(0.006, 0.014, 0.03, 0.92)
+        track:SetBackdropBorderColor(0.06, 0.20, 0.42, 0.9)
+        frame.FlowdiScrollTrack = track
+
+        local thumb = (bar.Track and bar.Track.Thumb) or bar.Thumb
+        if thumb then
+            local visual = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+            visual:SetPoint("TOP", thumb, "TOP", 0, 0)
+            visual:SetPoint("BOTTOM", thumb, "BOTTOM", 0, 0)
+            visual:SetWidth(6)
+            visual:SetFrameLevel(track:GetFrameLevel() + 1)
+            visual:EnableMouse(false)
+            visual:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+            visual:SetBackdropColor(0.08, 0.38, 0.72, 1)
+            visual:SetBackdropBorderColor(unpack(FUI.colors.accent))
+            frame.FlowdiScrollThumb = visual
+        end
+    end
+
+    local bottom = frame.ScrollToBottomButton
+    if bottom then
+        FUI:StripTextures(bottom)
+        local backdrop = FUI:CreateBackdrop(bottom, 0)
+        backdrop:SetBackdropColor(0.012, 0.035, 0.07, 0.96)
+        backdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
+        if not bottom.FlowdiArrow then
+            local arrow = FUI:CreateFont(bottom, 10)
+            arrow:SetPoint("CENTER", 0, 1)
+            arrow:SetText("v")
+            arrow:SetTextColor(0.55, 0.82, 1, 1)
+            bottom.FlowdiArrow = arrow
+        end
+    end
 end
 
 function module:CreateCopyWindow()
@@ -321,6 +373,7 @@ function module:StyleChatFrame(frame)
         frame.FlowdiBackdrop:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
     end
     self:HideNativeChrome(frame)
+    self:StyleChatScrollbar(frame)
 
     local name = frame:GetName()
     local editBox = name and _G[name .. "EditBox"]
@@ -332,10 +385,11 @@ function module:StyleChatFrame(frame)
             editBackdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
         end
         editBox:SetAltArrowKeyMode(false)
+        editBox:SetHeight(28)
         editBox:ClearAllPoints()
         if FUI.db.chat.editBoxPosition == "Above" then
-            editBox:SetPoint("BOTTOMLEFT", isHosted and self.anchor or frame, "TOPLEFT", 0, 5)
-            editBox:SetPoint("BOTTOMRIGHT", isHosted and self.anchor or frame, "TOPRIGHT", 0, 5)
+            editBox:SetPoint("TOPLEFT", isHosted and self.anchor or frame, "TOPLEFT", 7, -7)
+            editBox:SetPoint("TOPRIGHT", isHosted and self.anchor or frame, "TOPRIGHT", -18, -7)
         else
             editBox:SetPoint("TOPLEFT", isHosted and self.anchor or frame, "BOTTOMLEFT", 0, -5)
             editBox:SetPoint("TOPRIGHT", isHosted and self.anchor or frame, "BOTTOMRIGHT", 0, -5)
@@ -344,12 +398,18 @@ function module:StyleChatFrame(frame)
             editBox.FlowdiVisibilityHook = true
             editBox:HookScript("OnEditFocusGained", function(self)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Show() end
+                module.editBoxActive = true
+                C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
             editBox:HookScript("OnEditFocusLost", function(self)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Hide() end
+                module.editBoxActive = false
+                C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
             editBox:HookScript("OnHide", function(self)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Hide() end
+                module.editBoxActive = false
+                C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
         end
         if editBackdrop and not (editBox.HasFocus and editBox:HasFocus()) then editBackdrop:Hide() end

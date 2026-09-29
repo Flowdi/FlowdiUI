@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.22
+
+- Moved the Above chat input inside the panel below the tab row and reserves message space only while typing, preventing accidental edit-box activation when selecting tabs.
+- Gives short chat tabs a consistent minimum FlowdiUI width without altering Blizzard's secure tab interaction frames.
+- Replaced the exposed Blizzard scrollbar visuals with a thin FlowdiUI track/thumb treatment and restyled the scroll-to-bottom control.
+- Replaced the detached C button with a labeled FlowdiUI Kopieren action aligned to the tab row.
+
 ## 0.8.21
 
 - The chat input backdrop is now focus-driven, fully strips Blizzard's internal edit-box artwork, and appears only while the player is typing.
