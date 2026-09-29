@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.19
+
+- Fixed party/raid debuffs by giving non-dispellable, non-crowd-control effects a reliable lower-left provider lane.
+- Aura Enable now tears down disabled Target, Target of Target, and Target of Target of Target containers immediately.
+- Aura duration text now uses Blizzard's required seconds formatter and honors Show Duration.
+
 ## 0.8.18
 
 - Fixed settings creation after the Aura Filters tab was attached to the Cast Bar tab list instead of the Aura tab list, restoring the game-menu button and `/fui`/`/flowdi` commands.

@@ -382,14 +382,16 @@ end
 function module:EnsureNativeAuras(frame)
     if frame.unit == "pet" then return end
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
+    frame.nativeAuraSignatures = frame.nativeAuraSignatures or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
         local settings = FrameSettings(frame.unit)
         local auraSettings = settings and settings.auras and settings.auras[kind]
         local signature = NativeAuraSignature(auraSettings)
-        if frame.nativeAuraContainers[kind] and frame.nativeAuraSignatures
-            and frame.nativeAuraSignatures[kind] ~= signature then
+        if frame.nativeAuraContainers[kind] and (not auraSettings or auraSettings.enabled == false
+            or frame.nativeAuraSignatures[kind] ~= signature) then
             FUI.AuraEngine:Release(frame.nativeAuraContainers[kind])
             frame.nativeAuraContainers[kind] = nil
+            frame.nativeAuraSignatures[kind] = nil
         end
         if auraSettings and auraSettings.enabled ~= false and not frame.nativeAuraContainers[kind] then
             self:CreateNativeAuras(frame, kind)
@@ -407,8 +409,17 @@ end
 
 function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     local container = frame.nativeAuraContainers and frame.nativeAuraContainers[kind]
-    if not container or not auraSettings then return false end
-    container:SetShown(auraSettings.enabled ~= false)
+    if not auraSettings then return false end
+    if auraSettings.enabled == false then
+        if container then
+            FUI.AuraEngine:Release(container)
+            frame.nativeAuraContainers[kind] = nil
+            if frame.nativeAuraSignatures then frame.nativeAuraSignatures[kind] = nil end
+        end
+        return true
+    end
+    if not container then return false end
+    container:Show()
     return true
 end
 

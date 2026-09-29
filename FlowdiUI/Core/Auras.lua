@@ -74,6 +74,29 @@ local function ApplyTextPosition(text, position)
     text:SetJustifyH(point:find("LEFT", 1, true) and "LEFT" or point:find("RIGHT", 1, true) and "RIGHT" or "CENTER")
 end
 
+local durationFormatter
+local function GetDurationFormatter()
+    if durationFormatter ~= nil then return durationFormatter or nil end
+    if not C_StringUtil or not C_StringUtil.CreateSecondsFormatter then
+        durationFormatter = false
+        return nil
+    end
+    local ok, formatter = pcall(C_StringUtil.CreateSecondsFormatter)
+    if not ok or not formatter then
+        durationFormatter = false
+        return nil
+    end
+    if formatter.SetDefaultAbbreviation and Enum and Enum.SecondsFormatterAbbreviation then
+        pcall(formatter.SetDefaultAbbreviation, formatter, Enum.SecondsFormatterAbbreviation.OneLetter)
+    end
+    if formatter.SetMinInterval and Enum and Enum.SecondsFormatterInterval then
+        pcall(formatter.SetMinInterval, formatter, Enum.SecondsFormatterInterval.Seconds)
+    end
+    if formatter.SetDesiredUnitCount then pcall(formatter.SetDesiredUnitCount, formatter, 1) end
+    durationFormatter = formatter
+    return formatter
+end
+
 local function CreateInitializer(settings, fontModule, records)
     return function(button)
         -- Create and style every region before registering it. Every Set* call
@@ -120,7 +143,10 @@ local function CreateInitializer(settings, fontModule, records)
         button:SetIcon(icon)
         button:SetDurationCooldown(cooldown)
         button:SetApplicationCount(stacks, {})
-        if button.SetDurationText then pcall(button.SetDurationText, button, duration, {}) end
+        if button.SetDurationText then
+            local formatter = GetDurationFormatter()
+            pcall(button.SetDurationText, button, duration, formatter and { textFormatter = formatter } or {})
+        end
 
         records[#records + 1] = {
             button = button, border = border, icon = icon, cooldown = cooldown,

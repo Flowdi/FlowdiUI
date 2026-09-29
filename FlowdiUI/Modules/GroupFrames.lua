@@ -234,7 +234,22 @@ local function BuildNativePlan(profile, kind, settings)
         AddSpellPlan(plan, settings, kind, "Top Right", filters.topRightBuffs, settings.mineOnly, maximum)
         AddSpellPlan(plan, settings, kind, "Right", filters.rightBuffs, settings.mineOnly, maximum)
     else
-        AddSpellPlan(plan, settings, kind, "Bottom Left", filters.bottomLeftDebuffs, false, maximum)
+        -- The lower-left lane is the reliable catch-all for non-dispellable,
+        -- non-CC debuffs (for example Weakened Soul). Selecting only spell ID
+        -- 6788 here proved too brittle across client aura variants; category
+        -- exclusions keep it useful without hiding a relevant debuff.
+        plan[#plan + 1] = {
+            settings = AuraSettingsAt(settings, "Bottom Left"),
+            maximum = maximum,
+            options = {
+                filter = "HARMFUL|!CROWD_CONTROL",
+                candidateFilters = {
+                    excludeDispelTypes = dispelTypes[playerClass],
+                    excludeSpellIDs = MergeSpellIDS(settings.blockList, filters.centerDebuffs),
+                },
+                groupKey = "debuffOther",
+            },
+        }
         AddSpellPlan(plan, settings, kind, "Center", filters.centerDebuffs, false, maximum)
         if filters.showCrowdControl ~= false then
             plan[#plan + 1] = {
