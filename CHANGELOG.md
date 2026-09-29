@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.15
+
+- Replaced the separate Unit Frame and Party/Raid aura implementations with one shared native aura engine.
+- Creates and styles every icon, cooldown, stack, and duration region before registering it with the protected aura provider, then binds the unit last.
+- Queues Party/Raid aura groups across rendered frames so the provider's eager button-pool creation cannot exhaust the login script budget.
+- Removed the runtime path back into addon-side aura iteration, keeping Buffs and Debuffs owned by the combat-safe client provider at all times.
+- Added `/fui auradiag` to report provider, container, button-pool, and pending-build state if an installation needs verification.
+
 ## 0.8.14
 
 - Replaced Unit Frame and Party/Raid aura displays with direct native containers attached to each unit button, removing the previous intermediary anchors and guarded-layout path.

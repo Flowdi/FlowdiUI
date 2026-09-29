@@ -166,93 +166,31 @@ local function NativeCandidateFilters(profile, kind)
 end
 
 function module:CreateNativeAuras(button, kind)
-    if button.isPet or not C_AddOns then return end
-    pcall(C_AddOns.LoadAddOn, "Blizzard_AuraContainer")
+    if button.isPet or not FUI.AuraEngine then return end
+    button.nativeAuraQueued = button.nativeAuraQueued or {}
+    if button.nativeAuraQueued[kind] then return end
     local profile = Profile(button)
     local settings = profile and profile.auras and profile.auras[kind]
     if not settings then return end
-    local ok, container = pcall(CreateFrame, "AuraContainer", nil, button, "CustomAuraContainerTemplate")
-    if not ok or not container or not container.AddAuraGroup then
-        if not self.auraShellError then
-            self.auraShellError = true
-            FUI:Print("Group aura container setup failed: " .. tostring(container))
-        end
-        return
-    end
-    container:SetSize(1, 1)
-    container:SetPoint(anchorPoints[settings.point] or "TOPRIGHT", button,
-        anchorPoints[settings.relativePoint] or "TOPRIGHT", settings.x or 0, settings.y or 0)
-    container:SetFrameLevel(button:GetFrameLevel() + 25)
-    if container.SetClipsChildren then container:SetClipsChildren(false) end
-    local size, spacing = settings.size or 14, settings.spacing or 1
     local perRow = math.max(1, settings.perRow or 3)
     local maximum = profile.auraFilters and profile.auraFilters.mode == "Essential"
         and math.max(1, profile.auraFilters.maxIcons or 8)
         or perRow * math.max(1, settings.rows or 1)
-    local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
-    local setAnchor = container.SetFlowLayoutAnchorPoint or container.SetAuraLayoutAnchorPoint
-    if setAnchor then pcall(setAnchor, container, anchorPoints[settings.point] or "TOPRIGHT") end
-    local setLine = container.SetFlowLayoutMaximumLineSize or container.SetAuraLayoutRowWidth
-    if setLine then pcall(setLine, container, perRow * (size + spacing)) end
-    local directions = AnchorUtil and AnchorUtil.FlowDirection
-    local setGrowth = container.SetFlowLayoutGrowthDirection or container.SetAuraLayoutGrowthDirection
-    if directions and setGrowth then
-        pcall(setGrowth, container, settings.growthX == "Left" and directions.Left or directions.Right,
-            settings.growthY == "Down" and directions.Down or directions.Up)
-    end
-    local added, addError = pcall(container.AddAuraGroup, container, kind == "buff" and "Buffs" or "Debuffs", filter, {
-        maxFrameCount = maximum,
-        layout = {
-            elementWidth = size, elementHeight = size,
-            elementSpacing = spacing, lineSpacing = spacing,
-        },
-        initializeFrame = function(auraButton)
-            if auraButton.SetMouseClickEnabled then pcall(auraButton.SetMouseClickEnabled, auraButton, false) end
-            local border = auraButton:CreateTexture(nil, "BACKGROUND")
-            border:SetAllPoints(auraButton)
-            border:SetColorTexture(unpack(FUI.colors.border))
-            local icon = auraButton:CreateTexture(nil, "ARTWORK")
-            local borderSize = math.max(0, settings.borderSize or 1)
-            icon:SetPoint("TOPLEFT", borderSize, -borderSize)
-            icon:SetPoint("BOTTOMRIGHT", -borderSize, borderSize)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            if icon.SetDesaturated then icon:SetDesaturated(settings.desaturate == true) end
-            local cooldown = CreateFrame("Cooldown", nil, auraButton, "CooldownFrameTemplate")
-            cooldown:SetAllPoints(icon)
-            if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
-            if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(not settings.showDuration) end
-            cooldown:SetShown(settings.cooldown ~= false)
-            local textLayer = CreateFrame("Frame", nil, auraButton)
-            textLayer:SetAllPoints(auraButton)
-            textLayer:SetFrameLevel(cooldown:GetFrameLevel() + 2)
-            textLayer:EnableMouse(false)
-            local stacks = FUI:CreateFont(textLayer, settings.stackSize or 8)
-            stacks:SetPoint("TOPRIGHT", -1, -1)
-            stacks:SetAlpha(settings.showStacks and 1 or 0)
-            auraButton:SetIcon(icon)
-            auraButton:SetDurationCooldown(cooldown)
-            auraButton:SetApplicationCount(stacks, {})
-        end,
-    })
-    if not added then
-        if not self.auraBuildError then
-            self.auraBuildError = true
-            FUI:Print("Could not create group aura display: " .. tostring(addError))
-        end
-        return
-    end
-    local enabled = true
-    container:SetShown(enabled)
     local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
-    container:SetUnit(unit or "none")
-    if container.SetEnabled then container:SetEnabled(enabled) end
-    if enabled and container.UpdateAllAuras then container:UpdateAllAuras() end
-    button.nativeAuraContainers = button.nativeAuraContainers or {}
-    button.nativeAuraContainers[kind] = container
+    button.nativeAuraQueued[kind] = true
+    FUI.AuraEngine:QueueCreate(function(container)
+        button.nativeAuraQueued[kind] = nil
+        if not container then return end
+        button.nativeAuraContainers = button.nativeAuraContainers or {}
+        button.nativeAuraContainers[kind] = container
+        FUI.AuraEngine:SetUnit(container, button.GetAttribute and button:GetAttribute("unit") or button.unit, true)
+        module:UpdateAuras(button, kind, true)
+    end, button, unit or button.unit, kind, settings, "groupFrames",
+        button:GetFrameLevel() + 25, button, maximum)
 end
 
 function module:EnsureNativeAuras(button)
-    if not self.worldReady or button.isPet then return end
+    if button.isPet then return end
     button.nativeAuraContainers = button.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
         if not button.nativeAuraContainers[kind] then self:CreateNativeAuras(button, kind) end
@@ -263,9 +201,7 @@ function module:BindNativeAuras(button, refresh)
     local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
     unit = unit or button.unit or "none"
     for _, container in pairs(button.nativeAuraContainers or {}) do
-        local changed = not container.GetUnit or container:GetUnit() ~= unit
-        if changed then container:SetUnit(unit) end
-        if (changed or refresh) and container.UpdateAllAuras then container:UpdateAllAuras() end
+        FUI.AuraEngine:SetUnit(container, unit, refresh)
     end
 end
 
@@ -316,6 +252,13 @@ function module:UpdateAuras(button, kind, configure)
     local nativeContainer = button.nativeAuraContainers and button.nativeAuraContainers[kind]
     if nativeContainer then
         nativeContainer:SetShown(not button.isPet)
+        return
+    end
+    if button.nativeAuraQueued and button.nativeAuraQueued[kind] then return end
+    -- The provider owns combat-safe aura payloads. Do not enter the legacy
+    -- addon-side iterator when a native build is pending or failed.
+    do
+        self:EnsureNativeAuras(button)
         return
     end
     if button.isPet or not settings or not settings.enabled then return end
@@ -613,6 +556,8 @@ function module:ApplyButton(button, profile)
     local fontSize = button.isPet and math.max(7, profile.fontSize - 2) or profile.fontSize
     button.name:SetFont(FUI:GetModuleFontPath("groupFrames"), fontSize, FUI.db.global.fontOutline)
     button.healthText:SetFont(FUI:GetModuleFontPath("groupFrames"), math.max(7, fontSize - 1), FUI.db.global.fontOutline)
+    self:EnsureNativeAuras(button)
+    self:BindNativeAuras(button, true)
     self:UpdateButton(button)
     self:UpdateAuras(button, "buff", true)
     self:UpdateAuras(button, "debuff", true)

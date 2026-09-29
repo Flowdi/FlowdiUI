@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.14"
+FUI.version = "0.8.15"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -745,6 +745,8 @@ SlashCmdList.FLOWDIUI = function(message)
         FUI:EnterUnlockMode()
     elseif message == "lock" then
         FUI:ExitUnlockMode(false)
+    elseif message == "auradiag" and FUI.AuraEngine then
+        FUI.AuraEngine:PrintDiagnostics()
     else
         FUI:OpenSettings()
     end
