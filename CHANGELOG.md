@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.23
+
+- Keeps FlowdiUI chat-tab visuals visible while the chat input has focus.
+- Restores exact native tab geometry with a one-pixel seam overlap, removing the clipped General tab and gaps between neighboring tabs.
+- Fully fades the inactive edit box, including its residual Blizzard prompt/text layer.
+- Returns Chat Copy to a compact C button in the bottom-right corner below the scrollbar.
+
 ## 0.8.22
 
 - Moved the Above chat input inside the panel below the tab row and reserves message space only while typing, preventing accidental edit-box activation when selecting tabs.

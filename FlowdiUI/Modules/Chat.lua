@@ -78,9 +78,8 @@ function module:RefreshTabs()
                 SuppressTabRegions(tab)
                 local ghost = tabGhosts[count] or CreateTabGhost(count)
                 ghost:ClearAllPoints()
-                ghost:SetPoint("TOPRIGHT", tab, "TOPRIGHT", 0, 0)
-                ghost:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 0, 0)
-                ghost:SetWidth(math.max(86, tab:GetWidth() or 86))
+                ghost:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, 0)
+                ghost:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 1, 0)
                 if chatFrame.isTemporary then
                     local label = chatFrame.chatTarget
                     if issecretvalue and issecretvalue(label) then
@@ -103,7 +102,10 @@ function module:RefreshTabs()
                     ghost:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.9)
                     ghost.label:SetTextColor(0.55, 0.68, 0.82, 1)
                 end
-                ghost:SetShown(tab:IsShown())
+                -- Blizzard temporarily hides/fades the real tab strip while
+                -- its edit box owns focus. The visual mirror must stay up;
+                -- the real tabs remain the unchanged click plane underneath.
+                ghost:SetShown(tab:IsShown() or self.editBoxActive == true)
             end
         end
     end
@@ -191,15 +193,15 @@ end
 function module:CreateCopyButton()
     if self.copyButton or not self.anchor then return self.copyButton end
     local copy = CreateFrame("Button", nil, self.anchor, "BackdropTemplate")
-    copy:SetSize(82, 24)
-    copy:SetPoint("BOTTOMRIGHT", self.anchor, "TOPRIGHT", 0, 2)
+    copy:SetSize(18, 18)
+    copy:SetPoint("BOTTOMRIGHT", self.anchor, "BOTTOMRIGHT", -1, 1)
     copy:SetFrameLevel(self.anchor:GetFrameLevel() + 20)
     copy:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     copy:SetBackdropColor(0.02, 0.04, 0.08, 0.95)
     copy:SetBackdropBorderColor(unpack(FUI.colors.border))
     local label = FUI:CreateFont(copy, 10)
     label:SetPoint("CENTER")
-    label:SetText("Kopieren")
+    label:SetText("C")
     copy:SetScript("OnClick", function()
         local selected = GENERAL_CHAT_DOCK and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
         module:OpenCopyWindow(selected or ChatFrame1)
@@ -397,22 +399,27 @@ function module:StyleChatFrame(frame)
         if not editBox.FlowdiVisibilityHook then
             editBox.FlowdiVisibilityHook = true
             editBox:HookScript("OnEditFocusGained", function(self)
+                self:SetAlpha(1)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Show() end
                 module.editBoxActive = true
                 C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
             editBox:HookScript("OnEditFocusLost", function(self)
+                self:SetAlpha(0)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Hide() end
                 module.editBoxActive = false
                 C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
             editBox:HookScript("OnHide", function(self)
+                self:SetAlpha(0)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Hide() end
                 module.editBoxActive = false
                 C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
         end
-        if editBackdrop and not (editBox.HasFocus and editBox:HasFocus()) then editBackdrop:Hide() end
+        local focused = editBox.HasFocus and editBox:HasFocus()
+        editBox:SetAlpha(focused and 1 or 0)
+        if editBackdrop and not focused then editBackdrop:Hide() end
     end
 end
 
