@@ -34,35 +34,81 @@ function module:SuppressNativeEditMode()
     SuppressEditModeChild(ChatFrame1.EditModeResizeButton)
 end
 
-function module:AnchorPrimaryChat()
-    local frame = ChatFrame1
-    if not frame or self.anchoring then return end
+local nativeSuffixes = {
+    "Tab", "TabText", "TabGlow", "TabConversationIcon", "TabSelectedLeft", "TabSelectedMiddle", "TabSelectedRight",
+    "ButtonFrame", "ResizeButton", "MinimizeButton", "ScrollBar", "ScrollToBottomButton",
+}
+
+function module:HideNativeChrome(frame)
+    if not frame then return end
+    local name = frame:GetName()
+    if name then
+        for _, suffix in ipairs(nativeSuffixes) do HideChatControl(_G[name .. suffix]) end
+    end
+    HideChatControl(frame.buttonFrame)
+    HideChatControl(frame.ScrollBar)
+    HideChatControl(frame.scrollBar)
+    HideChatControl(frame.ScrollToBottomButton)
+    HideChatControl(frame.ResizeButton)
+    HideChatControl(frame.resizeButton)
+    HideChatControl(frame.Selection)
+    HideChatControl(frame.EditModeResizeButton)
+end
+
+function module:LayoutPrimaryChat()
+    local frame, host = ChatFrame1, self.anchor
+    if not frame or not host or self.anchoring then return end
     self.anchoring = true
-    FUI:RestorePosition(frame, "chat")
+    host:SetSize(math.max(260, FUI.db.chat.width or 470), math.max(120, FUI.db.chat.height or 260))
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", host, "TOPLEFT", 7, -7)
+    frame:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -7, 7)
+    if frame.SetClampedToScreen then frame:SetClampedToScreen(false) end
+    if frame.SetClampRectInsets then pcall(frame.SetClampRectInsets, frame, 0, 0, 0, 0) end
+    if frame.SetMovable then frame:SetMovable(false) end
+    if frame.SetResizable then frame:SetResizable(false) end
+    self:HideNativeChrome(frame)
     self.anchoring = false
 end
 
 function module:CreateAnchor()
     if self.anchor or not ChatFrame1 then return self.anchor end
-    local anchor = ChatFrame1
-    self.anchor = ChatFrame1
-    self:AnchorPrimaryChat()
-    FUI:RegisterMover(anchor, "chat", "Chat")
+    local frame = ChatFrame1
+    local anchor = CreateFrame("Frame", "FlowdiUIChatFrame", UIParent, "BackdropTemplate")
+    anchor:SetSize(FUI.db.chat.width or 470, FUI.db.chat.height or 260)
+    anchor:SetClampedToScreen(false)
+    anchor:EnableMouse(false)
+    anchor:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    anchor:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.9)
+    self.anchor = anchor
+    FUI:RestorePosition(anchor, "chat")
+    if frame.SetParent then pcall(frame.SetParent, frame, anchor) end
+    frame:SetFrameStrata(anchor:GetFrameStrata())
+    frame:SetFrameLevel(anchor:GetFrameLevel() + 2)
+    if FCF_SetLocked then pcall(FCF_SetLocked, frame, true) end
+    self:LayoutPrimaryChat()
+    FUI:RegisterMover(anchor, "chat", "Chat", function() module:LayoutPrimaryChat() end)
     if hooksecurefunc and ChatFrame1.ApplySystemAnchor then
         hooksecurefunc(ChatFrame1, "ApplySystemAnchor", function()
             C_Timer.After(0, function()
-                if module.anchor and not InCombatLockdown() then module:AnchorPrimaryChat() end
+                if module.anchor and not InCombatLockdown() then module:LayoutPrimaryChat() end
             end)
         end)
     end
     if EditModeManagerFrame and not self.editModeHooked then
         self.editModeHooked = true
         EditModeManagerFrame:HookScript("OnShow", function()
-            C_Timer.After(0, function() module:SuppressNativeEditMode() end)
+            C_Timer.After(0, function()
+                module:SuppressNativeEditMode()
+                module:LayoutPrimaryChat()
+            end)
+        end)
+        EditModeManagerFrame:HookScript("OnHide", function()
+            C_Timer.After(0, function() module:LayoutPrimaryChat() end)
         end)
     end
     self:SuppressNativeEditMode()
-    return ChatFrame1
+    return anchor
 end
 
 function module:CreateCopyWindow()
@@ -148,47 +194,49 @@ function module:StyleChatFrame(frame)
     frame:SetShadowOffset(0, 0)
     frame:SetFading(FUI.db.chat.fade)
     frame:SetTimeVisible(FUI.db.chat.timeVisible)
+    local isPrimary = frame == ChatFrame1 and self.anchor
     if frame.FontStringContainer then
         frame.FontStringContainer:ClearAllPoints()
-        frame.FontStringContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", -3, 3)
-        frame.FontStringContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 3, -3)
+        frame.FontStringContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
+        frame.FontStringContainer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -1, 1)
     end
 
-    if not frame.FlowdiBackdrop then
-        local backdrop = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-        backdrop:SetAllPoints(frame)
-        backdrop:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
-        backdrop:EnableMouse(false)
-        backdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
-        backdrop:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
-        frame.FlowdiBackdrop = backdrop
+    if isPrimary then
+        if frame.FlowdiBackdrop then frame.FlowdiBackdrop:Hide() end
+        self.anchor:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
+    else
+        if not frame.FlowdiBackdrop then
+            local backdrop = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+            backdrop:SetAllPoints(frame)
+            backdrop:SetFrameLevel(math.max(0, frame:GetFrameLevel() - 1))
+            backdrop:EnableMouse(false)
+            backdrop:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+            backdrop:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.75)
+            frame.FlowdiBackdrop = backdrop
+        end
+        frame.FlowdiBackdrop:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
     end
-    frame.FlowdiBackdrop:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
-    HideChatControl(frame.buttonFrame)
-    if frame.buttonFrame then
-        frame.buttonFrame:ClearAllPoints()
-        frame.buttonFrame:SetPoint("TOP", frame, "BOTTOM", 0, -90000)
-        if frame.buttonFrame.SetClipsChildren then frame.buttonFrame:SetClipsChildren(true) end
-    end
+    self:HideNativeChrome(frame)
 
     local name = frame:GetName()
     local editBox = name and _G[name .. "EditBox"]
     if editBox then
+        if isPrimary and editBox.SetParent then pcall(editBox.SetParent, editBox, self.anchor) end
         FUI:CreateBackdrop(editBox, 2)
         editBox:SetAltArrowKeyMode(false)
         editBox:ClearAllPoints()
         if FUI.db.chat.editBoxPosition == "Above" then
-            editBox:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", -5, 7)
-            editBox:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", 5, 7)
+            editBox:SetPoint("BOTTOMLEFT", isPrimary and self.anchor or frame, "TOPLEFT", 0, 5)
+            editBox:SetPoint("BOTTOMRIGHT", isPrimary and self.anchor or frame, "TOPRIGHT", 0, 5)
         else
-            editBox:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", -5, -7)
-            editBox:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", 5, -7)
+            editBox:SetPoint("TOPLEFT", isPrimary and self.anchor or frame, "BOTTOMLEFT", 0, -5)
+            editBox:SetPoint("TOPRIGHT", isPrimary and self.anchor or frame, "BOTTOMRIGHT", 0, -5)
         end
     end
 
 
     if not frame.FlowdiCopyButton then
-        local copyParent = frame
+        local copyParent = isPrimary and self.anchor or frame
         local copy = CreateFrame("Button", nil, copyParent, "BackdropTemplate")
         copy:SetSize(20, 20)
         copy:SetPoint("TOPRIGHT", copyParent, "TOPRIGHT", 4, 5)
@@ -207,13 +255,18 @@ function module:StyleChatFrame(frame)
         copy:SetScript("OnLeave", GameTooltip_Hide)
         frame.FlowdiCopyButton = copy
     end
+    if isPrimary and frame.FlowdiCopyButton:GetParent() ~= self.anchor then
+        frame.FlowdiCopyButton:SetParent(self.anchor)
+        frame.FlowdiCopyButton:ClearAllPoints()
+        frame.FlowdiCopyButton:SetPoint("TOPRIGHT", self.anchor, "TOPRIGHT", 4, 5)
+    end
     frame.FlowdiCopyButton:SetShown(FUI.db.chat.copyButton)
 end
 
 function module:Apply()
     CHAT_TIMESTAMP_FORMAT = FUI.db.chat.timestamps and "[%H:%M] " or nil
     self:CreateAnchor()
-    self:AnchorPrimaryChat()
+    self:LayoutPrimaryChat()
     self:StyleAll()
 end
 
@@ -239,10 +292,13 @@ function module:Initialize()
     end
     if FCF_SetButtonSide then
         hooksecurefunc("FCF_SetButtonSide", function(frame)
-            if frame and frame.buttonFrame then
-                frame.buttonFrame:ClearAllPoints()
-                frame.buttonFrame:SetPoint("TOP", frame, "BOTTOM", 0, -90000)
-                if frame.buttonFrame.SetClipsChildren then frame.buttonFrame:SetClipsChildren(true) end
+            module:HideNativeChrome(frame)
+        end)
+    end
+    if FCF_SetWindowSize then
+        hooksecurefunc("FCF_SetWindowSize", function(frame)
+            if frame == ChatFrame1 and module.anchor and not module.anchoring then
+                C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end
         end)
     end

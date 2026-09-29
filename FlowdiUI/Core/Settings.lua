@@ -1139,6 +1139,14 @@ local function BuildChat(page)
         function() return FUI.db.chat.timeVisible end,
         function(value) FUI.db.chat.timeVisible = value end,
         function(value) return string.format("%d seconds", value) end)
+    AddSlider(page, "Chat width", 390, -450, 220, 260, 900, 10,
+        function() return FUI.db.chat.width or 470 end,
+        function(value) FUI.db.chat.width = value end,
+        function(value) return string.format("%d px", value) end)
+    AddSlider(page, "Chat height", 24, -450, 310, 120, 600, 10,
+        function() return FUI.db.chat.height or 260 end,
+        function(value) FUI.db.chat.height = value end,
+        function(value) return string.format("%d px", value) end)
 end
 
 local function BuildBags(page)

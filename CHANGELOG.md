@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.20
+
+- Moved the primary chat content into a dedicated FlowdiUI-owned container so Blizzard's dock, tab, button, resize, and Edit Mode chrome no longer controls its footprint.
+- The FlowdiUI Chat mover now moves the custom container and can reach the left screen edge without Blizzard's hidden side controls reserving space.
+- Reanchored the chat input and copy button to the FlowdiUI container and added configurable chat width and height.
+
 ## 0.8.19
 
 - Fixed party/raid debuffs by giving non-dispellable, non-crowd-control effects a reliable lower-left provider lane.

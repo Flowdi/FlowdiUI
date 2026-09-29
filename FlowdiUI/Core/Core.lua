@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.19"
+FUI.version = "0.8.20"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -324,6 +324,8 @@ local defaults = {
         raid = GroupProfileDefaults(false),
     },
     chat = {
+        width = 470,
+        height = 260,
         fontSize = 12,
         backgroundAlpha = 0.72,
         fade = true,
