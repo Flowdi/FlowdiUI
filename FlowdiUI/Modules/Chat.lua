@@ -40,6 +40,24 @@ local nativeSuffixes = {
 
 local tabGhosts = {}
 
+local function IsDockedChatFrame(frame)
+    local frames = GENERAL_CHAT_DOCK and GENERAL_CHAT_DOCK.DOCKED_CHAT_FRAMES
+    if type(frames) ~= "table" then return frame == ChatFrame1 end
+    for index = 1, #frames do
+        if frames[index] == frame then return true end
+    end
+    return false
+end
+
+local function SetEditBoxMouse(editBox, enabled)
+    if editBox.SetMouseClickEnabled then
+        editBox:SetMouseClickEnabled(enabled)
+        editBox:SetMouseMotionEnabled(enabled)
+    elseif editBox.EnableMouse then
+        editBox:EnableMouse(enabled)
+    end
+end
+
 local function SuppressTabRegions(tab)
     if not tab or not tab.GetRegions then return end
     for index = 1, select("#", tab:GetRegions()) do
@@ -55,8 +73,8 @@ local function CreateTabGhost(index)
     ghost:EnableMouse(false)
     ghost:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     ghost.label = FUI:CreateFont(ghost, 11)
-    ghost.label:SetPoint("LEFT", 9, 0)
-    ghost.label:SetPoint("RIGHT", -9, 0)
+    ghost.label:SetPoint("LEFT", 5, 0)
+    ghost.label:SetPoint("RIGHT", -5, 0)
     ghost.label:SetJustifyH("CENTER")
     ghost.label:SetWordWrap(false)
     ghost:Hide()
@@ -78,8 +96,14 @@ function module:RefreshTabs()
                 SuppressTabRegions(tab)
                 local ghost = tabGhosts[count] or CreateTabGhost(count)
                 ghost:ClearAllPoints()
-                ghost:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, 0)
-                ghost:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 1, 0)
+                ghost:SetPoint("TOP", tab, "TOP", 0, 0)
+                ghost:SetPoint("BOTTOM", tab, "BOTTOM", 0, 0)
+                if count == 1 and self.anchor then
+                    ghost:SetPoint("LEFT", self.anchor, "LEFT", 0, 0)
+                else
+                    ghost:SetPoint("LEFT", tab, "LEFT", 0, 0)
+                end
+                ghost:SetPoint("RIGHT", tab, "RIGHT", 1, 0)
                 if chatFrame.isTemporary then
                     local label = chatFrame.chatTarget
                     if issecretvalue and issecretvalue(label) then
@@ -105,7 +129,7 @@ function module:RefreshTabs()
                 -- Blizzard temporarily hides/fades the real tab strip while
                 -- its edit box owns focus. The visual mirror must stay up;
                 -- the real tabs remain the unchanged click plane underneath.
-                ghost:SetShown(tab:IsShown() or self.editBoxActive == true)
+                ghost:Show()
             end
         end
     end
@@ -119,6 +143,10 @@ function module:HideNativeChrome(frame)
         for _, suffix in ipairs(nativeSuffixes) do HideChatControl(_G[name .. suffix]) end
     end
     HideChatControl(frame.buttonFrame)
+    HideChatControl(frame.Background)
+    HideChatControl(frame.background)
+    if name then HideChatControl(_G[name .. "Background"]) end
+    if frame.NineSlice then FUI:StripTextures(frame.NineSlice) end
     HideChatControl(frame.ResizeButton)
     HideChatControl(frame.resizeButton)
     HideChatControl(frame.Selection)
@@ -194,7 +222,7 @@ function module:CreateCopyButton()
     if self.copyButton or not self.anchor then return self.copyButton end
     local copy = CreateFrame("Button", nil, self.anchor, "BackdropTemplate")
     copy:SetSize(18, 18)
-    copy:SetPoint("BOTTOMRIGHT", self.anchor, "BOTTOMRIGHT", -1, 1)
+    copy:SetPoint("BOTTOMRIGHT", self.anchor, "BOTTOMRIGHT", -20, 1)
     copy:SetFrameLevel(self.anchor:GetFrameLevel() + 20)
     copy:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     copy:SetBackdropColor(0.02, 0.04, 0.08, 0.95)
@@ -352,7 +380,7 @@ function module:StyleChatFrame(frame)
     frame:SetShadowOffset(0, 0)
     frame:SetFading(FUI.db.chat.fade)
     frame:SetTimeVisible(FUI.db.chat.timeVisible)
-    local isHosted = self.anchor and frame:GetParent() == self.anchor
+    local isHosted = self.anchor and IsDockedChatFrame(frame)
     if frame.FontStringContainer then
         frame.FontStringContainer:ClearAllPoints()
         frame.FontStringContainer:SetPoint("TOPLEFT", frame, "TOPLEFT", 1, -1)
@@ -360,6 +388,7 @@ function module:StyleChatFrame(frame)
     end
 
     if isHosted then
+        FUI:StripTextures(frame)
         if frame.FlowdiBackdrop then frame.FlowdiBackdrop:Hide() end
         self.anchor:SetBackdropColor(0.015, 0.025, 0.05, FUI.db.chat.backgroundAlpha)
     else
@@ -400,18 +429,21 @@ function module:StyleChatFrame(frame)
             editBox.FlowdiVisibilityHook = true
             editBox:HookScript("OnEditFocusGained", function(self)
                 self:SetAlpha(1)
+                SetEditBoxMouse(self, true)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Show() end
                 module.editBoxActive = true
                 C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
             editBox:HookScript("OnEditFocusLost", function(self)
                 self:SetAlpha(0)
+                SetEditBoxMouse(self, false)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Hide() end
                 module.editBoxActive = false
                 C_Timer.After(0, function() module:LayoutPrimaryChat() end)
             end)
             editBox:HookScript("OnHide", function(self)
                 self:SetAlpha(0)
+                SetEditBoxMouse(self, false)
                 if self.FlowdiBackdrop then self.FlowdiBackdrop:Hide() end
                 module.editBoxActive = false
                 C_Timer.After(0, function() module:LayoutPrimaryChat() end)
@@ -419,6 +451,7 @@ function module:StyleChatFrame(frame)
         end
         local focused = editBox.HasFocus and editBox:HasFocus()
         editBox:SetAlpha(focused and 1 or 0)
+        SetEditBoxMouse(editBox, focused and true or false)
         if editBackdrop and not focused then editBackdrop:Hide() end
     end
 end

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.24
+
+- Keeps docked chat-tab overlays visible regardless of Blizzard's temporary tab fade/hide state while typing.
+- Removes per-window Blizzard and stale FlowdiUI backgrounds from every docked chat window, including Combat Log.
+- Disables the inactive edit box's mouse hit area so clicks in the upper message area no longer open chat input.
+- Pulls the General tab flush to the FlowdiUI panel edge and reduces tab-label padding.
+- Moves the compact C button left of the scroll controls so their borders and hit areas no longer collide.
+
 ## 0.8.23
 
 - Keeps FlowdiUI chat-tab visuals visible while the chat input has focus.
