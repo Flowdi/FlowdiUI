@@ -674,7 +674,7 @@ local function BuildUnitFrames(page)
         for key, panel in pairs(castPanels) do panel:SetShown(key == name) end
         for key, tab in pairs(castTabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
-    for index, name in ipairs({ "General", "Position", "Text", "Filters" }) do
+    for index, name in ipairs({ "General", "Position", "Text" }) do
         castTabs[name] = AddButton(cast, name, 6 + (index - 1) * 138, -4, 128, function() SelectCastTab(name) end)
         local panel = CreateFrame("Frame", nil, cast)
         panel:SetPoint("TOPLEFT", 0, -42)
@@ -756,7 +756,7 @@ local function BuildUnitFrames(page)
     for index, name in ipairs({ "Buffs", "Debuffs" }) do
         auraTypeButtons[name] = AddButton(auras, name, 6 + (index - 1) * 138, -4, 128, function() SelectAuraType(name) end)
     end
-    for index, name in ipairs({ "General", "Position", "Text" }) do
+    for index, name in ipairs({ "General", "Position", "Text", "Filters" }) do
         auraTabs[name] = AddButton(auras, name, 6 + (index - 1) * 138, -40, 128, function() SelectAuraTab(name) end)
         local panel = CreateFrame("Frame", nil, auras)
         panel:SetPoint("TOPLEFT", 0, -78)
@@ -1064,9 +1064,12 @@ local function BuildGroupFrames(page)
     AddCycle(filters, "Display mode", 6, -8, 220, { "Essential", "All" },
         function() return CurrentProfile().auraFilters.mode end,
         function(v) CurrentProfile().auraFilters.mode = v end)
-    AddCheckbox(filters, "Dispellable debuffs at Bottom Right", 330, -28,
+    AddCheckbox(filters, "Dispellable debuffs at Right", 300, -28,
         function() return CurrentProfile().auraFilters.showDispellable end,
         function(v) CurrentProfile().auraFilters.showDispellable = v end)
+    AddCheckbox(filters, "Crowd control at Bottom Right", 500, -28,
+        function() return CurrentProfile().auraFilters.showCrowdControl ~= false end,
+        function(v) CurrentProfile().auraFilters.showCrowdControl = v end)
     AddTextInput(filters, "Top Left buffs", 6, -72, 300,
         function() return CurrentProfile().auraFilters.topLeftBuffs end,
         function(v) CurrentProfile().auraFilters.topLeftBuffs = v end)
@@ -1097,7 +1100,7 @@ local function BuildGroupFrames(page)
     filterNote:SetWidth(624)
     filterNote:SetJustifyH("LEFT")
     filterNote:SetTextColor(0.58, 0.7, 0.88)
-    filterNote:SetText("Use comma-separated spell IDs. Essential mode hides every aura not assigned above; Bottom Right is reserved for debuffs your class can dispel. Block lists always win.")
+    filterNote:SetText("Use comma-separated spell IDs. Essential mode: maintenance/healing buffs use the upper and right positions, Weakened Soul-style debuffs use Bottom Left, crowd control uses Bottom Right, dispels use Right, and raid debuffs use Center. Block lists always win.")
 
     local indicators = panels.Indicators
     AddCheckbox(indicators, "Role indicator", 6, -8, function() return CurrentProfile().showRole end, function(v) CurrentProfile().showRole = v end)

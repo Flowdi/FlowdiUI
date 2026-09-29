@@ -201,6 +201,16 @@ local function AddSpellPlan(plan, settings, kind, position, value, mineOnly, max
     }
 end
 
+local function MergeSpellIDS(...)
+    local merged = {}
+    for index = 1, select("#", ...) do
+        local value = select(index, ...)
+        local ids = FUI.AuraEngine:SpellIDSet(value)
+        if ids then for spellID in pairs(ids) do merged[spellID] = true end end
+    end
+    return next(merged) and merged or nil
+end
+
 local function BuildNativePlan(profile, kind, settings)
     local plan = {}
     local filters = profile.auraFilters
@@ -226,15 +236,27 @@ local function BuildNativePlan(profile, kind, settings)
     else
         AddSpellPlan(plan, settings, kind, "Bottom Left", filters.bottomLeftDebuffs, false, maximum)
         AddSpellPlan(plan, settings, kind, "Center", filters.centerDebuffs, false, maximum)
-        if filters.showDispellable and dispelTypes[playerClass] then
+        if filters.showCrowdControl ~= false then
             plan[#plan + 1] = {
                 settings = AuraSettingsAt(settings, "Bottom Right"),
                 maximum = maximum,
                 options = {
-                    filter = "HARMFUL",
+                    filter = "HARMFUL|CROWD_CONTROL",
+                    candidateFilters = { excludeSpellIDs = FUI.AuraEngine:SpellIDSet(settings.blockList) },
+                    groupKey = "debuffCrowdControl",
+                },
+            }
+        end
+        if filters.showDispellable and dispelTypes[playerClass] then
+            plan[#plan + 1] = {
+                settings = AuraSettingsAt(settings, "Right"),
+                maximum = maximum,
+                options = {
+                    filter = "HARMFUL|!CROWD_CONTROL",
                     candidateFilters = {
                         includeDispelTypes = dispelTypes[playerClass],
-                        excludeSpellIDs = FUI.AuraEngine:SpellIDSet(settings.blockList),
+                        excludeSpellIDs = MergeSpellIDS(settings.blockList,
+                            filters.bottomLeftDebuffs, filters.centerDebuffs),
                     },
                     groupKey = "debuffDispellable",
                 },
@@ -254,7 +276,7 @@ local function GroupAuraSignature(profile, kind, settings)
         tostring(settings.allowList), tostring(settings.blockList), tostring(settings.showDuration),
         tostring(settings.showStacks), tostring(filters.mode), tostring(filters.maxIcons),
         tostring(filters.topLeftBuffs), tostring(filters.topRightBuffs), tostring(filters.rightBuffs), tostring(filters.bottomLeftDebuffs),
-        tostring(filters.centerDebuffs), tostring(filters.showDispellable), tostring(kind),
+        tostring(filters.centerDebuffs), tostring(filters.showCrowdControl), tostring(filters.showDispellable), tostring(kind),
     }, "|")
 end
 

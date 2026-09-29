@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.17"
+FUI.version = "0.8.18"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -97,6 +97,7 @@ local function GroupProfileDefaults(party)
             topRightBuffs = "17,592,600,3747,6065,6066,10898,10899,10900,10901,25217,25218,48065,48066,139,6074,6075,6076,6077,6078,10927,10928,10929,25315,25221,25222,48067,48068,41635,194384,77489,774,8936,33763,48438,119611,124682,115175,974,61295,53563,156910,200025,364343,366155,367364,355941,376788",
             rightBuffs = "",
             bottomLeftDebuffs = "6788",
+            showCrowdControl = true,
             centerDebuffs = "",
             showDispellable = true,
         },

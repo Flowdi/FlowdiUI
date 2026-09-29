@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.18
+
+- Fixed settings creation after the Aura Filters tab was attached to the Cast Bar tab list instead of the Aura tab list, restoring the game-menu button and `/fui`/`/flowdi` commands.
+- Keeps Weakened Soul and other explicitly assigned debuffs at Bottom Left in Party/Raid frames.
+- Adds a native crowd-control group at Bottom Right for stuns and similar control effects.
+- Moves class-dispellable Magic, Disease, Poison, and Curse debuffs to the middle-right position and excludes crowd-control and explicitly positioned debuffs from that group.
+
 ## 0.8.17
 
 - Connected Party/Raid Essential filters to separate combat-safe native containers for Top Left maintenance buffs, Top Right healing buffs, Right-side custom buffs, Bottom Left debuffs, Bottom Right dispels, and centered raid debuffs.
