@@ -165,6 +165,99 @@ local function NativeCandidateFilters(profile, kind)
     return next(include) and { includeSpellIDs = include } or nil
 end
 
+local nativePlacements = {
+    ["Top Left"] = { point = "Top Left", relativePoint = "Top Left", x = 2, y = -2, growthX = "Right", growthY = "Down" },
+    ["Top Right"] = { point = "Top Right", relativePoint = "Top Right", x = -2, y = -2, growthX = "Left", growthY = "Down" },
+    ["Right"] = { point = "Right", relativePoint = "Right", x = -2, y = 0, growthX = "Left", growthY = "Down" },
+    ["Bottom Left"] = { point = "Bottom Left", relativePoint = "Bottom Left", x = 2, y = 2, growthX = "Right", growthY = "Up" },
+    ["Bottom Right"] = { point = "Bottom Right", relativePoint = "Bottom Right", x = -2, y = 2, growthX = "Left", growthY = "Up" },
+    ["Center"] = { point = "Center", relativePoint = "Center", x = 0, y = 0, growthX = "Right", growthY = "Down" },
+}
+
+local function AuraSettingsAt(settings, position)
+    local copy = {}
+    for key, value in pairs(settings) do copy[key] = value end
+    local placement = nativePlacements[position]
+    if placement then
+        for key, value in pairs(placement) do copy[key] = value end
+    end
+    return copy
+end
+
+local function AddSpellPlan(plan, settings, kind, position, value, mineOnly, maximum)
+    local ids = ParseSpellFilter(value).ids
+    if not next(ids) then return end
+    plan[#plan + 1] = {
+        settings = AuraSettingsAt(settings, position),
+        maximum = maximum,
+        options = {
+            filter = (kind == "buff" and "HELPFUL" or "HARMFUL") .. (mineOnly and "|PLAYER" or ""),
+            candidateFilters = {
+                includeSpellIDs = ids,
+                excludeSpellIDs = FUI.AuraEngine:SpellIDSet(settings.blockList),
+            },
+            groupKey = kind .. position:gsub("%s", ""),
+        },
+    }
+end
+
+local function BuildNativePlan(profile, kind, settings)
+    local plan = {}
+    local filters = profile.auraFilters
+    local maximum = math.max(1, filters and filters.maxIcons or settings.perRow or 8)
+    if not filters or filters.mode ~= "Essential" then
+        plan[1] = {
+            settings = settings,
+            maximum = math.max(1, settings.perRow or 3) * math.max(1, settings.rows or 1),
+            options = {
+                filter = (kind == "buff" and "HELPFUL" or "HARMFUL") .. (settings.mineOnly and "|PLAYER" or ""),
+                candidateFilters = {
+                    includeSpellIDs = FUI.AuraEngine:SpellIDSet(settings.allowList),
+                    excludeSpellIDs = FUI.AuraEngine:SpellIDSet(settings.blockList),
+                },
+            },
+        }
+        return plan
+    end
+    if kind == "buff" then
+        AddSpellPlan(plan, settings, kind, "Top Left", filters.topLeftBuffs, settings.mineOnly, maximum)
+        AddSpellPlan(plan, settings, kind, "Top Right", filters.topRightBuffs, settings.mineOnly, maximum)
+        AddSpellPlan(plan, settings, kind, "Right", filters.rightBuffs, settings.mineOnly, maximum)
+    else
+        AddSpellPlan(plan, settings, kind, "Bottom Left", filters.bottomLeftDebuffs, false, maximum)
+        AddSpellPlan(plan, settings, kind, "Center", filters.centerDebuffs, false, maximum)
+        if filters.showDispellable and dispelTypes[playerClass] then
+            plan[#plan + 1] = {
+                settings = AuraSettingsAt(settings, "Bottom Right"),
+                maximum = maximum,
+                options = {
+                    filter = "HARMFUL",
+                    candidateFilters = {
+                        includeDispelTypes = dispelTypes[playerClass],
+                        excludeSpellIDs = FUI.AuraEngine:SpellIDSet(settings.blockList),
+                    },
+                    groupKey = "debuffDispellable",
+                },
+            }
+        end
+    end
+    return plan
+end
+
+local function GroupAuraSignature(profile, kind, settings)
+    local filters = profile.auraFilters or {}
+    return table.concat({
+        tostring(settings.enabled), tostring(settings.mineOnly), tostring(settings.tooltip),
+        tostring(settings.size), tostring(settings.perRow), tostring(settings.rows), tostring(settings.spacing),
+        tostring(settings.borderSize), tostring(settings.point), tostring(settings.relativePoint),
+        tostring(settings.x), tostring(settings.y), tostring(settings.growthX), tostring(settings.growthY),
+        tostring(settings.allowList), tostring(settings.blockList), tostring(settings.showDuration),
+        tostring(settings.showStacks), tostring(filters.mode), tostring(filters.maxIcons),
+        tostring(filters.topLeftBuffs), tostring(filters.topRightBuffs), tostring(filters.rightBuffs), tostring(filters.bottomLeftDebuffs),
+        tostring(filters.centerDebuffs), tostring(filters.showDispellable), tostring(kind),
+    }, "|")
+end
+
 function module:CreateNativeAuras(button, kind)
     if button.isPet or not FUI.AuraEngine then return end
     button.nativeAuraQueued = button.nativeAuraQueued or {}
@@ -172,36 +265,65 @@ function module:CreateNativeAuras(button, kind)
     local profile = Profile(button)
     local settings = profile and profile.auras and profile.auras[kind]
     if not settings then return end
-    local perRow = math.max(1, settings.perRow or 3)
-    local maximum = profile.auraFilters and profile.auraFilters.mode == "Essential"
-        and math.max(1, profile.auraFilters.maxIcons or 8)
-        or perRow * math.max(1, settings.rows or 1)
     local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
-    button.nativeAuraQueued[kind] = true
-    FUI.AuraEngine:QueueCreate(function(container)
-        button.nativeAuraQueued[kind] = nil
-        if not container then return end
-        button.nativeAuraContainers = button.nativeAuraContainers or {}
-        button.nativeAuraContainers[kind] = container
-        FUI.AuraEngine:SetUnit(container, button.GetAttribute and button:GetAttribute("unit") or button.unit, true)
-        module:UpdateAuras(button, kind, true)
-    end, button, unit or button.unit, kind, settings, "groupFrames",
-        button:GetFrameLevel() + 25, button, maximum)
+    local plan = BuildNativePlan(profile, kind, settings)
+    button.nativeAuraGeneration = button.nativeAuraGeneration or {}
+    button.nativeAuraGeneration[kind] = (button.nativeAuraGeneration[kind] or 0) + 1
+    local generation = button.nativeAuraGeneration[kind]
+    local bundle = { isAuraBundle = true, containers = {}, signature = GroupAuraSignature(profile, kind, settings) }
+    button.nativeAuraContainers = button.nativeAuraContainers or {}
+    button.nativeAuraContainers[kind] = bundle
+    button.nativeAuraQueued[kind] = #plan > 0
+    local pending = #plan
+    for _, entry in ipairs(plan) do
+        FUI.AuraEngine:QueueCreate(function(container)
+            pending = pending - 1
+            if generation ~= button.nativeAuraGeneration[kind] then
+                if container then FUI.AuraEngine:Release(container) end
+                return
+            end
+            if container then
+                bundle.containers[#bundle.containers + 1] = container
+                FUI.AuraEngine:SetUnit(container, button.GetAttribute and button:GetAttribute("unit") or button.unit, true)
+            end
+            if pending == 0 then
+                button.nativeAuraQueued[kind] = nil
+                module:UpdateAuras(button, kind, true)
+            end
+        end, button, unit or button.unit, kind, entry.settings, "groupFrames",
+            button:GetFrameLevel() + 25, button, entry.maximum, entry.options)
+    end
 end
 
 function module:EnsureNativeAuras(button)
     if button.isPet then return end
     button.nativeAuraContainers = button.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
-        if not button.nativeAuraContainers[kind] then self:CreateNativeAuras(button, kind) end
+        local profile = Profile(button)
+        local settings = profile and profile.auras and profile.auras[kind]
+        local current = button.nativeAuraContainers[kind]
+        local signature = profile and settings and GroupAuraSignature(profile, kind, settings)
+        if current and current.isAuraBundle and current.signature ~= signature then
+            button.nativeAuraGeneration = button.nativeAuraGeneration or {}
+            button.nativeAuraGeneration[kind] = (button.nativeAuraGeneration[kind] or 0) + 1
+            for _, container in ipairs(current.containers) do FUI.AuraEngine:Release(container) end
+            button.nativeAuraContainers[kind] = nil
+            button.nativeAuraQueued[kind] = nil
+            current = nil
+        end
+        if settings and settings.enabled ~= false and not current then self:CreateNativeAuras(button, kind) end
     end
 end
 
 function module:BindNativeAuras(button, refresh)
     local unit = button.GetAttribute and button:GetAttribute("unit") or button.unit
     unit = unit or button.unit or "none"
-    for _, container in pairs(button.nativeAuraContainers or {}) do
-        FUI.AuraEngine:SetUnit(container, unit, refresh)
+    for _, value in pairs(button.nativeAuraContainers or {}) do
+        if value.isAuraBundle then
+            for _, container in ipairs(value.containers) do FUI.AuraEngine:SetUnit(container, unit, refresh) end
+        else
+            FUI.AuraEngine:SetUnit(value, unit, refresh)
+        end
     end
 end
 
@@ -251,7 +373,11 @@ function module:UpdateAuras(button, kind, configure)
     for _, auraButton in ipairs(buttons) do auraButton:Hide() end
     local nativeContainer = button.nativeAuraContainers and button.nativeAuraContainers[kind]
     if nativeContainer then
-        nativeContainer:SetShown(not button.isPet)
+        if nativeContainer.isAuraBundle then
+            for _, container in ipairs(nativeContainer.containers) do container:SetShown(not button.isPet and settings.enabled ~= false) end
+        else
+            nativeContainer:SetShown(not button.isPet and settings.enabled ~= false)
+        end
         return
     end
     if button.nativeAuraQueued and button.nativeAuraQueued[kind] then return end

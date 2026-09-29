@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.17
+
+- Connected Party/Raid Essential filters to separate combat-safe native containers for Top Left maintenance buffs, Top Right healing buffs, Right-side custom buffs, Bottom Left debuffs, Bottom Right dispels, and centered raid debuffs.
+- Added native spell-ID Allow and Block lists to Unit Frame Buffs and Debuffs; Party/Raid filters now also support overriding Block lists.
+- Made Party/Raid healing Buff filters default to player-cast auras so unrelated buffs from other classes do not occupy healing indicators.
+- Fixed disabled aura tooltips by turning off the native button's mouse-motion channel when Tooltip is unchecked.
+- Rebuilds affected native containers when filter, placement, ownership, tooltip, or visual settings change.
+
 ## 0.8.16
 
 - Sizes every native AuraButton explicitly during its protected initializer; provider layout dimensions position buttons but do not give them a renderable size.

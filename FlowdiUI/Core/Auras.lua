@@ -114,6 +114,9 @@ local function CreateInitializer(settings, fontModule, records)
         duration:SetAlpha(settings.showDuration == false and 0 or 1)
 
         if button.SetMouseClickEnabled then pcall(button.SetMouseClickEnabled, button, false) end
+        if button.SetMouseMotionEnabled then
+            pcall(button.SetMouseMotionEnabled, button, settings.tooltip == true)
+        end
         button:SetIcon(icon)
         button:SetDurationCooldown(cooldown)
         button:SetApplicationCount(stacks, {})
@@ -126,7 +129,7 @@ local function CreateInitializer(settings, fontModule, records)
     end
 end
 
-function engine:Create(parent, unit, kind, settings, fontModule, frameLevel, anchorTarget, maximumOverride)
+function engine:Create(parent, unit, kind, settings, fontModule, frameLevel, anchorTarget, maximumOverride, options)
     if not EnsureProvider() or not parent or not settings then return nil end
 
     local ok, container = pcall(CreateFrame, "AuraContainer", nil, parent, "CustomAuraContainerTemplate")
@@ -173,8 +176,10 @@ function engine:Create(parent, unit, kind, settings, fontModule, frameLevel, anc
             lineSpacing = spacing,
         },
     }
-    local groupKey = kind == "buff" and "Buffs" or "Debuffs"
-    local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
+    options = options or {}
+    local groupKey = options.groupKey or (kind == "buff" and "Buffs" or "Debuffs")
+    local filter = options.filter or (kind == "buff" and "HELPFUL" or "HARMFUL")
+    group.candidateFilters = options.candidateFilters or {}
     local added, addError = pcall(container.AddAuraGroup, container, groupKey, filter, group)
     if not added then
         container:Hide()
@@ -190,6 +195,22 @@ function engine:Create(parent, unit, kind, settings, fontModule, frameLevel, anc
     container:Show()
     self.containers[container] = { unit = unit, kind = kind, records = records }
     return container
+end
+
+function engine:Release(container)
+    if not container then return end
+    pcall(container.SetEnabled, container, false)
+    pcall(container.Hide, container)
+    self.containers[container] = nil
+end
+
+function engine:SpellIDSet(value)
+    local result = {}
+    for token in tostring(value or ""):gmatch("[^,;%s]+") do
+        local spellID = tonumber(token)
+        if spellID then result[spellID] = true end
+    end
+    return next(result) and result or nil
 end
 
 function engine:SetUnit(container, unit, refresh)

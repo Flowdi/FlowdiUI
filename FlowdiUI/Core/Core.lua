@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.16"
+FUI.version = "0.8.17"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -42,6 +42,8 @@ local function AuraDefaults(helpful)
         showStacks = true,
         stackSize = 10,
         stackPosition = "Top Right",
+        allowList = "",
+        blockList = "",
     }
 end
 
@@ -93,6 +95,7 @@ local function GroupProfileDefaults(party)
             maxIcons = party and 8 or 6,
             topLeftBuffs = "1243,1244,1245,2791,10937,10938,25389,48161,21562",
             topRightBuffs = "17,592,600,3747,6065,6066,10898,10899,10900,10901,25217,25218,48065,48066,139,6074,6075,6076,6077,6078,10927,10928,10929,25315,25221,25222,48067,48068,41635,194384,77489,774,8936,33763,48438,119611,124682,115175,974,61295,53563,156910,200025,364343,366155,367364,355941,376788",
+            rightBuffs = "",
             bottomLeftDebuffs = "6788",
             centerDebuffs = "",
             showDispellable = true,
@@ -138,7 +141,7 @@ local function ActionBarDefaults(vertical, maximum, iconSize)
 end
 
 local defaults = {
-    profileVersion = 21,
+    profileVersion = 22,
     locked = true,
     scale = 1,
     global = {
@@ -685,6 +688,10 @@ function FUI:Initialize()
             profile.auras.debuff.enabled = true
             profile.auras.debuff.mineOnly = false
         end
+    end
+    if previousVersion < 22 then
+        self.db.groupFrames.party.auras.buff.mineOnly = true
+        self.db.groupFrames.raid.auras.buff.mineOnly = true
     end
     self.db.profileVersion = defaults.profileVersion
 

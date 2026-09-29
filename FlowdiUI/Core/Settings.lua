@@ -674,7 +674,7 @@ local function BuildUnitFrames(page)
         for key, panel in pairs(castPanels) do panel:SetShown(key == name) end
         for key, tab in pairs(castTabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
-    for index, name in ipairs({ "General", "Position", "Text" }) do
+    for index, name in ipairs({ "General", "Position", "Text", "Filters" }) do
         castTabs[name] = AddButton(cast, name, 6 + (index - 1) * 138, -4, 128, function() SelectCastTab(name) end)
         local panel = CreateFrame("Frame", nil, cast)
         panel:SetPoint("TOPLEFT", 0, -42)
@@ -797,6 +797,20 @@ local function BuildUnitFrames(page)
     AddSlider(auraText, "Stack text size", 330, -64, 270, 7, 24, 1, function() return AuraSettings().stackSize end, function(v) AuraSettings().stackSize = v end, function(v) return string.format("%d px", v) end)
     AddCycle(auraText, "Duration position", 6, -142, 240, anchorValues, function() return AuraSettings().durationPosition end, function(v) AuraSettings().durationPosition = v end)
     AddCycle(auraText, "Stack position", 330, -142, 240, anchorValues, function() return AuraSettings().stackPosition end, function(v) AuraSettings().stackPosition = v end)
+
+    local auraFilters = auraPanels.Filters
+    AddTextInput(auraFilters, "Allow list (spell IDs)", 6, -8, 600,
+        function() return AuraSettings().allowList or "" end,
+        function(v) AuraSettings().allowList = v end)
+    AddTextInput(auraFilters, "Block list (spell IDs)", 6, -78, 600,
+        function() return AuraSettings().blockList or "" end,
+        function(v) AuraSettings().blockList = v end)
+    local auraFilterNote = FUI:CreateFont(auraFilters, 10)
+    auraFilterNote:SetPoint("TOPLEFT", 6, -150)
+    auraFilterNote:SetWidth(600)
+    auraFilterNote:SetJustifyH("LEFT")
+    auraFilterNote:SetTextColor(0.58, 0.7, 0.88)
+    auraFilterNote:SetText("Allow list empty: all auras are eligible. When it contains spell IDs, only those auras are shown. Block list always removes matching auras. 'Only my auras' is applied by the protected aura provider.")
     SelectAuraType(unitDB.selectedAura or "Buffs")
     SelectAuraTab(activeAuraTab)
 
@@ -1059,22 +1073,31 @@ local function BuildGroupFrames(page)
     AddTextInput(filters, "Top Right healing buffs", 330, -72, 300,
         function() return CurrentProfile().auraFilters.topRightBuffs end,
         function(v) CurrentProfile().auraFilters.topRightBuffs = v end)
-    AddTextInput(filters, "Bottom Left debuffs", 6, -136, 300,
+    AddTextInput(filters, "Right buffs", 6, -136, 300,
+        function() return CurrentProfile().auraFilters.rightBuffs or "" end,
+        function(v) CurrentProfile().auraFilters.rightBuffs = v end)
+    AddTextInput(filters, "Bottom Left debuffs", 330, -136, 300,
         function() return CurrentProfile().auraFilters.bottomLeftDebuffs end,
         function(v) CurrentProfile().auraFilters.bottomLeftDebuffs = v end)
-    AddTextInput(filters, "Center raid debuffs", 330, -136, 300,
+    AddTextInput(filters, "Center raid debuffs", 6, -200, 300,
         function() return CurrentProfile().auraFilters.centerDebuffs end,
         function(v) CurrentProfile().auraFilters.centerDebuffs = v end)
-    AddSlider(filters, "Max essential icons", 6, -200, 270, 1, 16, 1,
+    AddTextInput(filters, "Blocked buffs", 330, -200, 300,
+        function() return CurrentAura("buff").blockList or "" end,
+        function(v) CurrentAura("buff").blockList = v end)
+    AddTextInput(filters, "Blocked debuffs", 6, -264, 300,
+        function() return CurrentAura("debuff").blockList or "" end,
+        function(v) CurrentAura("debuff").blockList = v end)
+    AddSlider(filters, "Max icons per position", 330, -264, 270, 1, 16, 1,
         function() return CurrentProfile().auraFilters.maxIcons or 8 end,
         function(v) CurrentProfile().auraFilters.maxIcons = v end,
         function(v) return string.format("%d", v) end)
     local filterNote = FUI:CreateFont(filters, 10)
-    filterNote:SetPoint("TOPLEFT", 330, -202)
-    filterNote:SetWidth(300)
+    filterNote:SetPoint("TOPLEFT", 6, -340)
+    filterNote:SetWidth(624)
     filterNote:SetJustifyH("LEFT")
     filterNote:SetTextColor(0.58, 0.7, 0.88)
-    filterNote:SetText("Enter spell IDs or exact spell names separated by commas. Essential mode hides every aura not assigned above; Bottom Right is reserved for debuffs your class can dispel.")
+    filterNote:SetText("Use comma-separated spell IDs. Essential mode hides every aura not assigned above; Bottom Right is reserved for debuffs your class can dispel. Block lists always win.")
 
     local indicators = panels.Indicators
     AddCheckbox(indicators, "Role indicator", 6, -8, function() return CurrentProfile().showRole end, function(v) CurrentProfile().showRole = v end)

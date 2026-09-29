@@ -342,6 +342,18 @@ end
 
 local nativeAuraGroups = { buff = "Buffs", debuff = "Debuffs" }
 
+local function NativeAuraSignature(settings)
+    if not settings then return "missing" end
+    return table.concat({
+        tostring(settings.enabled), tostring(settings.mineOnly), tostring(settings.tooltip),
+        tostring(settings.size), tostring(settings.perRow), tostring(settings.rows), tostring(settings.spacing),
+        tostring(settings.borderSize), tostring(settings.attachTo), tostring(settings.point),
+        tostring(settings.relativePoint), tostring(settings.x), tostring(settings.y),
+        tostring(settings.growthX), tostring(settings.growthY), tostring(settings.allowList),
+        tostring(settings.blockList), tostring(settings.showDuration), tostring(settings.showStacks),
+    }, "|")
+end
+
 function module:CreateNativeAuras(frame, kind)
     local settings = FrameSettings(frame.unit)
     local auraSettings = settings and settings.auras and settings.auras[kind]
@@ -349,18 +361,39 @@ function module:CreateNativeAuras(frame, kind)
     local targets = { ["Frame"] = frame, ["Health Bar"] = frame.health, ["Power Bar"] = frame.power, ["Portrait"] = frame.portrait }
     local target = targets[auraSettings.attachTo] or frame
     local unit = frame.GetAttribute and frame:GetAttribute("unit") or frame.unit
+    local candidates = {
+        includeSpellIDs = FUI.AuraEngine:SpellIDSet(auraSettings.allowList),
+        excludeSpellIDs = FUI.AuraEngine:SpellIDSet(auraSettings.blockList),
+    }
+    local filter = kind == "buff" and "HELPFUL" or "HARMFUL"
+    if auraSettings.mineOnly then filter = filter .. "|PLAYER" end
     local container = FUI.AuraEngine:Create(frame, unit or frame.unit, kind, auraSettings,
-        "unitFrames", frame:GetFrameLevel() + 31, target)
+        "unitFrames", frame:GetFrameLevel() + 31, target, nil, {
+            filter = filter,
+            candidateFilters = candidates,
+        })
     if not container then return end
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
     frame.nativeAuraContainers[kind] = container
+    frame.nativeAuraSignatures = frame.nativeAuraSignatures or {}
+    frame.nativeAuraSignatures[kind] = NativeAuraSignature(auraSettings)
 end
 
 function module:EnsureNativeAuras(frame)
     if frame.unit == "pet" then return end
     frame.nativeAuraContainers = frame.nativeAuraContainers or {}
     for _, kind in ipairs({ "buff", "debuff" }) do
-        if not frame.nativeAuraContainers[kind] then self:CreateNativeAuras(frame, kind) end
+        local settings = FrameSettings(frame.unit)
+        local auraSettings = settings and settings.auras and settings.auras[kind]
+        local signature = NativeAuraSignature(auraSettings)
+        if frame.nativeAuraContainers[kind] and frame.nativeAuraSignatures
+            and frame.nativeAuraSignatures[kind] ~= signature then
+            FUI.AuraEngine:Release(frame.nativeAuraContainers[kind])
+            frame.nativeAuraContainers[kind] = nil
+        end
+        if auraSettings and auraSettings.enabled ~= false and not frame.nativeAuraContainers[kind] then
+            self:CreateNativeAuras(frame, kind)
+        end
     end
 end
 
@@ -375,7 +408,7 @@ end
 function module:ApplyNativeAuras(frame, kind, auraSettings, configure)
     local container = frame.nativeAuraContainers and frame.nativeAuraContainers[kind]
     if not container or not auraSettings then return false end
-    container:SetShown(true)
+    container:SetShown(auraSettings.enabled ~= false)
     return true
 end
 
