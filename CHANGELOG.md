@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.27
+
+- Adds a direct post-delivery whisper observer so the FlowdiUI unread pulse works even when Blizzard or LibChatAnims does not expose a readable alert flag.
+- Keeps unread state on the actual docked chat window that received the whisper and clears it when that tab is selected.
+- Permanently suppresses the native scrollbar track, arrow controls, thumb art, and scroll-to-bottom chrome while preserving FlowdiUI's scrollbar and controls.
+
 ## 0.8.26
 
 - Locks Blizzard's live chat tabs fully transparent so their native new-message flash can no longer appear behind FlowdiUI.

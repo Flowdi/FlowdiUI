@@ -17,6 +17,21 @@ local function HideChatControl(frame)
     end
 end
 
+local function LockVisualAlpha(frame)
+    if not frame or not frame.SetAlpha then return end
+    if not frame.FlowdiVisualAlphaLock then
+        frame.FlowdiVisualAlphaLock = true
+        hooksecurefunc(frame, "SetAlpha", function(self, alpha)
+            if alpha ~= 0 and not self.FlowdiSettingVisualAlpha then
+                self.FlowdiSettingVisualAlpha = true
+                self:SetAlpha(0)
+                self.FlowdiSettingVisualAlpha = nil
+            end
+        end)
+    end
+    frame:SetAlpha(0)
+end
+
 local function SuppressEditModeChild(frame)
     if not frame then return end
     frame:SetAlpha(0)
@@ -40,7 +55,12 @@ local nativeSuffixes = {
 
 local tabGhosts = {}
 local tabSlots = {}
+local unreadFrames = setmetatable({}, { __mode = "k" })
 local lcaLib
+local whisperEvents = {
+    CHAT_MSG_WHISPER = true,
+    CHAT_MSG_BN_WHISPER = true,
+}
 
 -- Blizzard owns the unread state even though FlowdiUI owns the visuals.
 -- LibChatAnims (embedded by a few popular addons) stores that state in its
@@ -104,17 +124,7 @@ local function SuppressTabRegions(tab)
     if not tab or not tab.GetRegions then return end
     -- Keep the live Blizzard tab as the click/drag plane, but never let its
     -- fade or new-message animation become visible behind our mirror.
-    if not tab.FlowdiAlphaLock then
-        tab.FlowdiAlphaLock = true
-        hooksecurefunc(tab, "SetAlpha", function(self, alpha)
-            if alpha ~= 0 and not self.FlowdiSettingAlpha then
-                self.FlowdiSettingAlpha = true
-                self:SetAlpha(0)
-                self.FlowdiSettingAlpha = nil
-            end
-        end)
-    end
-    tab:SetAlpha(0)
+    LockVisualAlpha(tab)
     for index = 1, select("#", tab:GetRegions()) do
         local region = select(index, tab:GetRegions())
         if region and region.SetAlpha then region:SetAlpha(0) end
@@ -140,7 +150,7 @@ local function CreateTabGhost(index)
     ghost.alertBorder:SetPoint("BOTTOMRIGHT", ghost, "BOTTOMRIGHT", -2, 2)
     ghost.alertBorder:SetFrameLevel(ghost:GetFrameLevel() + 2)
     ghost.alertBorder:EnableMouse(false)
-    ghost.alertBorder:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    ghost.alertBorder:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
     ghost.alertBorder:SetBackdropBorderColor(0.25, 0.72, 1, 1)
     ghost.alertBorder:Hide()
     ghost.alertPulse = ghost.alertBorder:CreateAnimationGroup()
@@ -214,13 +224,14 @@ function module:RefreshTabs()
                 local active = chatFrame == selected
                 ghost:SetBackdropColor(active and 0.035 or 0.012, active and 0.10 or 0.025, active and 0.19 or 0.05, active and 0.98 or 0.90)
                 if active then
+                    unreadFrames[chatFrame] = nil
                     ghost:SetBackdropBorderColor(unpack(FUI.colors.accent))
                     ghost.label:SetTextColor(0.88, 0.96, 1, 1)
                     ghost:StopAlertPulse()
                 else
                     ghost:SetBackdropBorderColor(0.07, 0.24, 0.55, 0.9)
                     ghost.label:SetTextColor(0.55, 0.68, 0.82, 1)
-                    if TabAlerting(tab) then
+                    if unreadFrames[chatFrame] or TabAlerting(tab) then
                         ghost:StartAlertPulse()
                     else
                         ghost:StopAlertPulse()
@@ -230,6 +241,7 @@ function module:RefreshTabs()
                 -- its edit box owns focus. The visual mirror must stay up;
                 -- the real tabs remain the unchanged click plane underneath.
                 ghost:Show()
+                self:StyleChatScrollbar(chatFrame)
             end
         end
     end
@@ -238,6 +250,32 @@ function module:RefreshTabs()
         tabGhosts[index]:Hide()
     end
     self:SuppressCombatLogChrome()
+end
+
+function module:ObserveTabMessage(chatFrame, event)
+    if not chatFrame or not event then return end
+    if issecretvalue and issecretvalue(event) then return end
+    if not whisperEvents[event] then return end
+    local selected = GENERAL_CHAT_DOCK and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
+    if chatFrame ~= selected and IsDockedChatFrame(chatFrame) then
+        unreadFrames[chatFrame] = true
+    end
+end
+
+function module:InstallMessageObserver(frame)
+    if not frame or frame.FlowdiMessageObserver then return end
+    local open
+    if frame.isTemporary then
+        open = frame.inUse == true
+    else
+        local id = frame:GetID()
+        open = id and id > 0 and FCF_IsChatWindowIndexActive and FCF_IsChatWindowIndexActive(id)
+    end
+    if not open then return end
+    frame.FlowdiMessageObserver = true
+    hooksecurefunc(frame, "AddMessage", function(chatFrame, _, _, _, _, _, _, _, event)
+        module:ObserveTabMessage(chatFrame, event)
+    end)
 end
 
 function module:HideNativeChrome(frame)
@@ -381,11 +419,16 @@ function module:StyleChatScrollbar(frame)
     local bar = frame and (frame.ScrollBar or frame.scrollBar)
     if not bar then return end
     FUI:StripTextures(bar)
-    if bar.Track then FUI:StripTextures(bar.Track) end
-    if bar.Back then FUI:StripTextures(bar.Back) end
-    if bar.Forward then FUI:StripTextures(bar.Forward) end
-    if bar.ScrollUpButton then FUI:StripTextures(bar.ScrollUpButton) end
-    if bar.ScrollDownButton then FUI:StripTextures(bar.ScrollDownButton) end
+    if bar.Track then
+        FUI:StripTextures(bar.Track)
+        LockVisualAlpha(bar.Track)
+    end
+    for _, control in ipairs({ bar.Back, bar.Forward, bar.ScrollUpButton, bar.ScrollDownButton }) do
+        if control then
+            FUI:StripTextures(control)
+            HideChatControl(control)
+        end
+    end
 
     if not frame.FlowdiScrollTrack then
         local track = CreateFrame("Frame", nil, frame, "BackdropTemplate")
@@ -401,6 +444,7 @@ function module:StyleChatScrollbar(frame)
 
         local thumb = (bar.Track and bar.Track.Thumb) or bar.Thumb
         if thumb then
+            if thumb.SetAlpha then thumb:SetAlpha(0) end
             local visual = CreateFrame("Frame", nil, frame, "BackdropTemplate")
             visual:SetPoint("TOP", thumb, "TOP", 0, 0)
             visual:SetPoint("BOTTOM", thumb, "BOTTOM", 0, 0)
@@ -526,6 +570,7 @@ function module:StyleChatFrame(frame)
     end
     self:HideNativeChrome(frame)
     self:StyleChatScrollbar(frame)
+    self:InstallMessageObserver(frame)
 
     local name = frame:GetName()
     local editBox = name and _G[name .. "EditBox"]
