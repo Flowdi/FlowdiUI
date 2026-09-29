@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.16
+
+- Sizes every native AuraButton explicitly during its protected initializer; provider layout dimensions position buttons but do not give them a renderable size.
+- Supplies an explicit empty candidate-filter table for unfiltered Buff and Debuff groups.
+- Extends `/fui auradiag` with physical-size and shown-button counts.
+
 ## 0.8.15
 
 - Replaced the separate Unit Frame and Party/Raid aura implementations with one shared native aura engine.

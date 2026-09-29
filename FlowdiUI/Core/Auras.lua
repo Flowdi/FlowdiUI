@@ -78,6 +78,9 @@ local function CreateInitializer(settings, fontModule, records)
     return function(button)
         -- Create and style every region before registering it. Every Set* call
         -- immediately asks the provider to populate the region.
+        -- Group layout dimensions do not size the physical AuraButton.
+        button:SetSize(math.max(1, settings.size or 16), math.max(1, settings.size or 16))
+
         local border = button:CreateTexture(nil, "BACKGROUND")
         border:SetAllPoints(button)
         border:SetColorTexture(0.01, 0.015, 0.025, 1)
@@ -161,6 +164,7 @@ function engine:Create(parent, unit, kind, settings, fontModule, frameLevel, anc
     local records = {}
     local group = {
         maxFrameCount = maximum,
+        candidateFilters = {},
         initializeFrame = CreateInitializer(settings, fontModule, records),
         layout = {
             elementWidth = size,
@@ -209,16 +213,23 @@ function engine:RefreshUnit(unit)
 end
 
 function engine:PrintDiagnostics()
-    local containers, buttons, enabled = 0, 0, 0
+    local containers, buttons, enabled, shown, sized = 0, 0, 0, 0, 0
     for container, data in pairs(self.containers) do
         containers = containers + 1
         buttons = buttons + #(data.records or {})
         if not container.IsEnabled or container:IsEnabled() then enabled = enabled + 1 end
+        for _, record in ipairs(data.records or {}) do
+            local button = record.button
+            local sizeOK, width, height = pcall(function() return button:GetWidth(), button:GetHeight() end)
+            if sizeOK and width > 0 and height > 0 then sized = sized + 1 end
+            local shownOK, isShown = pcall(button.IsShown, button)
+            if shownOK and isShown then shown = shown + 1 end
+        end
     end
     local queued = math.max(0, buildTail - buildHead + 1)
-    FUI:Print(string.format("Aura diagnostics: provider=%s, containers=%d, enabled=%d, buttons=%d, queued=%d",
+    FUI:Print(string.format("Aura diagnostics: provider=%s, containers=%d, enabled=%d, buttons=%d, sized=%d, shown=%d, queued=%d",
         C_AddOns and C_AddOns.IsAddOnLoaded("Blizzard_AuraContainer") and "loaded" or "missing",
-        containers, enabled, buttons, queued))
+        containers, enabled, buttons, sized, shown, queued))
 end
 
 local events = CreateFrame("Frame")
