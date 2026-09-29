@@ -39,6 +39,7 @@ local nativeSuffixes = {
 }
 
 local tabGhosts = {}
+local tabSlots = {}
 
 local function IsDockedChatFrame(frame)
     local frames = GENERAL_CHAT_DOCK and GENERAL_CHAT_DOCK.DOCKED_CHAT_FRAMES
@@ -55,6 +56,37 @@ local function SetEditBoxMouse(editBox, enabled)
         editBox:SetMouseMotionEnabled(enabled)
     elseif editBox.EnableMouse then
         editBox:EnableMouse(enabled)
+    end
+end
+
+local function DisableMouseTree(frame)
+    if not frame then return end
+    if frame.SetMouseClickEnabled then
+        frame:SetMouseClickEnabled(false)
+        frame:SetMouseMotionEnabled(false)
+    elseif frame.EnableMouse then
+        frame:EnableMouse(false)
+    end
+    if frame.GetChildren then
+        for index = 1, select("#", frame:GetChildren()) do
+            DisableMouseTree(select(index, frame:GetChildren()))
+        end
+    end
+end
+
+function module:SuppressCombatLogChrome()
+    for _, name in ipairs({ "CombatLogQuickButtonFrame_Custom", "CombatLogQuickButtonFrame" }) do
+        local frame = _G[name]
+        if frame then
+            frame:SetAlpha(0)
+            DisableMouseTree(frame)
+            if frame.GetRegions then
+                for index = 1, select("#", frame:GetRegions()) do
+                    local region = select(index, frame:GetRegions())
+                    if region and region.SetAlpha then region:SetAlpha(0) end
+                end
+            end
+        end
     end
 end
 
@@ -87,6 +119,7 @@ function module:RefreshTabs()
     local frames = dock and dock.DOCKED_CHAT_FRAMES
     local selected = dock and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(dock)
     local count = 0
+    local hostLeft = self.anchor and self.anchor:GetLeft()
     if type(frames) == "table" then
         for index = 1, #frames do
             local chatFrame = frames[index]
@@ -95,15 +128,25 @@ function module:RefreshTabs()
                 count = count + 1
                 SuppressTabRegions(tab)
                 local ghost = tabGhosts[count] or CreateTabGhost(count)
-                ghost:ClearAllPoints()
-                ghost:SetPoint("TOP", tab, "TOP", 0, 0)
-                ghost:SetPoint("BOTTOM", tab, "BOTTOM", 0, 0)
-                if count == 1 and self.anchor then
-                    ghost:SetPoint("LEFT", self.anchor, "LEFT", 0, 0)
-                else
-                    ghost:SetPoint("LEFT", tab, "LEFT", 0, 0)
+                local slot = tabSlots[count] or {}
+                if not self.editBoxActive and hostLeft then
+                    local tabLeft, tabRight = tab:GetLeft(), tab:GetRight()
+                    local tabHeight = tab:GetHeight()
+                    if tabLeft and tabRight and tabHeight then
+                        slot.x = count == 1 and 0 or tabLeft - hostLeft
+                        slot.width = tabRight - hostLeft - slot.x + 1
+                        slot.height = tabHeight
+                        tabSlots[count] = slot
+                    end
                 end
-                ghost:SetPoint("RIGHT", tab, "RIGHT", 1, 0)
+                ghost:ClearAllPoints()
+                if self.anchor and slot.x and slot.width and slot.height then
+                    ghost:SetPoint("BOTTOMLEFT", self.anchor, "TOPLEFT", slot.x, 0)
+                    ghost:SetSize(slot.width, slot.height)
+                else
+                    ghost:SetPoint("TOPLEFT", tab, "TOPLEFT", 0, 0)
+                    ghost:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 1, 0)
+                end
                 if chatFrame.isTemporary then
                     local label = chatFrame.chatTarget
                     if issecretvalue and issecretvalue(label) then
@@ -134,6 +177,7 @@ function module:RefreshTabs()
         end
     end
     for index = count + 1, #tabGhosts do tabGhosts[index]:Hide() end
+    self:SuppressCombatLogChrome()
 end
 
 function module:HideNativeChrome(frame)
@@ -143,6 +187,7 @@ function module:HideNativeChrome(frame)
         for _, suffix in ipairs(nativeSuffixes) do HideChatControl(_G[name .. suffix]) end
     end
     HideChatControl(frame.buttonFrame)
+    HideChatControl(frame.ScrollToBottomButton)
     HideChatControl(frame.Background)
     HideChatControl(frame.background)
     if name then HideChatControl(_G[name .. "Background"]) end
@@ -222,7 +267,7 @@ function module:CreateCopyButton()
     if self.copyButton or not self.anchor then return self.copyButton end
     local copy = CreateFrame("Button", nil, self.anchor, "BackdropTemplate")
     copy:SetSize(18, 18)
-    copy:SetPoint("BOTTOMRIGHT", self.anchor, "BOTTOMRIGHT", -20, 1)
+    copy:SetPoint("BOTTOMRIGHT", self.anchor, "BOTTOMRIGHT", -1, 1)
     copy:SetFrameLevel(self.anchor:GetFrameLevel() + 20)
     copy:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     copy:SetBackdropColor(0.02, 0.04, 0.08, 0.95)
@@ -242,6 +287,34 @@ function module:CreateCopyButton()
     copy:SetScript("OnLeave", GameTooltip_Hide)
     self.copyButton = copy
     return copy
+end
+
+function module:CreateScrollBottomButton()
+    if self.scrollBottomButton or not self.anchor then return self.scrollBottomButton end
+    local button = CreateFrame("Button", nil, self.anchor, "BackdropTemplate")
+    button:SetSize(18, 18)
+    button:SetPoint("BOTTOMRIGHT", self.anchor, "BOTTOMRIGHT", -1, 22)
+    button:SetFrameLevel(self.anchor:GetFrameLevel() + 20)
+    button:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    button:SetBackdropColor(0.012, 0.035, 0.07, 0.96)
+    button:SetBackdropBorderColor(unpack(FUI.colors.border))
+    local label = FUI:CreateFont(button, 10)
+    label:SetPoint("CENTER", 0, 1)
+    label:SetText("v")
+    label:SetTextColor(0.55, 0.82, 1, 1)
+    button:SetScript("OnClick", function()
+        local selected = GENERAL_CHAT_DOCK and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
+        selected = selected or ChatFrame1
+        if selected and selected.ScrollToBottom then selected:ScrollToBottom() end
+    end)
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:SetText("Zum neuesten Chatbeitrag")
+        GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", GameTooltip_Hide)
+    self.scrollBottomButton = button
+    return button
 end
 
 function module:StyleChatScrollbar(frame)
@@ -282,19 +355,7 @@ function module:StyleChatScrollbar(frame)
     end
 
     local bottom = frame.ScrollToBottomButton
-    if bottom then
-        FUI:StripTextures(bottom)
-        local backdrop = FUI:CreateBackdrop(bottom, 0)
-        backdrop:SetBackdropColor(0.012, 0.035, 0.07, 0.96)
-        backdrop:SetBackdropBorderColor(unpack(FUI.colors.border))
-        if not bottom.FlowdiArrow then
-            local arrow = FUI:CreateFont(bottom, 10)
-            arrow:SetPoint("CENTER", 0, 1)
-            arrow:SetText("v")
-            arrow:SetTextColor(0.55, 0.82, 1, 1)
-            bottom.FlowdiArrow = arrow
-        end
-    end
+    if bottom then HideChatControl(bottom) end
 end
 
 function module:CreateCopyWindow()
@@ -463,6 +524,7 @@ function module:Apply()
     self:StyleAll()
     local copy = self:CreateCopyButton()
     if copy then copy:SetShown(FUI.db.chat.copyButton) end
+    self:CreateScrollBottomButton()
 end
 
 function module:StyleAll()

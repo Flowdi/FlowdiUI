@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.25
+
+- Suppresses the Combat Log quick-button/filter overlay and its child hit regions, removing the diagonal dark panel that blocked chat tabs.
+- Pins FlowdiUI tab visuals to cached positions on the custom chat container so opening the edit box cannot move or hide them.
+- Replaces Blizzard's scroll-to-bottom control with a dedicated FlowdiUI arrow and aligns the C button directly below it.
+
 ## 0.8.24
 
 - Keeps docked chat-tab overlays visible regardless of Blizzard's temporary tab fade/hide state while typing.
