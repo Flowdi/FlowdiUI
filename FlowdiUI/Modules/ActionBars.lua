@@ -34,6 +34,31 @@ local function ResolveBar(definition)
     return _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
 end
 
+local function ResolveButtonAction(button)
+    if not button then return end
+    local function Valid(value)
+        return value ~= nil and not IsSecret(value) and type(value) == "number" and value > 0
+    end
+    local action
+    if button.GetAttribute then
+        local ok, value = pcall(button.GetAttribute, button, "action")
+        if ok and Valid(value) then action = value end
+    end
+    if not action and button.GetPagedID then
+        local ok, value = pcall(button.GetPagedID, button)
+        if ok and Valid(value) then action = value end
+    end
+    if not action and button.GetActionID then
+        local ok, value = pcall(button.GetActionID, button)
+        if ok and Valid(value) then action = value end
+    end
+    if not action then
+        local value = button.action
+        if Valid(value) then action = value end
+    end
+    return action
+end
+
 local function SuppressMainPager()
     local bar = MainActionBar
     local pager = bar and bar.ActionBarPageNumber
@@ -63,11 +88,7 @@ local function ButtonIsEmpty(button)
         if ok and not IsSecret(hasAction) then return hasAction ~= true end
     end
     if not HasAction then return false end
-    local action = button.action
-    if not action and button.GetAttribute then
-        local ok, value = pcall(button.GetAttribute, button, "action")
-        if ok and not IsSecret(value) then action = value end
-    end
+    local action = ResolveButtonAction(button)
     if not action or IsSecret(action) then return false end
     local ok, hasAction = pcall(HasAction, action)
     return ok and not IsSecret(hasAction) and hasAction ~= true
@@ -298,7 +319,7 @@ end
 RefreshActionCooldown = function(button)
     local cooldown = StyleActionCooldown(button)
     if not cooldown then return end
-    local action = button.GetAttribute and button:GetAttribute("action")
+    local action = ResolveButtonAction(button)
     if action and C_ActionBar and C_ActionBar.GetActionCooldown then
         local info = C_ActionBar.GetActionCooldown(action)
         if info and info.isActive and C_ActionBar.GetActionCooldownDuration
@@ -324,7 +345,7 @@ function module:PrintCooldownDiagnostics()
         return
     end
     local width, height = cooldown:GetSize()
-    local action = button.GetAttribute and button:GetAttribute("action")
+    local action = ResolveButtonAction(button)
     local active = "unknown"
     if action and C_ActionBar and C_ActionBar.GetActionCooldown then
         local info = C_ActionBar.GetActionCooldown(action)
@@ -335,8 +356,12 @@ function module:PrintCooldownDiagnostics()
         local ok, value = pcall(cooldown.GetDrawSwipe, cooldown)
         if ok then drawSwipe = tostring(value) end
     end
-    FUI:Print(("Cooldown diagnostics: action=%s, active=%s, shown=%s, alpha=%.2f, size=%.1fx%.1f, drawSwipe=%s")
-        :format(tostring(action), active, tostring(cooldown:IsShown()), cooldown:GetAlpha(), width or 0, height or 0, drawSwipe))
+    local attributeAction = button.GetAttribute and button:GetAttribute("action")
+    local rawFieldAction = button.action
+    local fieldAction = rawFieldAction and (IsSecret(rawFieldAction) and "secret" or rawFieldAction) or "nil"
+    FUI:Print(("Cooldown diagnostics: action=%s (attribute=%s, field=%s), active=%s, shown=%s, alpha=%.2f, size=%.1fx%.1f, drawSwipe=%s")
+        :format(tostring(action), tostring(attributeAction), tostring(fieldAction), active,
+            tostring(cooldown:IsShown()), cooldown:GetAlpha(), width or 0, height or 0, drawSwipe))
 end
 
 function module:SkinActionButton(button, settings)

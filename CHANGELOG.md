@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.39
+
+- Fixes cooldown lookup on Blizzard action buttons whose secure `action` attribute is nil in the Forever client.
+- Resolves the current slot through paged/action ID methods and the native button action field before requesting its duration object.
+- Extends `/fui cddiag` to report both the secure attribute and native action-field sources.
+
 ## 0.8.38
 
 - Reapplies the FlowdiUI swipe after every duration-object or numeric cooldown update, matching ElvUI's post-update styling order.
