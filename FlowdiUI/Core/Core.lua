@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.40"
+FUI.version = "0.8.41"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -194,6 +194,7 @@ local defaults = {
         groupFrames = true,
         chat = true,
         bags = true,
+        minimap = true,
         dataPanels = true,
         darkMode = true,
     },
@@ -338,6 +339,13 @@ local defaults = {
         darkness = 0.82,
         itemLevel = true,
         qualityBorders = true,
+    },
+    minimap = {
+        size = 180,
+        buttonSize = 24,
+        addonButtonSize = 28,
+        addonButtonColumns = 4,
+        mouseWheelZoom = true,
     },
     dataPanels = {
         scale = 1,

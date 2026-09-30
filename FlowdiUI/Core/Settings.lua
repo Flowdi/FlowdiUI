@@ -9,6 +9,7 @@ local pages = {
     { key = "groupFrames", label = "Party & Raid Frames" },
     { key = "chat", label = "Chat" },
     { key = "bags", label = "Bags" },
+    { key = "minimap", label = "Minimap" },
     { key = "dataPanels", label = "Data Panels" },
     { key = "darkMode", label = "Dark Mode & Skins" },
     { key = "profiles", label = "Profiles" },
@@ -1235,6 +1236,37 @@ local function BuildDataPanels(page)
     SelectTab("General")
 end
 
+local function BuildMinimap(page)
+    AddTitle(page, "Minimap", "A square FlowdiUI map with calendar, tracking, zoom controls, and a collected addon-button drawer.")
+    AddModuleSwitch(page, "minimap")
+    local db = FUI.db.minimap
+    AddSlider(page, "Map size", 24, -165, 300, 140, 260, 2,
+        function() return db.size end,
+        function(value) db.size = value end,
+        function(value) return string.format("%d px", value) end)
+    AddSlider(page, "Control button size", 375, -165, 300, 20, 32, 1,
+        function() return db.buttonSize end,
+        function(value) db.buttonSize = value end,
+        function(value) return string.format("%d px", value) end)
+    AddSlider(page, "Addon button size", 24, -255, 300, 20, 40, 1,
+        function() return db.addonButtonSize end,
+        function(value) db.addonButtonSize = value end,
+        function(value) return string.format("%d px", value) end)
+    AddSlider(page, "Buttons per drawer row", 375, -255, 300, 1, 6, 1,
+        function() return db.addonButtonColumns end,
+        function(value) db.addonButtonColumns = value end,
+        function(value) return tostring(value) end)
+    AddCheckbox(page, "Mouse wheel zoom", 24, -345,
+        function() return db.mouseWheelZoom end,
+        function(value) db.mouseWheelZoom = value end)
+    local info = FUI:CreateFont(page, 11)
+    info:SetPoint("TOPLEFT", 24, -405)
+    info:SetWidth(650)
+    info:SetJustifyH("LEFT")
+    info:SetTextColor(0.58, 0.7, 0.88)
+    info:SetText("The Minimap stays in the upper-right corner. Its optional Data Panel is configured separately under Data Panels and attaches directly to the map edge.")
+end
+
 local function BuildDarkMode(page)
     AddTitle(page, "Dark Mode & Skins", "Restyles actual Blizzard windows while preserving their native behavior.")
     AddModuleSwitch(page, "darkMode")
@@ -1298,6 +1330,7 @@ local builders = {
     groupFrames = BuildGroupFrames,
     chat = BuildChat,
     bags = BuildBags,
+    minimap = BuildMinimap,
     dataPanels = BuildDataPanels,
     darkMode = BuildDarkMode,
     profiles = BuildProfiles,
@@ -1391,8 +1424,8 @@ function FUI:CreateSettings()
     for index, definition in ipairs(pages) do
         local pageKey = definition.key
         local button = CreateFrame("Button", nil, sidebar)
-        button:SetSize(198, 34)
-        button:SetPoint("TOPLEFT", 11, -234 - (index - 1) * 39)
+        button:SetSize(198, 31)
+        button:SetPoint("TOPLEFT", 11, -234 - (index - 1) * 34)
         button:SetNormalFontObject(GameFontNormal)
         button:SetText(definition.label)
         button:GetFontString():SetFont(self.media.font, 12)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.41
+
+- Rebuilds the Minimap as a square FlowdiUI block in the upper-right corner with a flat dark background and blue border.
+- Adds dedicated calendar, tracking, zoom-in, zoom-out, and addon-button drawer controls beside the map.
+- Collects compatible third-party Minimap buttons into a styled, configurable flyout while excluding map pins and Blizzard structural controls.
+- Joins the optional Minimap Data Panel directly to the map edge and adds Minimap size and button-layout settings.
+
 ## 0.8.40
 
 - Separates cooldown rendering: Blizzard's native cooldown retains timer text while a dedicated FlowdiUI cooldown frame draws the swipe.

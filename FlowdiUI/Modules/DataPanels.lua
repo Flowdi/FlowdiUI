@@ -402,9 +402,9 @@ function module:Apply()
     self.minimap:ClearAllPoints()
     if Minimap then
         if db.minimapPosition == "TOP" then
-            self.minimap:SetPoint("BOTTOM", Minimap, "TOP", 0, 3)
+            self.minimap:SetPoint("BOTTOM", Minimap, "TOP", 0, 0)
         else
-            self.minimap:SetPoint("TOP", Minimap, "BOTTOM", 0, -3)
+            self.minimap:SetPoint("TOP", Minimap, "BOTTOM", 0, 0)
         end
     else
         self.minimap:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -180)
