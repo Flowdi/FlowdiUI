@@ -533,91 +533,76 @@ function module:CreateCopyWindow()
     textArea:SetBackdropColor(0.005, 0.012, 0.025, 0.98)
     textArea:SetBackdropBorderColor(unpack(FUI.colors.border))
 
-    local scroll = CreateFrame("ScrollFrame", nil, textArea, "UIPanelScrollFrameTemplate")
-    scroll:SetPoint("TOPLEFT", 8, -8)
-    scroll:SetPoint("BOTTOMRIGHT", -28, 8)
-    scroll:EnableMouseWheel(true)
-    local scrollBar = scroll.ScrollBar
-    local editBox = CreateFrame("EditBox", nil, scroll)
-    editBox:SetPoint("TOPLEFT")
-    editBox:SetWidth(548)
-    editBox:SetHeight(1)
-    editBox:SetMultiLine(true)
-    editBox:EnableMouse(true)
-    editBox:SetAutoFocus(false)
-    editBox:SetMaxLetters(0)
+    -- Blizzard's modern scrolling edit-box owns selection and hit testing;
+    -- the older UIPanelScrollFrameTemplate did not reliably route mouse
+    -- drags to its manually sized child on this client.
+    local textBox = CreateFrame("Frame", nil, textArea, "ScrollingEditBoxTemplate")
+    textBox:SetPoint("TOPLEFT", 8, -8)
+    textBox:SetPoint("BOTTOMRIGHT", -20, 8)
+    textBox:SetFrameLevel(textArea:GetFrameLevel() + 2)
+    local editBox = textBox:GetEditBox()
+    local scrollBox = textBox:GetScrollBox()
     editBox:SetFont(FUI:GetModuleFontPath("chat"), 12, "")
-    editBox:SetTextInsets(2, 2, 2, 2)
+    editBox:SetTextColor(0.92, 0.96, 1, 1)
     editBox:SetHighlightColor(0.18, 0.58, 1, 0.55)
+    editBox:SetAutoFocus(false)
+    editBox:EnableMouse(true)
     editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
-    local function RefreshCopyScroll()
-        if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
-        local maximum = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange()
-            or math.max(0, editBox:GetHeight() - scroll:GetHeight())
-        maximum = math.max(0, maximum or 0)
-        if scrollBar then
-            scrollBar:SetMinMaxValues(0, maximum)
-            local value = math.min(scrollBar:GetValue() or 0, maximum)
-            scrollBar:SetValue(value)
-            scrollBar:SetShown(maximum > 0)
-        end
-    end
-    editBox:SetScript("OnTextChanged", function(self, userInput)
-        if userInput then
-            self:SetText(frame.copyText or "")
-            self:SetCursorPosition(0)
+    editBox:HookScript("OnTextChanged", function(self, userInput)
+        if not userInput or frame.restoringCopyText then return end
+        frame.restoringCopyText = true
+        self:SetText(frame.copyText or "")
+        self:SetCursorPosition(0)
+        frame.restoringCopyText = nil
+    end)
+
+    -- Thin FlowdiUI slider driven by the template's ScrollBox.
+    local slider = CreateFrame("Slider", nil, textArea, "BackdropTemplate")
+    slider:SetOrientation("VERTICAL")
+    slider:SetMinMaxValues(0, 1)
+    slider:SetValueStep(0.001)
+    slider:SetObeyStepOnDrag(false)
+    slider:SetPoint("TOPRIGHT", textArea, "TOPRIGHT", -6, -8)
+    slider:SetPoint("BOTTOMRIGHT", textArea, "BOTTOMRIGHT", -6, 8)
+    slider:SetWidth(8)
+    slider:SetFrameLevel(textBox:GetFrameLevel() + 2)
+    slider:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    slider:SetBackdropColor(0.006, 0.014, 0.03, 0.92)
+    slider:SetBackdropBorderColor(0.06, 0.20, 0.42, 0.9)
+    slider:SetThumbTexture(FUI.textures.Flat)
+    local thumb = slider:GetThumbTexture()
+    thumb:SetSize(6, 30)
+    thumb:SetVertexColor(0.18, 0.58, 1, 1)
+    slider:SetScript("OnValueChanged", function(self, value)
+        if not self.syncing and scrollBox then scrollBox:SetScrollPercentage(1 - value) end
+    end)
+    slider:SetScript("OnMouseWheel", function(_, delta)
+        if not scrollBox then return end
+        local value = math.max(0, math.min(1, (scrollBox:GetScrollPercentage() or 0) - delta * 0.10))
+        scrollBox:SetScrollPercentage(value)
+    end)
+    local elapsed = 0
+    slider:SetScript("OnUpdate", function(self, delta)
+        elapsed = elapsed + delta
+        if elapsed < 0.05 or not scrollBox then return end
+        elapsed = 0
+        local extent = scrollBox:GetVisibleExtentPercentage() or 1
+        if extent >= 0.999 then
+            self:SetAlpha(0)
+            self:EnableMouse(false)
             return
         end
-        local textHeight = self.GetTextHeight and self:GetTextHeight() or 1
-        self:SetHeight(math.max(scroll:GetHeight(), textHeight + 12))
-        C_Timer.After(0, RefreshCopyScroll)
+        self:SetAlpha(1)
+        self:EnableMouse(true)
+        thumb:SetHeight(math.max(20, self:GetHeight() * extent))
+        self.syncing = true
+        self:SetValue(1 - (scrollBox:GetScrollPercentage() or 0))
+        self.syncing = nil
     end)
-    editBox:SetScript("OnMouseDown", function(self)
-        if not self:HasFocus() then self:SetFocus() end
-    end)
-    editBox:SetScript("OnCursorChanged", function(_, _, y, _, cursorHeight)
-        if not y or not cursorHeight then return end
-        y = -y
-        local offset = scroll:GetVerticalScroll()
-        local value = offset
-        if y < offset then
-            value = y
-        elseif y + cursorHeight > offset + scroll:GetHeight() then
-            value = y + cursorHeight - scroll:GetHeight()
-        end
-        if value ~= offset then
-            if scrollBar then scrollBar:SetValue(value) else scroll:SetVerticalScroll(value) end
-        end
-    end)
-    scroll:SetScript("OnSizeChanged", function(self, width)
-        editBox:SetWidth(math.max(40, width - 4))
-        C_Timer.After(0, RefreshCopyScroll)
-    end)
-    scroll:SetScript("OnMouseWheel", function(self, delta)
-        local maximum = self.GetVerticalScrollRange and self:GetVerticalScrollRange()
-            or math.max(0, editBox:GetHeight() - self:GetHeight())
-        local value = math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 36))
-        if scrollBar then
-            scrollBar:SetValue(value)
-        else
-            self:SetVerticalScroll(value)
-        end
-    end)
-    scroll:HookScript("OnVerticalScroll", function(self, offset)
-        editBox:SetHitRectInsets(0, 0, offset, math.max(0, editBox:GetHeight() - offset - self:GetHeight()))
-    end)
-    scroll:HookScript("OnScrollRangeChanged", function(self, _, yRange)
-        if yRange == 0 then
-            editBox:SetHitRectInsets(0, 0, 0, 0)
-        else
-            local offset = self:GetVerticalScroll()
-            editBox:SetHitRectInsets(0, 0, offset, math.max(0, editBox:GetHeight() - offset - self:GetHeight()))
-        end
-    end)
-    scroll:SetScrollChild(editBox)
-    frame.scroll = scroll
-    frame.scrollBar = scrollBar
-    frame.refreshScroll = RefreshCopyScroll
+
+    frame.textBox = textBox
+    frame.scrollBox = scrollBox
+    frame.copySlider = slider
     frame.editBox = editBox
     frame:SetScript("OnHide", function() editBox:ClearFocus() end)
 
@@ -641,13 +626,14 @@ function module:OpenCopyWindow(chatFrame)
     end
     frame:Show()
     frame.copyText = table.concat(messages, "\n")
-    frame.editBox:SetText(frame.copyText)
-    frame.editBox:SetFocus()
-    frame.editBox:SetCursorPosition(0)
-    frame.editBox:HighlightText(0, 0)
-    frame.scroll:SetVerticalScroll(0)
-    if frame.scrollBar then frame.scrollBar:SetValue(0) end
-    C_Timer.After(0, frame.refreshScroll)
+    frame.textBox:SetText(frame.copyText)
+    if frame.scrollBox then frame.scrollBox:SetScrollPercentage(0) end
+    C_Timer.After(0, function()
+        if not frame:IsShown() then return end
+        frame.editBox:SetFocus()
+        frame.editBox:SetCursorPosition(0)
+        frame.editBox:HighlightText(0, 0)
+    end)
 end
 
 function module:StyleChatFrame(frame)

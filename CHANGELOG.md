@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.32
+
+- Rebuilds Copy Chat on Blizzard's modern `ScrollingEditBoxTemplate`, whose built-in input routing supports reliable click-and-drag text selection.
+- Replaces the legacy copy scrollbar with a FlowdiUI slider synchronized directly to the template ScrollBox.
+- Keeps the new selectable editor read-only and clears the template's initial selection after opening.
+
 ## 0.8.31
 
 - Makes the Copy Chat text genuinely read-only by restoring the captured history after any typed, pasted, deleted, or replaced input.
