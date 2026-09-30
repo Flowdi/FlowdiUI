@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.35
+
+- Restores a visible FlowdiUI-blue cooldown swipe for both the global cooldown and full spell cooldowns.
+- Uses each action button's authoritative cooldown frame, avoiding unreliable global-cooldown spell-ID polling.
+- Reapplies the swipe style whenever Blizzard refreshes or attempts to disable the cooldown display.
+
 ## 0.8.34
 
 - Adds a FlowdiUI-blue clock sweep to occupied action buttons whenever the real global cooldown is active.

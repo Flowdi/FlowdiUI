@@ -28,7 +28,8 @@ local pressFeedbacks = setmetatable({}, { __mode = "k" })
 local pressStateHooked = setmetatable({}, { __mode = "k" })
 local pressedButtons = setmetatable({}, { __mode = "k" })
 local pressVisibleUntil = setmetatable({}, { __mode = "k" })
-local gcdOverlays = setmetatable({}, { __mode = "k" })
+local cooldownFramesHooked = setmetatable({}, { __mode = "k" })
+local cooldownStyleActive = setmetatable({}, { __mode = "k" })
 local function ResolveBar(definition)
     return _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
 end
@@ -211,58 +212,43 @@ local function EnsurePressFeedback(button)
     return feedback
 end
 
-local function EnsureGlobalCooldownOverlay(button)
-    local cooldown = gcdOverlays[button]
-    if cooldown then return cooldown end
-    cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
-    cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
-    cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
-    cooldown:SetFrameLevel(button:GetFrameLevel() + 6)
+local function StyleActionCooldown(button)
+    if not button then return end
+    local name = button.GetName and button:GetName()
+    local cooldown = button.cooldown or button.Cooldown or (name and _G[name .. "Cooldown"])
+    if not cooldown then return end
+
+    cooldownStyleActive[cooldown] = true
     if cooldown.SetDrawSwipe then cooldown:SetDrawSwipe(true) end
     if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
     if cooldown.SetDrawBling then cooldown:SetDrawBling(false) end
-    if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
-    if cooldown.SetSwipeColor then cooldown:SetSwipeColor(0.06, 0.32, 0.78, 0.58) end
-    cooldown:Hide()
-    gcdOverlays[button] = cooldown
-    return cooldown
-end
+    if cooldown.SetSwipeColor then cooldown:SetSwipeColor(0.04, 0.30, 0.78, 0.72) end
+    cooldown:SetFrameLevel(button:GetFrameLevel() + 6)
+    cooldownStyleActive[cooldown] = nil
 
-local function ReadGlobalCooldown()
-    local startTime, duration, modRate
-    if C_Spell and C_Spell.GetSpellCooldown then
-        local ok, info = pcall(C_Spell.GetSpellCooldown, 61304)
-        if ok and info then
-            startTime, duration, modRate = info.startTime, info.duration, info.modRate
-        end
-    elseif GetSpellCooldown then
-        local ok, startValue, durationValue, _, rateValue = pcall(GetSpellCooldown, 61304)
-        if ok then startTime, duration, modRate = startValue, durationValue, rateValue end
+    if cooldownFramesHooked[cooldown] then return end
+    cooldownFramesHooked[cooldown] = true
+    if cooldown.SetDrawSwipe then
+        hooksecurefunc(cooldown, "SetDrawSwipe", function(self, enabled)
+            if cooldownStyleActive[self] or enabled == true then return end
+            cooldownStyleActive[self] = true
+            self:SetDrawSwipe(true)
+            cooldownStyleActive[self] = nil
+        end)
     end
-    if not startTime or not duration or IsSecret(startTime) or IsSecret(duration) or (modRate and IsSecret(modRate)) then return end
-    if startTime <= 0 or duration <= 0 or duration > 2.5 then return end
-    return startTime, duration, modRate or 1
-end
-
-function module:UpdateGlobalCooldown()
-    local startTime, duration, modRate = ReadGlobalCooldown()
-    local function UpdateButton(button)
-        if not button then return end
-        local overlay = EnsureGlobalCooldownOverlay(button)
-        if startTime and not ButtonIsEmpty(button) then
-            local ok = pcall(overlay.SetCooldown, overlay, startTime, duration, modRate)
-            if not ok then overlay:SetCooldown(startTime, duration) end
-            overlay:Show()
-        else
-            if overlay.Clear then overlay:Clear() end
-            overlay:Hide()
-        end
+    if cooldown.SetSwipeColor then
+        hooksecurefunc(cooldown, "SetSwipeColor", function(self)
+            if cooldownStyleActive[self] then return end
+            cooldownStyleActive[self] = true
+            self:SetSwipeColor(0.04, 0.30, 0.78, 0.72)
+            cooldownStyleActive[self] = nil
+        end)
     end
-    for _, definition in ipairs(self.barOrder) do
-        for index = 1, definition.maximum do UpdateButton(_G[definition.prefix .. index]) end
+    if cooldown.SetCooldown then
+        hooksecurefunc(cooldown, "SetCooldown", function()
+            StyleActionCooldown(button)
+        end)
     end
-    UpdateButton(ExtraActionButton1)
-    UpdateButton(ZoneAbilityFrame and ZoneAbilityFrame.SpellButton)
 end
 
 function module:SkinActionButton(button, settings)
@@ -278,7 +264,7 @@ function module:SkinActionButton(button, settings)
     if button.SlotBackground then button.SlotBackground:SetAlpha(0) end
     SuppressNativeButtonEffects(button)
     EnsurePressFeedback(button)
-    EnsureGlobalCooldownOverlay(button)
+    StyleActionCooldown(button)
     if icon then icon:SetAlpha(empty and 0 or 1) end
     if hotkey then
         if _G.RANGE_INDICATOR and hotkey:GetText() == _G.RANGE_INDICATOR then
@@ -387,7 +373,6 @@ function module:Apply()
     for _, definition in ipairs(self.barOrder) do self:ApplyBar(definition) end
     self:SkinAllButtons()
     SuppressMainPager()
-    self:UpdateGlobalCooldown()
 end
 
 function module:RegisterMovers()
@@ -426,9 +411,9 @@ function module:Initialize()
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     eventFrame:SetScript("OnEvent", function(_, event)
         if event == "SPELL_UPDATE_COOLDOWN" or event == "ACTIONBAR_UPDATE_COOLDOWN" then
-            module:UpdateGlobalCooldown()
+            module:SkinAllButtons()
             if C_Timer and C_Timer.After then
-                C_Timer.After(0, function() module:UpdateGlobalCooldown() end)
+                C_Timer.After(0, function() module:SkinAllButtons() end)
             end
         elseif event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_ENTERING_WORLD" then
             module:Apply()
