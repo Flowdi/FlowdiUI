@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.40
+
+- Separates cooldown rendering: Blizzard's native cooldown retains timer text while a dedicated FlowdiUI cooldown frame draws the swipe.
+- Feeds the dedicated swipe the now-correctly resolved action duration object for GCDs and full cooldowns.
+- Extends `/fui cddiag` with the dedicated FlowdiUI swipe frame's visibility and alpha.
+
 ## 0.8.39
 
 - Fixes cooldown lookup on Blizzard action buttons whose secure `action` attribute is nil in the Forever client.
