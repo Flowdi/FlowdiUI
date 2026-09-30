@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.30
+
+- Renames the copy window and button tooltip to `Copy Chat`.
+- Opens chat text without selecting everything so any desired excerpt can be selected and copied manually.
+- Synchronizes the copy window's scroll child, range, slider, and mouse wheel for long chat histories.
+
 ## 0.8.29
 
 - Replaces the textual chat scroll `v` with a compact, recolored return-to-bottom arrow icon.

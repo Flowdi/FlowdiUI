@@ -387,7 +387,7 @@ function module:CreateCopyButton()
     end)
     copy:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        GameTooltip:SetText("Chat kopieren")
+        GameTooltip:SetText("Copy Chat")
         GameTooltip:Show()
     end)
     copy:SetScript("OnLeave", GameTooltip_Hide)
@@ -417,7 +417,7 @@ function module:CreateScrollBottomButton()
     end)
     button:SetScript("OnEnter", function(self)
         GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:SetText("Zum neuesten Chatbeitrag")
+        GameTooltip:SetText("Scroll to latest message")
         GameTooltip:Show()
     end)
     button:SetScript("OnLeave", GameTooltip_Hide)
@@ -524,7 +524,7 @@ function module:CreateCopyWindow()
 
     local title = FUI:CreateFont(frame, 16)
     title:SetPoint("TOPLEFT", 18, -16)
-    title:SetText("Chat kopieren")
+    title:SetText("Copy Chat")
 
     local textArea = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     textArea:SetPoint("TOPLEFT", 18, -50)
@@ -537,30 +537,55 @@ function module:CreateCopyWindow()
     scroll:SetPoint("TOPLEFT", 8, -8)
     scroll:SetPoint("BOTTOMRIGHT", -28, 8)
     scroll:EnableMouseWheel(true)
+    local scrollBar = scroll.ScrollBar
     local editBox = CreateFrame("EditBox", nil, scroll)
     editBox:SetPoint("TOPLEFT")
     editBox:SetWidth(548)
     editBox:SetHeight(1)
     editBox:SetMultiLine(true)
+    editBox:EnableMouse(true)
     editBox:SetAutoFocus(false)
     editBox:SetMaxLetters(0)
     editBox:SetFont(FUI:GetModuleFontPath("chat"), 12, "")
     editBox:SetTextInsets(2, 2, 2, 2)
     editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
+    local function RefreshCopyScroll()
+        if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
+        local maximum = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange()
+            or math.max(0, editBox:GetHeight() - scroll:GetHeight())
+        maximum = math.max(0, maximum or 0)
+        if scrollBar then
+            scrollBar:SetMinMaxValues(0, maximum)
+            local value = math.min(scrollBar:GetValue() or 0, maximum)
+            scrollBar:SetValue(value)
+            scrollBar:SetShown(maximum > 0)
+        end
+    end
     editBox:SetScript("OnTextChanged", function(self)
         local textHeight = self.GetTextHeight and self:GetTextHeight() or 1
         self:SetHeight(math.max(scroll:GetHeight(), textHeight + 12))
+        C_Timer.After(0, RefreshCopyScroll)
     end)
     scroll:SetScript("OnSizeChanged", function(self, width)
         editBox:SetWidth(math.max(40, width - 4))
+        C_Timer.After(0, RefreshCopyScroll)
     end)
     scroll:SetScript("OnMouseWheel", function(self, delta)
-        local maximum = math.max(0, editBox:GetHeight() - self:GetHeight())
-        self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 36)))
+        local maximum = self.GetVerticalScrollRange and self:GetVerticalScrollRange()
+            or math.max(0, editBox:GetHeight() - self:GetHeight())
+        local value = math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 36))
+        if scrollBar then
+            scrollBar:SetValue(value)
+        else
+            self:SetVerticalScroll(value)
+        end
     end)
     scroll:SetScrollChild(editBox)
     frame.scroll = scroll
+    frame.scrollBar = scrollBar
+    frame.refreshScroll = RefreshCopyScroll
     frame.editBox = editBox
+    frame:SetScript("OnHide", function() editBox:ClearFocus() end)
 
     local close = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     close:SetSize(90, 25)
@@ -580,11 +605,14 @@ function module:OpenCopyWindow(chatFrame)
             if message then messages[#messages + 1] = message end
         end
     end
-    frame.editBox:SetText(table.concat(messages, "\n"))
-    frame.scroll:SetVerticalScroll(0)
     frame:Show()
-    frame.editBox:HighlightText()
+    frame.editBox:SetText(table.concat(messages, "\n"))
     frame.editBox:SetFocus()
+    frame.editBox:SetCursorPosition(0)
+    frame.editBox:HighlightText(0, 0)
+    frame.scroll:SetVerticalScroll(0)
+    if frame.scrollBar then frame.scrollBar:SetValue(0) end
+    C_Timer.After(0, frame.refreshScroll)
 end
 
 function module:StyleChatFrame(frame)
