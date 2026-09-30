@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.34
+
+- Adds a FlowdiUI-blue clock sweep to occupied action buttons whenever the real global cooldown is active.
+- Adds an independent blue press-feedback layer driven by the secure button state, including unusable or out-of-range actions.
+- Keeps press feedback visible for a perceptible minimum interval for very fast key and mouse input.
+
 ## 0.8.33
 
 - Permanently locks Blizzard's action-button hover, pushed, checked, flash, border, and new-action textures at zero alpha.

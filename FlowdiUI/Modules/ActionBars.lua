@@ -24,6 +24,11 @@ local effectAlphaLocked = setmetatable({}, { __mode = "k" })
 local effectAlphaActive = setmetatable({}, { __mode = "k" })
 local effectFramesHooked = setmetatable({}, { __mode = "k" })
 local effectButtonsHooked = setmetatable({}, { __mode = "k" })
+local pressFeedbacks = setmetatable({}, { __mode = "k" })
+local pressStateHooked = setmetatable({}, { __mode = "k" })
+local pressedButtons = setmetatable({}, { __mode = "k" })
+local pressVisibleUntil = setmetatable({}, { __mode = "k" })
+local gcdOverlays = setmetatable({}, { __mode = "k" })
 local function ResolveBar(definition)
     return _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
 end
@@ -153,6 +158,113 @@ local function SuppressNativeButtonEffects(button)
     end
 end
 
+local function EnsurePressFeedback(button)
+    local feedback = pressFeedbacks[button]
+    if not feedback then
+        feedback = CreateFrame("Frame", nil, button, "BackdropTemplate")
+        feedback:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+        feedback:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+        feedback:SetFrameLevel(button:GetFrameLevel() + 8)
+        feedback:EnableMouse(false)
+        feedback:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 2 })
+        feedback:SetBackdropColor(0.04, 0.20, 0.55, 0.32)
+        feedback:SetBackdropBorderColor(0.28, 0.72, 1, 0.95)
+        feedback:Hide()
+        pressFeedbacks[button] = feedback
+    end
+    if pressStateHooked[button] then return feedback end
+    pressStateHooked[button] = true
+
+    local function SetPressed(down)
+        if down then
+            pressedButtons[button] = true
+            pressVisibleUntil[button] = GetTime() + 0.10
+            feedback:Show()
+            return
+        end
+        pressedButtons[button] = nil
+        local remaining = (pressVisibleUntil[button] or 0) - GetTime()
+        if remaining <= 0 then
+            feedback:Hide()
+        else
+            C_Timer.After(remaining, function()
+                if not pressedButtons[button] and GetTime() >= (pressVisibleUntil[button] or 0) then
+                    feedback:Hide()
+                end
+            end)
+        end
+    end
+
+    if button.SetButtonState then
+        hooksecurefunc(button, "SetButtonState", function(_, state)
+            SetPressed(state == "PUSHED")
+        end)
+    end
+    if button.HookScript then
+        button:HookScript("OnMouseDown", function() SetPressed(true) end)
+        button:HookScript("OnMouseUp", function() SetPressed(false) end)
+        button:HookScript("OnHide", function()
+            pressedButtons[button] = nil
+            feedback:Hide()
+        end)
+    end
+    return feedback
+end
+
+local function EnsureGlobalCooldownOverlay(button)
+    local cooldown = gcdOverlays[button]
+    if cooldown then return cooldown end
+    cooldown = CreateFrame("Cooldown", nil, button, "CooldownFrameTemplate")
+    cooldown:SetPoint("TOPLEFT", button, "TOPLEFT", 1, -1)
+    cooldown:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", -1, 1)
+    cooldown:SetFrameLevel(button:GetFrameLevel() + 6)
+    if cooldown.SetDrawSwipe then cooldown:SetDrawSwipe(true) end
+    if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
+    if cooldown.SetDrawBling then cooldown:SetDrawBling(false) end
+    if cooldown.SetHideCountdownNumbers then cooldown:SetHideCountdownNumbers(true) end
+    if cooldown.SetSwipeColor then cooldown:SetSwipeColor(0.06, 0.32, 0.78, 0.58) end
+    cooldown:Hide()
+    gcdOverlays[button] = cooldown
+    return cooldown
+end
+
+local function ReadGlobalCooldown()
+    local startTime, duration, modRate
+    if C_Spell and C_Spell.GetSpellCooldown then
+        local ok, info = pcall(C_Spell.GetSpellCooldown, 61304)
+        if ok and info then
+            startTime, duration, modRate = info.startTime, info.duration, info.modRate
+        end
+    elseif GetSpellCooldown then
+        local ok, startValue, durationValue, _, rateValue = pcall(GetSpellCooldown, 61304)
+        if ok then startTime, duration, modRate = startValue, durationValue, rateValue end
+    end
+    if not startTime or not duration or IsSecret(startTime) or IsSecret(duration) or (modRate and IsSecret(modRate)) then return end
+    if startTime <= 0 or duration <= 0 or duration > 2.5 then return end
+    return startTime, duration, modRate or 1
+end
+
+function module:UpdateGlobalCooldown()
+    local startTime, duration, modRate = ReadGlobalCooldown()
+    local function UpdateButton(button)
+        if not button then return end
+        local overlay = EnsureGlobalCooldownOverlay(button)
+        if startTime and not ButtonIsEmpty(button) then
+            local ok = pcall(overlay.SetCooldown, overlay, startTime, duration, modRate)
+            if not ok then overlay:SetCooldown(startTime, duration) end
+            overlay:Show()
+        else
+            if overlay.Clear then overlay:Clear() end
+            overlay:Hide()
+        end
+    end
+    for _, definition in ipairs(self.barOrder) do
+        for index = 1, definition.maximum do UpdateButton(_G[definition.prefix .. index]) end
+    end
+    UpdateButton(ExtraActionButton1)
+    UpdateButton(ZoneAbilityFrame and ZoneAbilityFrame.SpellButton)
+end
+
 function module:SkinActionButton(button, settings)
     if not button then return end
     FUI:SkinButton(button)
@@ -165,6 +277,8 @@ function module:SkinActionButton(button, settings)
     if normal then normal:SetAlpha(0) end
     if button.SlotBackground then button.SlotBackground:SetAlpha(0) end
     SuppressNativeButtonEffects(button)
+    EnsurePressFeedback(button)
+    EnsureGlobalCooldownOverlay(button)
     if icon then icon:SetAlpha(empty and 0 or 1) end
     if hotkey then
         if _G.RANGE_INDICATOR and hotkey:GetText() == _G.RANGE_INDICATOR then
@@ -273,6 +387,7 @@ function module:Apply()
     for _, definition in ipairs(self.barOrder) do self:ApplyBar(definition) end
     self:SkinAllButtons()
     SuppressMainPager()
+    self:UpdateGlobalCooldown()
 end
 
 function module:RegisterMovers()
@@ -306,9 +421,16 @@ function module:Initialize()
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
     eventFrame:RegisterEvent("UPDATE_BINDINGS")
+    eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+    eventFrame:RegisterEvent("ACTIONBAR_UPDATE_COOLDOWN")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     eventFrame:SetScript("OnEvent", function(_, event)
-        if event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_ENTERING_WORLD" then
+        if event == "SPELL_UPDATE_COOLDOWN" or event == "ACTIONBAR_UPDATE_COOLDOWN" then
+            module:UpdateGlobalCooldown()
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function() module:UpdateGlobalCooldown() end)
+            end
+        elseif event == "PLAYER_REGEN_ENABLED" or event == "PLAYER_ENTERING_WORLD" then
             module:Apply()
             if event == "PLAYER_ENTERING_WORLD" and C_Timer and C_Timer.After then
                 C_Timer.After(0, function() module:Apply() end)
