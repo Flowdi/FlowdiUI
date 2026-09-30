@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.41"
+FUI.version = "0.8.42"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -195,6 +195,7 @@ local defaults = {
         chat = true,
         bags = true,
         minimap = true,
+        utilityFrames = true,
         dataPanels = true,
         darkMode = true,
     },
@@ -347,6 +348,28 @@ local defaults = {
         addonButtonColumns = 4,
         mouseWheelZoom = true,
     },
+    utilityFrames = {
+        microBar = {
+            enabled = true,
+            visibility = "Mouseover",
+            buttonSize = 26,
+            spacing = 2,
+        },
+        bagBar = {
+            enabled = true,
+            visibility = "Mouseover",
+            buttonSize = 30,
+            spacing = 2,
+        },
+        objectiveTracker = {
+            enabled = true,
+            width = 280,
+            height = 500,
+            backgroundAlpha = 0.72,
+            headerSize = 13,
+            textSize = 11,
+        },
+    },
     dataPanels = {
         scale = 1,
         opacity = 0.95,
@@ -396,6 +419,10 @@ local defaults = {
         party = { "LEFT", "LEFT", 42, 20 },
         raid = { "LEFT", "LEFT", 42, 20 },
         chat = { "BOTTOMLEFT", "BOTTOMLEFT", 28, 52 },
+        minimap = { "TOPRIGHT", "TOPRIGHT", -12, -12 },
+        microBar = { "BOTTOMRIGHT", "BOTTOMRIGHT", -235, 18 },
+        bagBar = { "BOTTOMRIGHT", "BOTTOMRIGHT", -18, 18 },
+        objectiveTracker = { "TOPRIGHT", "TOPRIGHT", -22, -235 },
         dataPanel = { "BOTTOM", "BOTTOM", 0, 4 },
         dataPanel2 = { "TOP", "TOP", 0, -4 },
         settings = { "CENTER", "CENTER", 0, 0 },
@@ -633,6 +660,7 @@ function FUI:RegisterMover(frame, key, label, onMoved)
         playerCastbar = "Player Cast Bar", petCastbar = "Pet Cast Bar", targetCastbar = "Target Cast Bar", focusCastbar = "Focus Cast Bar",
         targettargetCastbar = "Target of Target Cast Bar", targettargettargetCastbar = "Target of Target of Target Cast Bar",
         party = "Party Frames", raid = "Raid Frames", chat = "Chat",
+        minimap = "Minimap", microBar = "Micro Bar", bagBar = "Bag Bar", objectiveTracker = "Objective Tracker",
         dataPanel = "Primary Data Panel", dataPanel2 = "Second Data Panel",
     }
     self.movers[key] = { frame = frame, key = key, label = label or labels[key] or key, onMoved = onMoved }

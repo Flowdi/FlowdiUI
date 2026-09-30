@@ -4,6 +4,7 @@ local FUI = ns.FUI
 local pages = {
     { key = "general", label = "Global Settings" },
     { key = "actionBars", label = "Action Bars" },
+    { key = "utilityFrames", label = "Utility & Tracker" },
     { key = "nameplates", label = "Nameplates" },
     { key = "unitFrames", label = "Unit Frames" },
     { key = "groupFrames", label = "Party & Raid Frames" },
@@ -1267,6 +1268,56 @@ local function BuildMinimap(page)
     info:SetText("The Minimap stays in the upper-right corner. Its optional Data Panel is configured separately under Data Panels and attaches directly to the map edge.")
 end
 
+local function BuildUtilityFrames(page)
+    AddTitle(page, "Utility & Tracker", "Style and position Blizzard's Micro Bar, Bag Bar, and Objective Tracker.")
+    local tabNames = { "Micro Bar", "Bag Bar", "Objective Tracker" }
+    local tabs, panels = {}, {}
+    local function SelectTab(name)
+        for key, panel in pairs(panels) do panel:SetShown(key == name) end
+        for key, tab in pairs(tabs) do
+            tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1)
+        end
+    end
+    for index, name in ipairs(tabNames) do
+        local tab = AddButton(page, name, 24 + (index - 1) * 210, -88, 195, function() SelectTab(name) end)
+        tabs[name] = tab
+        local panel = CreateFrame("Frame", nil, page)
+        panel:SetPoint("TOPLEFT", 18, -126)
+        panel:SetPoint("BOTTOMRIGHT", -18, 8)
+        panel.controls = {}
+        panel:Hide()
+        panels[name] = panel
+    end
+
+    local db = FUI.db.utilityFrames
+    local micro = panels["Micro Bar"]
+    AddCheckbox(micro, "Enable FlowdiUI Micro Bar", 6, -5, function() return db.microBar.enabled end, function(v) db.microBar.enabled = v end)
+    AddCycle(micro, "Visibility", 6, -65, 220, { "Always", "Mouseover" }, function() return db.microBar.visibility end, function(v) db.microBar.visibility = v end)
+    AddSlider(micro, "Button size", 6, -155, 280, 20, 38, 1, function() return db.microBar.buttonSize end, function(v) db.microBar.buttonSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(micro, "Button spacing", 340, -155, 280, 0, 10, 1, function() return db.microBar.spacing end, function(v) db.microBar.spacing = v end, function(v) return string.format("%d px", v) end)
+
+    local bags = panels["Bag Bar"]
+    AddCheckbox(bags, "Enable FlowdiUI Bag Bar", 6, -5, function() return db.bagBar.enabled end, function(v) db.bagBar.enabled = v end)
+    AddCycle(bags, "Visibility", 6, -65, 220, { "Always", "Mouseover" }, function() return db.bagBar.visibility end, function(v) db.bagBar.visibility = v end)
+    AddSlider(bags, "Button size", 6, -155, 280, 22, 42, 1, function() return db.bagBar.buttonSize end, function(v) db.bagBar.buttonSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(bags, "Button spacing", 340, -155, 280, 0, 10, 1, function() return db.bagBar.spacing end, function(v) db.bagBar.spacing = v end, function(v) return string.format("%d px", v) end)
+
+    local tracker = panels["Objective Tracker"]
+    AddCheckbox(tracker, "Enable FlowdiUI Objective Tracker style", 6, -5, function() return db.objectiveTracker.enabled end, function(v) db.objectiveTracker.enabled = v end)
+    AddSlider(tracker, "Width", 6, -65, 280, 220, 440, 10, function() return db.objectiveTracker.width end, function(v) db.objectiveTracker.width = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(tracker, "Height", 340, -65, 280, 260, 760, 10, function() return db.objectiveTracker.height end, function(v) db.objectiveTracker.height = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(tracker, "Background opacity", 6, -155, 280, 0, 1, 0.05, function() return db.objectiveTracker.backgroundAlpha end, function(v) db.objectiveTracker.backgroundAlpha = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(tracker, "Header font size", 340, -155, 280, 10, 18, 1, function() return db.objectiveTracker.headerSize end, function(v) db.objectiveTracker.headerSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(tracker, "Objective font size", 6, -245, 280, 8, 16, 1, function() return db.objectiveTracker.textSize end, function(v) db.objectiveTracker.textSize = v end, function(v) return string.format("%d px", v) end)
+    local info = FUI:CreateFont(tracker, 11)
+    info:SetPoint("TOPLEFT", 6, -335)
+    info:SetWidth(620)
+    info:SetJustifyH("LEFT")
+    info:SetTextColor(0.58, 0.7, 0.88)
+    info:SetText("Blizzard continues to generate quest and scenario content. FlowdiUI only owns the tracker's host, typography, border, and position.")
+    SelectTab("Micro Bar")
+end
+
 local function BuildDarkMode(page)
     AddTitle(page, "Dark Mode & Skins", "Restyles actual Blizzard windows while preserving their native behavior.")
     AddModuleSwitch(page, "darkMode")
@@ -1325,6 +1376,7 @@ end
 local builders = {
     general = BuildGeneral,
     actionBars = BuildActionBars,
+    utilityFrames = BuildUtilityFrames,
     nameplates = BuildNameplates,
     unitFrames = BuildUnitFrames,
     groupFrames = BuildGroupFrames,
@@ -1424,8 +1476,8 @@ function FUI:CreateSettings()
     for index, definition in ipairs(pages) do
         local pageKey = definition.key
         local button = CreateFrame("Button", nil, sidebar)
-        button:SetSize(198, 31)
-        button:SetPoint("TOPLEFT", 11, -234 - (index - 1) * 34)
+        button:SetSize(198, 28)
+        button:SetPoint("TOPLEFT", 11, -234 - (index - 1) * 31)
         button:SetNormalFontObject(GameFontNormal)
         button:SetText(definition.label)
         button:GetFontString():SetFont(self.media.font, 12)

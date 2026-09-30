@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.42
+
+- Adds the Minimap to FlowdiUI Unlock Mode with persistent coordinates and automatic Data Panel following.
+- Adds movable FlowdiUI Micro Bar and Bag Bar replacements with secure Blizzard-button passthrough and optional mouseover visibility.
+- Adds a movable FlowdiUI Objective Tracker host that preserves Blizzard's tracker engine while applying FlowdiUI typography, background, and border styling.
+- Adds a dedicated Utility & Tracker settings page for bar visibility, sizing, spacing, and tracker dimensions.
+
 ## 0.8.41
 
 - Rebuilds the Minimap as a square FlowdiUI block in the upper-right corner with a flat dark background and blue border.

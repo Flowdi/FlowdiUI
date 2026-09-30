@@ -358,15 +358,8 @@ function module:Apply()
     local db = FUI.db.minimap
     local size = db.size or 180
     local buttonSize = db.buttonSize or 24
-    local topInset = 12
-    local data = FUI.db.dataPanels
-    if data and data.minimapEnabled and data.minimapPosition == "TOP" then
-        topInset = topInset + (data.minimapHeight or 20) * (data.scale or 1)
-    end
-
     self.holder:SetSize(size, size)
-    self.holder:ClearAllPoints()
-    self.holder:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -12, -topInset)
+    FUI:RestorePosition(self.holder, "minimap")
 
     if Minimap:GetParent() ~= self.holder then Minimap:SetParent(self.holder) end
     Minimap:ClearAllPoints()
@@ -406,10 +399,16 @@ function module:Apply()
 
     local dataPanels = FUI.modules.dataPanels
     if dataPanels and dataPanels.minimap then dataPanels:Apply() end
+    local mover = FUI.movers and FUI.movers.minimap
+    if mover then FUI:SyncMoverOverlay(mover) end
 end
 
 function module:Initialize()
     self:CreateFrames()
     self:Apply()
+    FUI:RegisterMover(self.holder, "minimap", "Minimap", function()
+        local dataPanels = FUI.modules.dataPanels
+        if dataPanels and dataPanels.minimap then dataPanels:Apply() end
+    end)
     C_Timer.After(1, function() module:Apply() module:RefreshAddonButtons() end)
 end
