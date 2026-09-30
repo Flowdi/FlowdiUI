@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.37
+
+- Replaces the separate cooldown overlay with the native action-button cooldown path used by ElvUI and EllesmereUI.
+- Anchors the cooldown directly to the icon, resets its swipe texture, and keeps it one frame above the button artwork.
+- Pushes the Forever client's taint-safe cooldown duration object directly into that styled cooldown frame.
+
 ## 0.8.36
 
 - Rebuilds action-button swipes as dedicated FlowdiUI cooldown layers while preserving Blizzard's timer text above them.
