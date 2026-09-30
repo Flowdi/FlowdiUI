@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.36
+
+- Rebuilds action-button swipes as dedicated FlowdiUI cooldown layers while preserving Blizzard's timer text above them.
+- Uses taint-safe cooldown duration objects required by the Forever client for instant GCDs, cast-time GCDs, and full spell cooldowns.
+- Adds short post-cast refresh passes so the swipe catches same-frame and server-acknowledged cooldown transitions.
+
 ## 0.8.35
 
 - Restores a visible FlowdiUI-blue cooldown swipe for both the global cooldown and full spell cooldowns.
