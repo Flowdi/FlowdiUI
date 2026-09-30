@@ -214,6 +214,24 @@ end
 
 local RefreshActionCooldown
 
+local function ApplyCooldownVisualStyle(cooldown, button)
+    if not cooldown or cooldownStyleActive[cooldown] then return end
+    cooldownStyleActive[cooldown] = true
+    cooldown:SetAlpha(1)
+    cooldown:SetFrameStrata(button:GetFrameStrata())
+    cooldown:SetFrameLevel(button:GetFrameLevel() + 1)
+    if cooldown.SetSwipeTexture then
+        local ok = pcall(cooldown.SetSwipeTexture, cooldown, FUI.textures.Flat, 1, 1, 1, 1)
+        if not ok then pcall(cooldown.SetSwipeTexture, cooldown, FUI.textures.Flat) end
+    end
+    if cooldown.SetDrawSwipe then cooldown:SetDrawSwipe(true) end
+    if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
+    if cooldown.SetDrawBling then cooldown:SetDrawBling(false) end
+    if cooldown.SetReverse then cooldown:SetReverse(false) end
+    if cooldown.SetSwipeColor then cooldown:SetSwipeColor(0.035, 0.32, 0.92, 0.88) end
+    cooldownStyleActive[cooldown] = nil
+end
+
 local function StyleActionCooldown(button)
     if not button then return end
     local name = button.GetName and button:GetName()
@@ -221,17 +239,9 @@ local function StyleActionCooldown(button)
     if not cooldown then return end
     local icon = button.icon or button.Icon or (name and _G[name .. "Icon"])
 
-    cooldownStyleActive[cooldown] = true
     cooldown:ClearAllPoints()
     cooldown:SetAllPoints(icon or button)
-    cooldown:SetFrameStrata(button:GetFrameStrata())
-    cooldown:SetFrameLevel(button:GetFrameLevel() + 1)
-    if cooldown.SetSwipeTexture then pcall(cooldown.SetSwipeTexture, cooldown, "") end
-    if cooldown.SetDrawSwipe then cooldown:SetDrawSwipe(true) end
-    if cooldown.SetDrawEdge then cooldown:SetDrawEdge(false) end
-    if cooldown.SetDrawBling then cooldown:SetDrawBling(false) end
-    if cooldown.SetSwipeColor then cooldown:SetSwipeColor(0.015, 0.16, 0.42, 0.82) end
-    cooldownStyleActive[cooldown] = nil
+    ApplyCooldownVisualStyle(cooldown, button)
 
     if cooldownFramesHooked[cooldown] then return cooldown end
     cooldownFramesHooked[cooldown] = true
@@ -247,13 +257,39 @@ local function StyleActionCooldown(button)
         hooksecurefunc(cooldown, "SetSwipeColor", function(self)
             if cooldownStyleActive[self] then return end
             cooldownStyleActive[self] = true
-            self:SetSwipeColor(0.015, 0.16, 0.42, 0.82)
+            self:SetSwipeColor(0.035, 0.32, 0.92, 0.88)
             cooldownStyleActive[self] = nil
         end)
     end
+    if cooldown.SetAlpha then
+        hooksecurefunc(cooldown, "SetAlpha", function(self, alpha)
+            if cooldownStyleActive[self] or alpha == 1 then return end
+            cooldownStyleActive[self] = true
+            self:SetAlpha(1)
+            cooldownStyleActive[self] = nil
+        end)
+    end
+    if cooldown.SetCooldownFromDurationObject then
+        hooksecurefunc(cooldown, "SetCooldownFromDurationObject", function(self)
+            ApplyCooldownVisualStyle(self, button)
+            self:SetAlpha(1)
+            self:Show()
+        end)
+    end
     if cooldown.SetCooldown then
-        hooksecurefunc(cooldown, "SetCooldown", function()
-            if RefreshActionCooldown then RefreshActionCooldown(button) end
+        hooksecurefunc(cooldown, "SetCooldown", function(self)
+            ApplyCooldownVisualStyle(self, button)
+            self:SetAlpha(1)
+            self:Show()
+        end)
+    end
+    if cooldown.HookScript then
+        cooldown:HookScript("OnHide", function()
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function()
+                    if RefreshActionCooldown then RefreshActionCooldown(button) end
+                end)
+            end
         end)
     end
     return cooldown
@@ -270,11 +306,37 @@ RefreshActionCooldown = function(button)
             local durationObject = C_ActionBar.GetActionCooldownDuration(action)
             if durationObject then
                 cooldown:SetCooldownFromDurationObject(durationObject)
+                ApplyCooldownVisualStyle(cooldown, button)
+                cooldown:SetAlpha(1)
+                cooldown:Show()
                 return
             end
         end
     end
     if action and cooldown.Clear then cooldown:Clear() end
+end
+
+function module:PrintCooldownDiagnostics()
+    local button = ActionButton1
+    local cooldown = button and (button.cooldown or button.Cooldown or _G.ActionButton1Cooldown)
+    if not button or not cooldown then
+        FUI:Print("Cooldown diagnostics: ActionButton1 or its cooldown frame is missing.")
+        return
+    end
+    local width, height = cooldown:GetSize()
+    local action = button.GetAttribute and button:GetAttribute("action")
+    local active = "unknown"
+    if action and C_ActionBar and C_ActionBar.GetActionCooldown then
+        local info = C_ActionBar.GetActionCooldown(action)
+        if info then active = tostring(info.isActive == true) end
+    end
+    local drawSwipe = "unavailable"
+    if cooldown.GetDrawSwipe then
+        local ok, value = pcall(cooldown.GetDrawSwipe, cooldown)
+        if ok then drawSwipe = tostring(value) end
+    end
+    FUI:Print(("Cooldown diagnostics: action=%s, active=%s, shown=%s, alpha=%.2f, size=%.1fx%.1f, drawSwipe=%s")
+        :format(tostring(action), active, tostring(cooldown:IsShown()), cooldown:GetAlpha(), width or 0, height or 0, drawSwipe))
 end
 
 function module:SkinActionButton(button, settings)

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.38
+
+- Reapplies the FlowdiUI swipe after every duration-object or numeric cooldown update, matching ElvUI's post-update styling order.
+- Forces the active cooldown frame visible at full alpha and supplies an explicit flat swipe texture and stronger FlowdiUI-blue color.
+- Adds `/fui cddiag` for compact live diagnostics of the first action button's cooldown frame.
+
 ## 0.8.37
 
 - Replaces the separate cooldown overlay with the native action-button cooldown path used by ElvUI and EllesmereUI.
