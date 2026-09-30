@@ -419,6 +419,10 @@ function module:StyleChatScrollbar(frame)
     local bar = frame and (frame.ScrollBar or frame.scrollBar)
     if not bar then return end
     FUI:StripTextures(bar)
+    -- Blizzard fades the entire bar back in while the player scrolls. Lock
+    -- the parent itself at zero; FlowdiUI's track/thumb are sibling frames
+    -- on the chat frame and therefore remain visible and fully independent.
+    LockVisualAlpha(bar)
     if bar.Track then
         FUI:StripTextures(bar.Track)
         LockVisualAlpha(bar.Track)
@@ -432,8 +436,6 @@ function module:StyleChatScrollbar(frame)
 
     if not frame.FlowdiScrollTrack then
         local track = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-        track:SetPoint("TOP", bar, "TOP", 0, -1)
-        track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 1)
         track:SetWidth(8)
         track:SetFrameLevel(bar:GetFrameLevel() + 4)
         track:EnableMouse(false)
@@ -455,6 +457,35 @@ function module:StyleChatScrollbar(frame)
             visual:SetBackdropColor(0.08, 0.38, 0.72, 1)
             visual:SetBackdropBorderColor(unpack(FUI.colors.accent))
             frame.FlowdiScrollThumb = visual
+        end
+    end
+
+    local track = frame.FlowdiScrollTrack
+    if track then
+        track:ClearAllPoints()
+        if self.anchor and self.scrollBottomButton and IsDockedChatFrame(frame) then
+            -- ChatFrame's right edge is 18px inside the host. +8 puts this
+            -- axis at -10: exactly the center of the 18px button at -1.
+            track:SetPoint("TOP", frame, "TOPRIGHT", 8, 0)
+            track:SetPoint("BOTTOM", self.scrollBottomButton, "TOP", 0, 0)
+        else
+            track:SetPoint("TOP", bar, "TOP", 0, -1)
+            track:SetPoint("BOTTOM", bar, "BOTTOM", 0, 1)
+        end
+
+        local thumb = (bar.Track and bar.Track.Thumb) or bar.Thumb
+        local visual = frame.FlowdiScrollThumb
+        if thumb and thumb.SetAlpha then thumb:SetAlpha(0) end
+        if thumb and visual then
+            local trackX = track:GetCenter()
+            local thumbX = thumb:GetCenter()
+            local secret = issecretvalue and ((trackX and issecretvalue(trackX)) or (thumbX and issecretvalue(thumbX)))
+            if trackX and thumbX and not secret then
+                local offsetX = trackX - thumbX
+                visual:ClearAllPoints()
+                visual:SetPoint("TOP", thumb, "TOP", offsetX, 0)
+                visual:SetPoint("BOTTOM", thumb, "BOTTOM", offsetX, 0)
+            end
         end
     end
 

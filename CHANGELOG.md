@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.28
+
+- Locks the complete Blizzard scrollbar parent at zero alpha so active scrolling can no longer fade native scrollbar artwork back in.
+- Centers FlowdiUI's scrollbar track and thumb on the custom down-arrow button independently of Blizzard's offset geometry.
+- Anchors the scrollbar track directly to the down-arrow button's top border so the controls remain flush at every chat size.
+
 ## 0.8.27
 
 - Adds a direct post-delivery whisper observer so the FlowdiUI unread pulse works even when Blizzard or LibChatAnims does not expose a readable alert flag.
