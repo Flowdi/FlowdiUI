@@ -4,6 +4,11 @@ local FUI = ns.FUI
 local module = {}
 FUI:RegisterModule("chat", module)
 
+local alphaLocked = setmetatable({}, { __mode = "k" })
+local alphaLockActive = setmetatable({}, { __mode = "k" })
+local nativeScrollVoid = CreateFrame("Frame")
+nativeScrollVoid:Hide()
+
 local function HideChatControl(frame)
     if not frame then return end
     frame:SetAlpha(0)
@@ -19,13 +24,13 @@ end
 
 local function LockVisualAlpha(frame)
     if not frame or not frame.SetAlpha then return end
-    if not frame.FlowdiVisualAlphaLock then
-        frame.FlowdiVisualAlphaLock = true
+    if not alphaLocked[frame] then
+        alphaLocked[frame] = true
         hooksecurefunc(frame, "SetAlpha", function(self, alpha)
-            if alpha ~= 0 and not self.FlowdiSettingVisualAlpha then
-                self.FlowdiSettingVisualAlpha = true
+            if alpha ~= 0 and not alphaLockActive[self] then
+                alphaLockActive[self] = true
                 self:SetAlpha(0)
-                self.FlowdiSettingVisualAlpha = nil
+                alphaLockActive[self] = nil
             end
         end)
     end
@@ -284,8 +289,11 @@ function module:HideNativeChrome(frame)
     if name then
         for _, suffix in ipairs(nativeSuffixes) do HideChatControl(_G[name .. suffix]) end
     end
-    HideChatControl(frame.buttonFrame)
+    local buttonFrame = frame.buttonFrame or (name and _G[name .. "ButtonFrame"])
+    HideChatControl(buttonFrame)
+    LockVisualAlpha(buttonFrame)
     HideChatControl(frame.ScrollToBottomButton)
+    LockVisualAlpha(frame.ScrollToBottomButton)
     HideChatControl(frame.Background)
     HideChatControl(frame.background)
     if name then HideChatControl(_G[name .. "Background"]) end
@@ -396,10 +404,12 @@ function module:CreateScrollBottomButton()
     button:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     button:SetBackdropColor(0.012, 0.035, 0.07, 0.96)
     button:SetBackdropBorderColor(unpack(FUI.colors.border))
-    local label = FUI:CreateFont(button, 10)
-    label:SetPoint("CENTER", 0, 1)
-    label:SetText("v")
-    label:SetTextColor(0.55, 0.82, 1, 1)
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    icon:SetAtlas("minimal-scrollbar-arrow-returntobottom")
+    icon:SetSize(14, 14)
+    icon:SetPoint("CENTER")
+    icon:SetDesaturated(true)
+    icon:SetVertexColor(0.55, 0.82, 1, 1)
     button:SetScript("OnClick", function()
         local selected = GENERAL_CHAT_DOCK and FCFDock_GetSelectedWindow and FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
         selected = selected or ChatFrame1
@@ -431,6 +441,10 @@ function module:StyleChatScrollbar(frame)
         if control then
             FUI:StripTextures(control)
             HideChatControl(control)
+            LockVisualAlpha(control)
+            if control.SetParent and control:GetParent() ~= nativeScrollVoid then
+                control:SetParent(nativeScrollVoid)
+            end
         end
     end
 
@@ -446,7 +460,7 @@ function module:StyleChatScrollbar(frame)
 
         local thumb = (bar.Track and bar.Track.Thumb) or bar.Thumb
         if thumb then
-            if thumb.SetAlpha then thumb:SetAlpha(0) end
+            LockVisualAlpha(thumb)
             local visual = CreateFrame("Frame", nil, frame, "BackdropTemplate")
             visual:SetPoint("TOP", thumb, "TOP", 0, 0)
             visual:SetPoint("BOTTOM", thumb, "BOTTOM", 0, 0)
@@ -475,7 +489,7 @@ function module:StyleChatScrollbar(frame)
 
         local thumb = (bar.Track and bar.Track.Thumb) or bar.Thumb
         local visual = frame.FlowdiScrollThumb
-        if thumb and thumb.SetAlpha then thumb:SetAlpha(0) end
+        if thumb then LockVisualAlpha(thumb) end
         if thumb and visual then
             local trackX = track:GetCenter()
             local thumbX = thumb:GetCenter()
@@ -490,7 +504,10 @@ function module:StyleChatScrollbar(frame)
     end
 
     local bottom = frame.ScrollToBottomButton
-    if bottom then HideChatControl(bottom) end
+    if bottom then
+        HideChatControl(bottom)
+        LockVisualAlpha(bottom)
+    end
 end
 
 function module:CreateCopyWindow()

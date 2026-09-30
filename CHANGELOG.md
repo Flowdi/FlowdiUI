@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.29
+
+- Replaces the textual chat scroll `v` with a compact, recolored return-to-bottom arrow icon.
+- Permanently parks Blizzard's scrollbar stepper buttons in a hidden container and locks their alpha against scroll-time fades.
+- Locks the separate Blizzard scroll-to-bottom button and the native thumb against every alpha animation.
+
 ## 0.8.28
 
 - Locks the complete Blizzard scrollbar parent at zero alpha so active scrolling can no longer fade native scrollbar artwork back in.
