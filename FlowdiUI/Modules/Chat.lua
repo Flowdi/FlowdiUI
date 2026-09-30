@@ -548,6 +548,7 @@ function module:CreateCopyWindow()
     editBox:SetMaxLetters(0)
     editBox:SetFont(FUI:GetModuleFontPath("chat"), 12, "")
     editBox:SetTextInsets(2, 2, 2, 2)
+    editBox:SetHighlightColor(0.18, 0.58, 1, 0.55)
     editBox:SetScript("OnEscapePressed", function() frame:Hide() end)
     local function RefreshCopyScroll()
         if scroll.UpdateScrollChildRect then scroll:UpdateScrollChildRect() end
@@ -561,10 +562,32 @@ function module:CreateCopyWindow()
             scrollBar:SetShown(maximum > 0)
         end
     end
-    editBox:SetScript("OnTextChanged", function(self)
+    editBox:SetScript("OnTextChanged", function(self, userInput)
+        if userInput then
+            self:SetText(frame.copyText or "")
+            self:SetCursorPosition(0)
+            return
+        end
         local textHeight = self.GetTextHeight and self:GetTextHeight() or 1
         self:SetHeight(math.max(scroll:GetHeight(), textHeight + 12))
         C_Timer.After(0, RefreshCopyScroll)
+    end)
+    editBox:SetScript("OnMouseDown", function(self)
+        if not self:HasFocus() then self:SetFocus() end
+    end)
+    editBox:SetScript("OnCursorChanged", function(_, _, y, _, cursorHeight)
+        if not y or not cursorHeight then return end
+        y = -y
+        local offset = scroll:GetVerticalScroll()
+        local value = offset
+        if y < offset then
+            value = y
+        elseif y + cursorHeight > offset + scroll:GetHeight() then
+            value = y + cursorHeight - scroll:GetHeight()
+        end
+        if value ~= offset then
+            if scrollBar then scrollBar:SetValue(value) else scroll:SetVerticalScroll(value) end
+        end
     end)
     scroll:SetScript("OnSizeChanged", function(self, width)
         editBox:SetWidth(math.max(40, width - 4))
@@ -578,6 +601,17 @@ function module:CreateCopyWindow()
             scrollBar:SetValue(value)
         else
             self:SetVerticalScroll(value)
+        end
+    end)
+    scroll:HookScript("OnVerticalScroll", function(self, offset)
+        editBox:SetHitRectInsets(0, 0, offset, math.max(0, editBox:GetHeight() - offset - self:GetHeight()))
+    end)
+    scroll:HookScript("OnScrollRangeChanged", function(self, _, yRange)
+        if yRange == 0 then
+            editBox:SetHitRectInsets(0, 0, 0, 0)
+        else
+            local offset = self:GetVerticalScroll()
+            editBox:SetHitRectInsets(0, 0, offset, math.max(0, editBox:GetHeight() - offset - self:GetHeight()))
         end
     end)
     scroll:SetScrollChild(editBox)
@@ -606,7 +640,8 @@ function module:OpenCopyWindow(chatFrame)
         end
     end
     frame:Show()
-    frame.editBox:SetText(table.concat(messages, "\n"))
+    frame.copyText = table.concat(messages, "\n")
+    frame.editBox:SetText(frame.copyText)
     frame.editBox:SetFocus()
     frame.editBox:SetCursorPosition(0)
     frame.editBox:HighlightText(0, 0)

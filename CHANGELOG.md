@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.31
+
+- Makes the Copy Chat text genuinely read-only by restoring the captured history after any typed, pasted, deleted, or replaced input.
+- Explicitly focuses the text field on mouse interaction and adds a visible FlowdiUI-blue selection highlight for freely selected excerpts.
+- Keeps the edit box hit area and cursor synchronized with the visible scroll viewport while selecting through long histories.
+
 ## 0.8.30
 
 - Renames the copy window and button tooltip to `Copy Chat`.
