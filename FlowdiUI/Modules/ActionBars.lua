@@ -20,6 +20,10 @@ module.barOrder = {
 local definitionsByPrefix = {}
 for _, definition in ipairs(module.barOrder) do definitionsByPrefix[definition.prefix] = definition end
 local function IsSecret(value) return issecretvalue and issecretvalue(value) end
+local effectAlphaLocked = setmetatable({}, { __mode = "k" })
+local effectAlphaActive = setmetatable({}, { __mode = "k" })
+local effectFramesHooked = setmetatable({}, { __mode = "k" })
+local effectButtonsHooked = setmetatable({}, { __mode = "k" })
 local function ResolveBar(definition)
     return _G[definition.frame] or (definition.fallbackFrame and _G[definition.fallbackFrame])
 end
@@ -75,25 +79,77 @@ local function ButtonRegions(button)
         button and (button.Name or (name and _G[name .. "Name"]))
 end
 
-local function SuppressNativeButtonEffects(button)
-    if not button or button.FlowdiNativeEffectsSuppressed then return end
-    button.FlowdiNativeEffectsSuppressed = true
-    local name = button:GetName()
-    local flash = button.Flash or (name and _G[name .. "Flash"])
-    local action = button.NewActionTexture
-    local highlight = button.SpellHighlightTexture
-    local pushed = button.GetPushedTexture and button:GetPushedTexture()
-    for _, region in pairs({ flash, action, highlight, pushed }) do
-        if region then region:SetAlpha(0) end
+local function LockEffectAlpha(region)
+    if not region or not region.SetAlpha then return end
+    region:SetAlpha(0)
+    if effectAlphaLocked[region] then return end
+    effectAlphaLocked[region] = true
+    hooksecurefunc(region, "SetAlpha", function(self, alpha)
+        if effectAlphaActive[self] then return end
+        if IsSecret(alpha) or alpha ~= 0 then
+            effectAlphaActive[self] = true
+            self:SetAlpha(0)
+            effectAlphaActive[self] = nil
+        end
+    end)
+end
+
+local function HideAnimatedEffect(effect)
+    if not effect then return end
+    effect:SetAlpha(0)
+    if effect.GetAnimationGroups then
+        for index = 1, select("#", effect:GetAnimationGroups()) do
+            local group = select(index, effect:GetAnimationGroups())
+            if group and group.Stop then group:Stop() end
+        end
     end
-    for _, effect in pairs({ button.SpellCastAnimFrame, button.InterruptDisplay, button.TargetReticleAnimFrame }) do
-        if effect then
-            effect:SetAlpha(0)
-            if effect.HookScript and not effect.FlowdiHiddenHook then
-                effect.FlowdiHiddenHook = true
-                effect:HookScript("OnShow", function(self) self:SetAlpha(0) end)
+    if effect.Hide and not (effect.IsForbidden and effect:IsForbidden()) then pcall(effect.Hide, effect) end
+    if effectFramesHooked[effect] or not effect.HookScript then return end
+    effectFramesHooked[effect] = true
+    effect:HookScript("OnShow", function(self)
+        self:SetAlpha(0)
+        if self.GetAnimationGroups then
+            for index = 1, select("#", self:GetAnimationGroups()) do
+                local group = select(index, self:GetAnimationGroups())
+                if group and group.Stop then group:Stop() end
             end
         end
+        if self.Hide and not (self.IsForbidden and self:IsForbidden()) then pcall(self.Hide, self) end
+    end)
+end
+
+local function SuppressNativeButtonEffects(button)
+    if not button then return end
+    local name = button:GetName()
+    local flash = button.Flash or (name and _G[name .. "Flash"])
+    local methodHighlight = button.GetHighlightTexture and button:GetHighlightTexture()
+    local methodPushed = button.GetPushedTexture and button:GetPushedTexture()
+    local methodChecked = button.GetCheckedTexture and button:GetCheckedTexture()
+    for _, region in pairs({
+        flash,
+        button.NewActionTexture,
+        button.SpellHighlightTexture,
+        button.HighlightTexture,
+        methodHighlight,
+        button.PushedTexture,
+        methodPushed,
+        button.CheckedTexture,
+        methodChecked,
+        button.Border,
+        button.BorderShadow,
+        button.FlyoutBorder,
+        button.FlyoutBorderShadow,
+    }) do
+        LockEffectAlpha(region)
+    end
+    for _, effect in pairs({ button.SpellCastAnimFrame, button.InterruptDisplay, button.TargetReticleAnimFrame }) do
+        HideAnimatedEffect(effect)
+    end
+    if not effectButtonsHooked[button] and button.HookScript then
+        effectButtonsHooked[button] = true
+        button:HookScript("OnEnter", function(self) SuppressNativeButtonEffects(self) end)
+        button:HookScript("OnMouseDown", function(self) SuppressNativeButtonEffects(self) end)
+        button:HookScript("OnMouseUp", function(self) SuppressNativeButtonEffects(self) end)
     end
 end
 

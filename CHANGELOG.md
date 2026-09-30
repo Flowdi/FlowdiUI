@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.33
+
+- Permanently locks Blizzard's action-button hover, pushed, checked, flash, border, and new-action textures at zero alpha.
+- Stops and hides cast, interrupt, and target-reticle animation frames synchronously whenever Blizzard attempts to show them.
+- Reasserts native-effect suppression on button hover, press, release, and regular action-button updates.
+
 ## 0.8.32
 
 - Rebuilds Copy Chat on Blizzard's modern `ScrollingEditBoxTemplate`, whose built-in input routing supports reliable click-and-drag text selection.
