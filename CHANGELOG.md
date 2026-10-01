@@ -2,7 +2,7 @@
 
 ## 0.8.45
 
-- Rebuilds the settings shell around a compact Naowh-inspired header, grouped sidebar navigation, recognizable module icons, breadcrumbs, and a wider content area while retaining FlowdiUI's blue-black identity.
+- Rebuilds the settings shell around a compact FlowdiUI header, grouped sidebar navigation, recognizable module icons, breadcrumbs, and a wider content area while retaining the blue-black identity.
 - Replaces every Blizzard checkbox in the settings interface with a consistent blue/gray FlowdiUI toggle switch without changing the underlying option behavior.
 - Moves settings search, Unlock Mode, and window controls into the top bar and groups pages into Core, Frames & Combat, Interface, and System sections.
 - Restyles settings buttons, section dividers, sliders, values, and scrollbars as a cohesive flat FlowdiUI control set.
