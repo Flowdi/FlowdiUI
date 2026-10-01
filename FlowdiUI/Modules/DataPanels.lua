@@ -94,6 +94,25 @@ function module:RegisterStatProvider(name, statIndex)
 end
 
 function module:RegisterProviders()
+    self:RegisterProvider("Layer", {
+        Update = function()
+            local tracker = FUI.modules.layerTracker
+            return tracker and tracker.GetDataText and tracker:GetDataText() or "Layer |cff55aaff?|r"
+        end,
+        Tooltip = function()
+            local tracker = FUI.modules.layerTracker
+            if tracker and tracker.AddTooltipLines then
+                tracker:AddTooltipLines()
+            else
+                SimpleTooltip("Layer", "Layer data is not available yet.")
+            end
+        end,
+        OnClick = function()
+            local tracker = FUI.modules.layerTracker
+            if tracker and tracker.ManualRefresh then tracker:ManualRefresh(true) end
+        end,
+    })
+
     self:RegisterProvider("System", {
         Update = function()
             local _, _, home, world = GetNetStats()

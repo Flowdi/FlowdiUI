@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.42"
+FUI.version = "0.8.43"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -142,7 +142,7 @@ local function ActionBarDefaults(vertical, maximum, iconSize)
 end
 
 local defaults = {
-    profileVersion = 22,
+    profileVersion = 23,
     locked = true,
     scale = 1,
     global = {
@@ -185,6 +185,7 @@ local defaults = {
             groupFrames = "Name Font",
             chat = "Global",
             dataPanels = "Global",
+            layerTracker = "Global",
         },
     },
     modules = {
@@ -196,6 +197,7 @@ local defaults = {
         bags = true,
         minimap = true,
         utilityFrames = true,
+        layerTracker = true,
         dataPanels = true,
         darkMode = true,
     },
@@ -369,6 +371,15 @@ local defaults = {
             headerSize = 13,
             textSize = 11,
         },
+        layerTracker = {
+            enabled = true,
+            syncEnabled = true,
+            showZone = true,
+            width = 190,
+            scale = 1,
+            fontSize = 12,
+            retentionMinutes = 120,
+        },
     },
     dataPanels = {
         scale = 1,
@@ -423,6 +434,7 @@ local defaults = {
         microBar = { "BOTTOMRIGHT", "BOTTOMRIGHT", -235, 18 },
         bagBar = { "BOTTOMRIGHT", "BOTTOMRIGHT", -18, 18 },
         objectiveTracker = { "TOPRIGHT", "TOPRIGHT", -22, -235 },
+        layerTracker = { "TOPRIGHT", "TOPRIGHT", -210, -12 },
         dataPanel = { "BOTTOM", "BOTTOM", 0, 4 },
         dataPanel2 = { "TOP", "TOP", 0, -4 },
         settings = { "CENTER", "CENTER", 0, 0 },
@@ -661,6 +673,7 @@ function FUI:RegisterMover(frame, key, label, onMoved)
         targettargetCastbar = "Target of Target Cast Bar", targettargettargetCastbar = "Target of Target of Target Cast Bar",
         party = "Party Frames", raid = "Raid Frames", chat = "Chat",
         minimap = "Minimap", microBar = "Micro Bar", bagBar = "Bag Bar", objectiveTracker = "Objective Tracker",
+        layerTracker = "Layer Tracker",
         dataPanel = "Primary Data Panel", dataPanel2 = "Second Data Panel",
     }
     self.movers[key] = { frame = frame, key = key, label = label or labels[key] or key, onMoved = onMoved }
@@ -795,6 +808,8 @@ SlashCmdList.FLOWDIUI = function(message)
         FUI.AuraEngine:PrintDiagnostics()
     elseif message == "cddiag" and FUI.modules.actionBars and FUI.modules.actionBars.PrintCooldownDiagnostics then
         FUI.modules.actionBars:PrintCooldownDiagnostics()
+    elseif message == "layer" and FUI.modules.layerTracker and FUI.modules.layerTracker.ManualRefresh then
+        FUI.modules.layerTracker:ManualRefresh(true)
     else
         FUI:OpenSettings()
     end

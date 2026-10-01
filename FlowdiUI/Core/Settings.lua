@@ -1269,8 +1269,8 @@ local function BuildMinimap(page)
 end
 
 local function BuildUtilityFrames(page)
-    AddTitle(page, "Utility & Tracker", "Style and position Blizzard's Micro Bar, Bag Bar, and Objective Tracker.")
-    local tabNames = { "Micro Bar", "Bag Bar", "Objective Tracker" }
+    AddTitle(page, "Utility & Tracker", "Style Blizzard utility frames and configure FlowdiUI's Forever layer tracking.")
+    local tabNames = { "Micro Bar", "Bag Bar", "Objective Tracker", "Layer Tracker" }
     local tabs, panels = {}, {}
     local function SelectTab(name)
         for key, panel in pairs(panels) do panel:SetShown(key == name) end
@@ -1279,7 +1279,7 @@ local function BuildUtilityFrames(page)
         end
     end
     for index, name in ipairs(tabNames) do
-        local tab = AddButton(page, name, 24 + (index - 1) * 210, -88, 195, function() SelectTab(name) end)
+        local tab = AddButton(page, name, 24 + (index - 1) * 158, -88, 145, function() SelectTab(name) end)
         tabs[name] = tab
         local panel = CreateFrame("Frame", nil, page)
         panel:SetPoint("TOPLEFT", 18, -126)
@@ -1315,6 +1315,23 @@ local function BuildUtilityFrames(page)
     info:SetJustifyH("LEFT")
     info:SetTextColor(0.58, 0.7, 0.88)
     info:SetText("Blizzard continues to generate quest and scenario content. FlowdiUI only owns the tracker's host, typography, border, and position.")
+
+    local layer = panels["Layer Tracker"]
+    local layerDB = db.layerTracker
+    AddCheckbox(layer, "Enable Layer Tracker", 6, -5, function() return layerDB.enabled end, function(v) layerDB.enabled = v end)
+    AddCheckbox(layer, "Share observations with FlowdiUI users", 340, -5, function() return layerDB.syncEnabled end, function(v) layerDB.syncEnabled = v end)
+    AddCheckbox(layer, "Show current zone", 6, -65, function() return layerDB.showZone end, function(v) layerDB.showZone = v end)
+    AddSlider(layer, "Frame width", 6, -155, 280, 150, 300, 5, function() return layerDB.width end, function(v) layerDB.width = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(layer, "Scale", 340, -155, 280, 0.6, 1.6, 0.05, function() return layerDB.scale end, function(v) layerDB.scale = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(layer, "Font size", 6, -245, 280, 9, 18, 1, function() return layerDB.fontSize end, function(v) layerDB.fontSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(layer, "Active observation window", 340, -245, 280, 15, 180, 15, function() return layerDB.retentionMinutes end, function(v) layerDB.retentionMinutes = v end, function(v) return string.format("%d min", v) end)
+    local layerInfo = FUI:CreateFont(layer, 11)
+    layerInfo:SetPoint("TOPLEFT", 6, -335)
+    layerInfo:SetWidth(620)
+    layerInfo:SetJustifyH("LEFT")
+    layerInfo:SetTextColor(0.58, 0.7, 0.88)
+    layerInfo:SetText("Layer data is inferred from visible outdoor NPC GUIDs. The active count contains recently observed layers in your current zone; it becomes more complete as FlowdiUI users exchange observations.")
+    page.SelectUtilityTab = SelectTab
     SelectTab("Micro Bar")
 end
 

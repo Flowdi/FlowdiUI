@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.43
+
+- Adds a Forever-native Layer Tracker that derives the current outdoor layer from visible NPC GUIDs without depending on NovaWorldBuffs.
+- Tracks recently observed layers per realm, faction, and zone, with a configurable activity window and guarded FlowdiUI peer synchronization.
+- Adds a compact FlowdiUI-styled layer display, detailed hover tooltip, Data Panel provider, `/fui layer` refresh command, and Unlock Mode mover.
+- Adds Layer Tracker controls to the Utility & Tracker settings page for visibility, synchronization, zone text, size, scale, font, and retention.
+
 ## 0.8.42
 
 - Adds the Minimap to FlowdiUI Unlock Mode with persistent coordinates and automatic Data Panel following.
