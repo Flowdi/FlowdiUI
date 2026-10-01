@@ -2,23 +2,28 @@ local _, ns = ...
 local FUI = ns.FUI
 
 local pages = {
-    { key = "general", label = "Global Settings" },
-    { key = "actionBars", label = "Action Bars" },
-    { key = "utilityFrames", label = "Utility & Tracker" },
-    { key = "nameplates", label = "Nameplates" },
-    { key = "unitFrames", label = "Unit Frames" },
-    { key = "groupFrames", label = "Party & Raid Frames" },
-    { key = "chat", label = "Chat" },
-    { key = "bags", label = "Bags" },
-    { key = "minimap", label = "Minimap" },
-    { key = "dataPanels", label = "Data Panels" },
-    { key = "darkMode", label = "Dark Mode & Skins" },
-    { key = "profiles", label = "Profiles" },
+    { key = "general", label = "Global Settings", section = "CORE", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
+    { key = "actionBars", label = "Action Bars", section = "FRAMES & COMBAT", icon = "Interface\\Icons\\INV_Misc_Note_05" },
+    { key = "unitFrames", label = "Unit Frames", section = "FRAMES & COMBAT", icon = "Interface\\Icons\\Spell_Holy_PowerWordShield" },
+    { key = "groupFrames", label = "Party & Raid Frames", section = "FRAMES & COMBAT", icon = "Interface\\Icons\\Spell_Holy_PrayerOfHealing02" },
+    { key = "nameplates", label = "Nameplates", section = "FRAMES & COMBAT", icon = "Interface\\Icons\\Ability_Hunter_MarkedForDeath" },
+    { key = "chat", label = "Chat", section = "INTERFACE", icon = "Interface\\Icons\\INV_Letter_15" },
+    { key = "bags", label = "Bags", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Bag_08" },
+    { key = "minimap", label = "Minimap", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Map_01" },
+    { key = "utilityFrames", label = "Utility & Tracker", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Tool_01" },
+    { key = "dataPanels", label = "Data Panels", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Book_09" },
+    { key = "darkMode", label = "Dark Mode & Skins", section = "SYSTEM", icon = "Interface\\Icons\\Spell_Shadow_DarkRitual" },
+    { key = "profiles", label = "Profiles", section = "SYSTEM", icon = "Interface\\Icons\\INV_Misc_Note_01" },
 }
 
 local function AddTitle(parent, title, description)
-    local heading = FUI:CreateFont(parent, 25)
-    heading:SetPoint("TOPLEFT", 24, -22)
+    local breadcrumb = FUI:CreateFont(parent, 10)
+    breadcrumb:SetPoint("TOPLEFT", 24, -10)
+    breadcrumb:SetTextColor(0.48, 0.55, 0.65)
+    breadcrumb:SetText((parent.settingsSection or "FLOWDIUI") .. "  /  " .. title)
+
+    local heading = FUI:CreateFont(parent, 23)
+    heading:SetPoint("TOPLEFT", 24, -25)
     heading:SetText(title)
 
     local text = FUI:CreateFont(parent, 12)
@@ -29,7 +34,7 @@ local function AddTitle(parent, title, description)
     text:SetText(description)
 
     local line = parent:CreateTexture(nil, "ARTWORK")
-    line:SetColorTexture(unpack(FUI.colors.accent))
+    line:SetColorTexture(0.16, 0.19, 0.24, 1)
     line:SetPoint("TOPLEFT", 24, -78)
     line:SetPoint("TOPRIGHT", -24, -78)
     line:SetHeight(1)
@@ -38,28 +43,57 @@ end
 local function AddSection(parent, title, y)
     local text = FUI:CreateFont(parent, 11)
     text:SetPoint("TOPLEFT", 24, y)
-    text:SetTextColor(0.35, 0.65, 1)
+    text:SetTextColor(0.78, 0.84, 0.92)
     text:SetText(title:upper())
+    local line = parent:CreateTexture(nil, "ARTWORK")
+    line:SetHeight(1)
+    line:SetColorTexture(0.14, 0.17, 0.21, 1)
+    line:SetPoint("LEFT", text, "RIGHT", 10, 0)
+    line:SetPoint("RIGHT", parent, "RIGHT", -24, 0)
     return text
 end
 
 local function AddCheckbox(parent, label, x, y, getter, setter, reloadRequired)
-    local box = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    box:SetPoint("TOPLEFT", x, y)
-    box.Text:SetText(label)
-    box.Text:SetFont(FUI.media.font, 12)
-    box.getter = getter
-    box:SetScript("OnShow", function(self) self:SetChecked(self.getter()) end)
-    box:SetScript("OnClick", function(self)
-        setter(self:GetChecked() and true or false)
+    local toggle = CreateFrame("Button", nil, parent)
+    toggle:SetSize(194, 24)
+    toggle:SetPoint("TOPLEFT", x, y)
+    toggle.getter = getter
+
+    local text = FUI:CreateFont(toggle, 12)
+    text:SetPoint("LEFT", 0, 0)
+    text:SetText(label)
+    toggle:SetWidth(math.max(90, text:GetStringWidth() + 48))
+
+    local track = CreateFrame("Frame", nil, toggle, "BackdropTemplate")
+    track:SetSize(34, 17)
+    track:SetPoint("LEFT", text, "RIGHT", 9, 0)
+    track:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    local knob = track:CreateTexture(nil, "ARTWORK")
+    knob:SetSize(13, 13)
+    knob:SetColorTexture(0.95, 0.98, 1, 1)
+
+    local function Refresh(self)
+        local enabled = self.getter() and true or false
+        track:SetBackdropColor(enabled and 0.04 or 0.20, enabled and 0.55 or 0.22, enabled and 0.9 or 0.26, 1)
+        track:SetBackdropBorderColor(enabled and 0.18 or 0.33, enabled and 0.72 or 0.36, enabled and 1 or 0.42, 1)
+        knob:ClearAllPoints()
+        knob:SetPoint(enabled and "RIGHT" or "LEFT", track, enabled and "RIGHT" or "LEFT", enabled and -2 or 2, 0)
+        text:SetTextColor(enabled and 0.92 or 0.68, enabled and 0.96 or 0.72, enabled and 1 or 0.78)
+    end
+    toggle:SetScript("OnShow", Refresh)
+    toggle:SetScript("OnClick", function(self)
+        setter(not (self.getter() and true or false))
+        Refresh(self)
         if reloadRequired then
             FUI.settings.reloadNotice:Show()
         else
             FUI:ApplySettings()
         end
     end)
-    parent.controls[#parent.controls + 1] = box
-    return box
+    toggle:SetScript("OnEnter", function() track:SetBackdropBorderColor(0.35, 0.78, 1, 1) end)
+    toggle:SetScript("OnLeave", Refresh)
+    parent.controls[#parent.controls + 1] = toggle
+    return toggle
 end
 
 local function AddSlider(parent, label, x, y, width, minimum, maximum, step, getter, setter, formatter)
@@ -92,9 +126,32 @@ local function AddSlider(parent, label, x, y, width, minimum, maximum, step, get
     if slider.Low then slider.Low:SetText("") end
     if slider.High then slider.High:SetText("") end
     if slider.Text then slider.Text:SetText("") end
+    for _, region in ipairs({ slider:GetRegions() }) do
+        if region.IsObjectType and region:IsObjectType("Texture") then region:SetTexture(nil) end
+    end
+    local track = slider:CreateTexture(nil, "BACKGROUND")
+    track:SetPoint("LEFT", 0, 0)
+    track:SetPoint("RIGHT", 0, 0)
+    track:SetHeight(4)
+    track:SetColorTexture(0.12, 0.15, 0.19, 1)
+    local fill = slider:CreateTexture(nil, "BORDER")
+    fill:SetPoint("LEFT", track, "LEFT", 0, 0)
+    fill:SetHeight(4)
+    fill:SetColorTexture(0.05, 0.55, 0.92, 1)
+    slider:SetThumbTexture(FUI.textures.Flat)
+    local thumb = slider:GetThumbTexture()
+    if thumb then
+        thumb:SetSize(9, 15)
+        thumb:SetVertexColor(0.42, 0.78, 1, 1)
+    end
     slider.getter = getter
     slider.refreshing = false
+    local function UpdateFill(value)
+        local ratio = maximum == minimum and 0 or (value - minimum) / (maximum - minimum)
+        fill:SetWidth(math.max(1, (width - 70) * math.max(0, math.min(1, ratio))))
+    end
     local function DisplayValue(value)
+        UpdateFill(value)
         if valueInput:HasFocus() then
             valueInput:SetText(string.format(step < 1 and "%.2f" or "%d", value))
         else
@@ -135,10 +192,24 @@ local function AddSlider(parent, label, x, y, width, minimum, maximum, step, get
 end
 
 local function AddButton(parent, label, x, y, width, callback)
-    local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    local button = CreateFrame("Button", nil, parent, "BackdropTemplate")
     button:SetSize(width or 150, 26)
     button:SetPoint("TOPLEFT", x, y)
+    button:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    button:SetBackdropColor(0.025, 0.035, 0.05, 0.98)
+    button:SetBackdropBorderColor(0.13, 0.32, 0.52, 1)
+    button:SetNormalFontObject(GameFontNormal)
     button:SetText(label)
+    button:GetFontString():SetFont(FUI:GetFontPath(FUI.db.global.font), 11, FUI.db.global.fontOutline or "OUTLINE")
+    button:GetFontString():SetTextColor(0.8, 0.86, 0.94)
+    button:SetScript("OnEnter", function(self)
+        self:SetBackdropColor(0.035, 0.12, 0.2, 1)
+        self:SetBackdropBorderColor(0.2, 0.62, 0.95, 1)
+    end)
+    button:SetScript("OnLeave", function(self)
+        self:SetBackdropColor(0.025, 0.035, 0.05, 0.98)
+        self:SetBackdropBorderColor(0.13, 0.32, 0.52, 1)
+    end)
     button:SetScript("OnClick", callback)
     return button
 end
@@ -356,10 +427,12 @@ local function AddTextInput(parent, label, x, y, width, getter, setter)
 end
 
 local function AddModuleSwitch(page, moduleKey)
-    AddCheckbox(page, "Enable module", 24, -98,
+    local toggle = AddCheckbox(page, "Enable module", 24, -98,
         function() return FUI.db.modules[moduleKey] ~= false end,
         function(value) FUI.db.modules[moduleKey] = value end,
         true)
+    toggle:ClearAllPoints()
+    toggle:SetPoint("TOPRIGHT", page, "TOPRIGHT", -24, -27)
 end
 
 local function BuildGeneral(page)
@@ -461,6 +534,7 @@ local function BuildActionBars(page)
     AddTitle(page, "Action Bars", "Configure every Blizzard action bar independently while retaining secure combat behavior.")
     local outerPage = page
     local scroll = CreateFrame("ScrollFrame", nil, outerPage, "UIPanelScrollFrameTemplate")
+    FUI:SkinScrollBar(scroll.ScrollBar)
     scroll:SetPoint("TOPLEFT", 8, -84)
     scroll:SetPoint("BOTTOMRIGHT", -32, 6)
     scroll:EnableMouseWheel(true)
@@ -590,6 +664,7 @@ local function BuildUnitFrames(page)
     for index, name in ipairs({ "Display", "Health", "Power", "Texts", "Portrait", "Cast Bar", "Auras", "Healing", "Indicators" }) do
         tabs[name] = AddButton(page, name, 18 + (index - 1) * 78, -88, 74, function() SelectTab(name) end)
         local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
+        FUI:SkinScrollBar(scroll.ScrollBar)
         scroll:SetPoint("TOPLEFT", 18, -190)
         scroll:SetPoint("BOTTOMRIGHT", -34, 8)
         scroll:EnableMouseWheel(true)
@@ -1415,8 +1490,10 @@ function FUI:SelectSettingsPage(key)
         button.selected:SetShown(buttonKey == key)
         if buttonKey == key then
             button:GetFontString():SetTextColor(0.3, 0.68, 1)
+            button.icon:SetVertexColor(0.35, 0.75, 1)
         else
-            button:GetFontString():SetTextColor(0.78, 0.84, 1)
+            button:GetFontString():SetTextColor(0.7, 0.74, 0.8)
+            button.icon:SetVertexColor(0.62, 0.66, 0.72)
         end
     end
     self.settings.selectedPage = key
@@ -1427,7 +1504,7 @@ function FUI:CreateSettings()
     self:DiscoverSharedMedia()
 
     local frame = CreateFrame("Frame", "FlowdiUISettings", UIParent, "BackdropTemplate")
-    frame:SetSize(960, 620)
+    frame:SetSize(1080, 720)
     self:RestorePosition(frame, "settings")
     frame:SetScale(self.db.global.optionsScale or 1)
     frame:SetMovable(true)
@@ -1443,113 +1520,149 @@ function FUI:CreateSettings()
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
     frame:SetBackdrop({ bgFile = self.textures.Flat, edgeFile = self.textures.Flat, edgeSize = 1 })
-    frame:SetBackdropColor(0.012, 0.02, 0.04, 0.985)
+    frame:SetBackdropColor(0.018, 0.022, 0.028, 0.995)
     frame:SetBackdropBorderColor(unpack(self.colors.border))
     frame:Hide()
     tinsert(UISpecialFrames, frame:GetName())
 
+    local topbar = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    topbar:SetPoint("TOPLEFT", 1, -1)
+    topbar:SetPoint("TOPRIGHT", -1, -1)
+    topbar:SetHeight(40)
+    topbar:SetBackdrop({ bgFile = self.textures.Flat, edgeFile = self.textures.Flat, edgeSize = 1 })
+    topbar:SetBackdropColor(0.025, 0.03, 0.037, 1)
+    topbar:SetBackdropBorderColor(0.13, 0.16, 0.2, 1)
+
     local sidebar = CreateFrame("Frame", nil, frame, "BackdropTemplate")
-    sidebar:SetPoint("TOPLEFT", 1, -1)
+    sidebar:SetPoint("TOPLEFT", topbar, "BOTTOMLEFT", 0, -1)
     sidebar:SetPoint("BOTTOMLEFT", 1, 1)
-    sidebar:SetWidth(220)
+    sidebar:SetWidth(190)
     sidebar:SetBackdrop({ bgFile = self.textures.Flat, edgeFile = self.textures.Flat, edgeSize = 1 })
-    sidebar:SetBackdropColor(0.018, 0.03, 0.065, 1)
-    sidebar:SetBackdropBorderColor(0.05, 0.18, 0.4, 1)
+    sidebar:SetBackdropColor(0.023, 0.027, 0.033, 1)
+    sidebar:SetBackdropBorderColor(0.12, 0.15, 0.19, 1)
 
-    local logo = sidebar:CreateTexture(nil, "ARTWORK")
+    local logo = topbar:CreateTexture(nil, "ARTWORK")
     logo:SetTexture(self.media.logo)
-    logo:SetSize(104, 104)
-    logo:SetPoint("TOP", 0, -15)
+    logo:SetSize(30, 30)
+    logo:SetPoint("LEFT", 7, 0)
 
-    local brand = self:CreateFont(sidebar, 20)
-    brand:SetPoint("TOP", logo, "BOTTOM", 0, -2)
-    brand:SetText("FlowdiUI")
+    local brand = self:CreateFont(topbar, 18)
+    brand:SetPoint("LEFT", logo, "RIGHT", 7, 0)
+    brand:SetText("Flowdi|cff39aaffUI|r")
 
     local version = self:CreateFont(sidebar, 10)
-    version:SetPoint("TOP", brand, "BOTTOM", 0, -3)
-    version:SetTextColor(0.38, 0.65, 1)
-    version:SetText("FOREVER  •  " .. self.version)
+    version:SetPoint("BOTTOMLEFT", 10, 8)
+    version:SetTextColor(0.42, 0.47, 0.54)
+    version:SetText("v" .. self.version .. "  •  Forever")
 
     frame.pages = {}
     frame.navButtons = {}
-    local unlock = CreateFrame("Button", nil, sidebar)
-    unlock:SetSize(198, 34)
-    unlock:SetPoint("TOPLEFT", 11, -195)
-    unlock:SetNormalFontObject(GameFontNormal)
-    unlock:SetText("Unlock Mode")
-    unlock:GetFontString():SetFont(self.media.font, 12)
-    unlock:GetFontString():ClearAllPoints()
-    unlock:GetFontString():SetPoint("LEFT", 13, 0)
-    unlock:GetFontString():SetJustifyH("LEFT")
-    unlock:GetFontString():SetTextColor(0.35, 0.75, 1)
-    local unlockHover = unlock:CreateTexture(nil, "HIGHLIGHT")
-    unlockHover:SetAllPoints()
-    unlockHover:SetColorTexture(0.08, 0.28, 0.58, 0.35)
-    local unlockIcon = self:CreateFont(unlock, 15)
-    unlockIcon:SetPoint("RIGHT", -12, 0)
-    unlockIcon:SetText(">")
-    unlockIcon:SetTextColor(0.35, 0.75, 1)
+    local unlock = AddButton(topbar, "Unlock Mode", 0, 0, 108, function() FUI:EnterUnlockMode() end)
+    unlock:ClearAllPoints()
+    unlock:SetPoint("RIGHT", topbar, "RIGHT", -39, 0)
+    unlock:SetSize(108, 28)
+    unlock:SetBackdropBorderColor(0.2, 0.62, 0.95, 1)
     unlock:SetScript("OnClick", function() FUI:EnterUnlockMode() end)
     frame.unlockButton = unlock
+
+    local topClose = AddButton(topbar, "X", 0, 0, 28, function() frame:Hide() end)
+    topClose:ClearAllPoints()
+    topClose:SetPoint("RIGHT", topbar, "RIGHT", -6, 0)
+    topClose:SetSize(28, 28)
+
+    frame.navSections = {}
+    local function EnsureSection(name)
+        if frame.navSections[name] then return frame.navSections[name] end
+        local header = self:CreateFont(sidebar, 9)
+        header:SetText(name)
+        header:SetTextColor(0.44, 0.49, 0.56)
+        frame.navSections[name] = header
+        return header
+    end
     for index, definition in ipairs(pages) do
         local pageKey = definition.key
         local button = CreateFrame("Button", nil, sidebar)
-        button:SetSize(198, 28)
-        button:SetPoint("TOPLEFT", 11, -234 - (index - 1) * 31)
+        button:SetSize(178, 27)
         button:SetNormalFontObject(GameFontNormal)
         button:SetText(definition.label)
-        button:GetFontString():SetFont(self.media.font, 12)
+        button:GetFontString():SetFont(self.media.font, 11)
         button:GetFontString():ClearAllPoints()
-        button:GetFontString():SetPoint("LEFT", 13, 0)
+        button:GetFontString():SetPoint("LEFT", 34, 0)
         button:GetFontString():SetJustifyH("LEFT")
+
+        local icon = button:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(16, 16)
+        icon:SetPoint("LEFT", 10, 0)
+        icon:SetTexture(definition.icon)
+        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        icon:SetDesaturated(true)
+        button.icon = icon
 
         local hover = button:CreateTexture(nil, "HIGHLIGHT")
         hover:SetAllPoints()
         hover:SetColorTexture(0.08, 0.28, 0.58, 0.35)
         local selected = button:CreateTexture(nil, "BACKGROUND")
         selected:SetAllPoints()
-        selected:SetColorTexture(0.05, 0.22, 0.48, 0.72)
+        selected:SetColorTexture(0.025, 0.2, 0.3, 0.9)
         selected:Hide()
         button.selected = selected
         button:SetScript("OnClick", function() FUI:SelectSettingsPage(pageKey) end)
         frame.navButtons[pageKey] = button
+        EnsureSection(definition.section)
 
         local page = CreateFrame("Frame", nil, frame)
-        page:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 1, -1)
+        page:SetPoint("TOPLEFT", topbar, "BOTTOMLEFT", 191, -1)
         page:SetPoint("BOTTOMRIGHT", -1, 48)
         page.controls = {}
+        page.settingsSection = definition.section
         builders[pageKey](page)
         page:Hide()
         frame.pages[pageKey] = page
     end
 
 
-    local search = CreateFrame("EditBox", nil, sidebar, "InputBoxTemplate")
-    search:SetSize(190, 26)
-    search:SetPoint("TOPLEFT", 15, -158)
+    local function LayoutNavigation(query)
+        local y = -10
+        local activeSection
+        for _, header in pairs(frame.navSections) do header:Hide() end
+        for _, definition in ipairs(pages) do
+            local button = frame.navButtons[definition.key]
+            local matches = not query or query == "" or definition.label:lower():find(query, 1, true)
+            button:SetShown(matches)
+            if matches then
+                if activeSection ~= definition.section then
+                    activeSection = definition.section
+                    local header = frame.navSections[activeSection]
+                    header:ClearAllPoints()
+                    header:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 10, y)
+                    header:Show()
+                    y = y - 19
+                end
+                button:ClearAllPoints()
+                button:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 6, y)
+                y = y - 29
+            end
+        end
+    end
+    LayoutNavigation("")
+
+    local search = CreateFrame("EditBox", nil, topbar, "InputBoxTemplate")
+    search:SetPoint("LEFT", brand, "RIGHT", 20, 0)
+    search:SetPoint("RIGHT", unlock, "LEFT", -18, 0)
+    search:SetHeight(27)
     search:SetAutoFocus(false)
     search:SetFont(self.media.font, 11, "")
     search:SetTextInsets(8, 8, 0, 0)
     search.Instructions = self:CreateFont(search, 10)
     search.Instructions:SetPoint("LEFT", 8, 0)
     search.Instructions:SetTextColor(0.42, 0.52, 0.68)
-    search.Instructions:SetText("Search features...")
+    search.Instructions:SetText("Search settings...")
     self:SkinEditBox(search)
     search:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
     search:SetScript("OnTextChanged", function(self)
         local query = self:GetText():lower()
         self.Instructions:SetShown(query == "")
-        local visibleIndex = 0
-        for _, definition in ipairs(pages) do
-            local button = frame.navButtons[definition.key]
-            local matches = query == "" or definition.label:lower():find(query, 1, true)
-            button:SetShown(matches)
-            if matches then
-                button:ClearAllPoints()
-                button:SetPoint("TOPLEFT", 11, -234 - visibleIndex * 39)
-                visibleIndex = visibleIndex + 1
-            end
-        end
+        LayoutNavigation(query)
     end)
     frame.search = search
 
@@ -1558,8 +1671,8 @@ function FUI:CreateSettings()
     footer:SetPoint("BOTTOMRIGHT", -1, 1)
     footer:SetHeight(47)
     footer:SetBackdrop({ bgFile = self.textures.Flat, edgeFile = self.textures.Flat, edgeSize = 1 })
-    footer:SetBackdropColor(0.018, 0.03, 0.055, 1)
-    footer:SetBackdropBorderColor(0.05, 0.18, 0.4, 1)
+    footer:SetBackdropColor(0.023, 0.027, 0.033, 1)
+    footer:SetBackdropBorderColor(0.12, 0.15, 0.19, 1)
 
     local reloadNotice = self:CreateFont(footer, 11)
     reloadNotice:SetPoint("LEFT", 18, 0)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.45
+
+- Rebuilds the settings shell around a compact Naowh-inspired header, grouped sidebar navigation, recognizable module icons, breadcrumbs, and a wider content area while retaining FlowdiUI's blue-black identity.
+- Replaces every Blizzard checkbox in the settings interface with a consistent blue/gray FlowdiUI toggle switch without changing the underlying option behavior.
+- Moves settings search, Unlock Mode, and window controls into the top bar and groups pages into Core, Frames & Combat, Interface, and System sections.
+- Restyles settings buttons, section dividers, sliders, values, and scrollbars as a cohesive flat FlowdiUI control set.
+
 ## 0.8.44
 
 - Restores Micro Bar interaction through Forever-compatible secure `/click` actions, adds the player portrait to Character, separates Spellbook and Talents, and removes the unsupported Housing button.
