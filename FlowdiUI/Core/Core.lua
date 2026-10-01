@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.43"
+FUI.version = "0.8.44"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -367,6 +367,7 @@ local defaults = {
             enabled = true,
             width = 280,
             height = 500,
+            backgroundColor = { 0.008, 0.016, 0.035, 1 },
             backgroundAlpha = 0.72,
             headerSize = 13,
             textSize = 11,

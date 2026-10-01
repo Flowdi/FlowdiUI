@@ -8,8 +8,9 @@ local module = {
 FUI:RegisterModule("utilityFrames", module)
 
 local microDefinitions = {
-    { names = { "CharacterMicroButton" }, label = "Character" },
-    { names = { "PlayerSpellsMicroButton", "SpellbookMicroButton" }, label = "Spells" },
+    { names = { "CharacterMicroButton" }, label = "Character", portrait = true },
+    { names = { "SpellbookMicroButton" }, label = "Spellbook" },
+    { names = { "TalentMicroButton" }, label = "Talents" },
     { names = { "ProfessionMicroButton" }, label = "Professions" },
     { names = { "AchievementMicroButton" }, label = "Achievements" },
     { names = { "QuestLogMicroButton" }, label = "Quest Log" },
@@ -17,19 +18,17 @@ local microDefinitions = {
     { names = { "LFDMicroButton" }, label = "Group Finder" },
     { names = { "EJMicroButton" }, label = "Adventure Guide" },
     { names = { "CollectionsMicroButton" }, label = "Collections" },
-    { names = { "HousingMicroButton" }, label = "Housing" },
     { names = { "StoreMicroButton" }, label = "Shop" },
     { names = { "HelpMicroButton" }, label = "Support" },
-    { names = { "MainMenuMicroButton" }, label = "Game Menu" },
+    { names = { "MainMenuMicroButton" }, label = "Game Menu", action = "gameMenu" },
 }
 
 local bagDefinitions = {
-    { names = { "MainMenuBarBackpackButton" }, label = "Backpack" },
-    { names = { "CharacterBag0Slot" }, label = "Bag 1" },
-    { names = { "CharacterBag1Slot" }, label = "Bag 2" },
-    { names = { "CharacterBag2Slot" }, label = "Bag 3" },
-    { names = { "CharacterBag3Slot" }, label = "Bag 4" },
-    { names = { "CharacterReagentBag0Slot" }, label = "Reagent Bag" },
+    { names = { "MainMenuBarBackpackButton" }, label = "Backpack", bagID = 0 },
+    { names = { "CharacterBag0Slot" }, label = "Bag 1", bagID = 1 },
+    { names = { "CharacterBag1Slot" }, label = "Bag 2", bagID = 2 },
+    { names = { "CharacterBag2Slot" }, label = "Bag 3", bagID = 3 },
+    { names = { "CharacterBag3Slot" }, label = "Bag 4", bagID = 4 },
 }
 
 local function ResolveNative(definition)
@@ -70,6 +69,15 @@ end
 function module:RefreshProxyIcon(proxy)
     local native = proxy and proxy.native
     if not native then return end
+    if proxy.definition and proxy.definition.portrait and SetPortraitTexture then
+        local ok = pcall(SetPortraitTexture, proxy.icon, "player")
+        if ok then
+            proxy.icon:SetTexCoord(0, 1, 0, 1)
+            proxy.icon:Show()
+            proxy.fallback:Hide()
+            return
+        end
+    end
     local source = native.icon or native.Icon or native.IconTexture
     if not source and native.GetNormalTexture then source = native:GetNormalTexture() end
     if CopyTexture(source, proxy.icon) then
@@ -81,6 +89,26 @@ function module:RefreshProxyIcon(proxy)
     end
 end
 
+local function ToggleGameMenu()
+    if GameMenuFrame and GameMenuFrame:IsShown() then
+        if HideUIPanel then HideUIPanel(GameMenuFrame) else GameMenuFrame:Hide() end
+    elseif GameMenuFrame_Show then
+        GameMenuFrame_Show()
+    elseif GameMenuFrame then
+        if ShowUIPanel then ShowUIPanel(GameMenuFrame) else GameMenuFrame:Show() end
+    end
+end
+
+local function ToggleBagByID(bagID, native, mouseButton)
+    if bagID == 0 and ToggleBackpack then
+        ToggleBackpack()
+    elseif ToggleBag then
+        ToggleBag(bagID)
+    elseif native and native.Click then
+        native:Click(mouseButton or "LeftButton")
+    end
+end
+
 function module:CreateProxy(kind, definition, index)
     local native, nativeName = ResolveNative(definition)
     if not native or (native.IsForbidden and native:IsForbidden()) then return end
@@ -88,10 +116,21 @@ function module:CreateProxy(kind, definition, index)
     if self.proxies[key] then return self.proxies[key] end
     local bar = self.bars[kind]
     local name = "FlowdiUI_" .. kind .. "Button" .. index
-    local proxy = CreateFrame("Button", name, bar.holder, "SecureActionButtonTemplate,BackdropTemplate")
+    local template = kind == "microBar" and "SecureActionButtonTemplate,BackdropTemplate" or "BackdropTemplate"
+    local proxy = CreateFrame("Button", name, bar.holder, template)
     proxy:RegisterForClicks("AnyUp")
-    proxy:SetAttribute("type", "click")
-    proxy:SetAttribute("clickbutton", native)
+    if kind == "microBar" and not definition.action then
+        -- Forever accepts secure /click actions for its micro buttons, while
+        -- an indirect secure type="click" frame reference is ignored.
+        proxy:SetAttribute("type", "macro")
+        proxy:SetAttribute("macrotext", "/click " .. nativeName)
+    elseif definition.action == "gameMenu" then
+        proxy:SetScript("OnClick", ToggleGameMenu)
+    elseif kind == "bagBar" then
+        proxy:SetScript("OnClick", function(_, mouseButton)
+            ToggleBagByID(definition.bagID, native, mouseButton)
+        end)
+    end
     proxy:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     proxy:SetBackdropColor(0.008, 0.016, 0.035, 0.96)
     proxy:SetBackdropBorderColor(unpack(FUI.colors.border))
@@ -199,14 +238,20 @@ end
 
 function module:CreateTrackerHolder()
     if self.trackerHolder then return end
-    local holder = CreateFrame("Frame", "FlowdiUI_ObjectiveTrackerHolder", UIParent, "BackdropTemplate")
+    local holder = CreateFrame("Frame", "FlowdiUI_ObjectiveTrackerHolder", UIParent)
     holder:SetFrameStrata("MEDIUM")
     holder:SetFrameLevel(5)
     holder:SetClampedToScreen(true)
     holder:EnableMouse(false)
-    holder:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
-    holder:SetBackdropBorderColor(unpack(FUI.colors.border))
+    local background = CreateFrame("Frame", "FlowdiUI_ObjectiveTrackerBackground", UIParent, "BackdropTemplate")
+    background:SetFrameStrata("BACKGROUND")
+    background:SetFrameLevel(0)
+    background:SetAllPoints(holder)
+    background:EnableMouse(false)
+    background:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+    background:SetBackdropBorderColor(unpack(FUI.colors.border))
     self.trackerHolder = holder
+    self.trackerBackground = background
 end
 
 function module:StyleTrackerFonts()
@@ -246,11 +291,16 @@ function module:ApplyTracker()
     local holder = self.trackerHolder
     if not holder then return end
     local db = FUI.db.utilityFrames.objectiveTracker
+    local background = self.trackerBackground
     holder:SetSize(db.width, db.height)
     FUI:RestorePosition(holder, "objectiveTracker")
     holder:SetShown(db.enabled)
-    holder:SetBackdropColor(0.008, 0.016, 0.035, db.backgroundAlpha)
-    holder:SetBackdropBorderColor(unpack(FUI.colors.border))
+    if background then
+        local color = db.backgroundColor or { 0.008, 0.016, 0.035, 1 }
+        background:SetShown(db.enabled)
+        background:SetBackdropColor(color[1], color[2], color[3], db.backgroundAlpha)
+        background:SetBackdropBorderColor(unpack(FUI.colors.border))
+    end
     self:StyleTrackerFonts()
     self:AnchorTracker()
     local tracker = _G.ObjectiveTrackerFrame
@@ -314,7 +364,9 @@ function module:Initialize()
     events:RegisterEvent("ADDON_LOADED")
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
     events:RegisterEvent("PLAYER_REGEN_ENABLED")
+    events:RegisterEvent("UNIT_PORTRAIT_UPDATE")
     events:SetScript("OnEvent", function(_, event, addonName)
+        if event == "UNIT_PORTRAIT_UPDATE" and addonName ~= "player" then return end
         if event ~= "ADDON_LOADED" or addonName == "Blizzard_ObjectiveTracker" or addonName == "Blizzard_MainMenu" then
             C_Timer.After(0, function() module:Apply() end)
             C_Timer.After(0.5, function() module:Apply() end)

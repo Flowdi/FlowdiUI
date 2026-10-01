@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.44
+
+- Restores Micro Bar interaction through Forever-compatible secure `/click` actions, adds the player portrait to Character, separates Spellbook and Talents, and removes the unsupported Housing button.
+- Restores Bag Bar interaction through the native backpack and bag toggle APIs and limits the bar to Forever's backpack plus four equipped bag slots.
+- Moves the Objective Tracker background onto a dedicated layer behind Blizzard's objective content so its text remains unobstructed.
+- Adds independent Objective Tracker background color and opacity controls.
+
 ## 0.8.43
 
 - Adds a Forever-native Layer Tracker that derives the current outdoor layer from visible NPC GUIDs without depending on NovaWorldBuffs.
