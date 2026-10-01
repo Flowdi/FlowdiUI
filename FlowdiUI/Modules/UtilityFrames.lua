@@ -8,19 +8,17 @@ local module = {
 FUI:RegisterModule("utilityFrames", module)
 
 local microDefinitions = {
-    { names = { "CharacterMicroButton" }, label = "Character", portrait = true },
-    { names = { "SpellbookMicroButton" }, label = "Spellbook" },
-    { names = { "TalentMicroButton" }, label = "Talents" },
-    { names = { "ProfessionMicroButton" }, label = "Professions" },
-    { names = { "AchievementMicroButton" }, label = "Achievements" },
-    { names = { "QuestLogMicroButton" }, label = "Quest Log" },
-    { names = { "GuildMicroButton" }, label = "Guild" },
-    { names = { "LFDMicroButton" }, label = "Group Finder" },
-    { names = { "EJMicroButton" }, label = "Adventure Guide" },
-    { names = { "CollectionsMicroButton" }, label = "Collections" },
-    { names = { "StoreMicroButton" }, label = "Shop" },
-    { names = { "HelpMicroButton" }, label = "Support" },
-    { names = { "MainMenuMicroButton" }, label = "Game Menu", action = "gameMenu" },
+    { names = { "CharacterMicroButton" }, label = "Character Info", portrait = true },
+    { names = { "ProfessionMicroButton" }, label = "Professions", icon = "Interface\\Icons\\Trade_BlackSmithing" },
+    { names = { "SpellbookMicroButton" }, label = "Spellbook", icon = "Interface\\Icons\\INV_Misc_Book_09" },
+    { names = { "TalentMicroButton" }, label = "Talents", icon = "Interface\\Icons\\Ability_Marksmanship" },
+    { names = { "AchievementMicroButton" }, label = "Legacy", icon = "Interface\\Icons\\Achievement_General" },
+    { names = { "QuestLogMicroButton" }, label = "Quest Log", icon = "Interface\\Icons\\INV_Misc_Note_01" },
+    { names = { "GuildMicroButton" }, label = "Guild & Communities", icon = "Interface\\Icons\\INV_Banner_03" },
+    { names = { "LFDMicroButton" }, label = "Group Finder", icon = "Interface\\Icons\\INV_Helmet_08" },
+    { names = { "CollectionsMicroButton" }, label = "Account Collections", icon = "Interface\\Icons\\INV_Misc_Toy_10" },
+    { names = { "StoreMicroButton" }, label = "Shop", icon = "Interface\\Icons\\INV_Misc_Coin_01" },
+    { names = { "MainMenuMicroButton" }, label = "Game Menu", action = "gameMenu", icon = "Interface\\Icons\\INV_Misc_Gear_01" },
 }
 
 local bagDefinitions = {
@@ -78,6 +76,15 @@ function module:RefreshProxyIcon(proxy)
             return
         end
     end
+    if proxy.definition and proxy.definition.icon then
+        proxy.icon:SetTexture(proxy.definition.icon)
+        proxy.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        proxy.icon:SetDesaturated(true)
+        proxy.icon:SetVertexColor(0.45, 0.72, 1)
+        proxy.icon:Show()
+        proxy.fallback:Hide()
+        return
+    end
     local source = native.icon or native.Icon or native.IconTexture
     if not source and native.GetNormalTexture then source = native:GetNormalTexture() end
     if CopyTexture(source, proxy.icon) then
@@ -100,7 +107,9 @@ local function ToggleGameMenu()
 end
 
 local function ToggleBagByID(bagID, native, mouseButton)
-    if bagID == 0 and ToggleBackpack then
+    if FUI.db.bags and FUI.db.bags.combined and ToggleAllBags then
+        ToggleAllBags()
+    elseif bagID == 0 and ToggleBackpack then
         ToggleBackpack()
     elseif ToggleBag then
         ToggleBag(bagID)

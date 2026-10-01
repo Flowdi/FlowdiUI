@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.47
+
+- Fixes Quick Loot item icons by resolving both cached and asynchronously loaded item data, and adds item tooltips to loot-feed rows.
+- Rebuilds Questie synchronization around its native quest icon theme and refresh APIs so kill, loot, quest-giver, and turn-in pins appear on the world map and Minimap.
+- Constrains Questie's real scroll viewport to the FlowdiUI Objective Tracker, preventing long quest lists from rendering beyond the configured background.
+- Adds a Combined Bags option and routes the FlowdiUI Bag Bar through Forever's combined container.
+- Reorders the Micro Bar for Forever with Character Info, Professions, Spellbook, Talents, Legacy, Quest Log, Guild & Communities, Group Finder, Account Collections, Shop, and Game Menu, using FlowdiUI-styled icons.
+- Expands Nameplates with FlowdiUI health and cast bars, health percentage, level display, target highlighting, class/reaction colors, and threat colors.
+
 ## 0.8.46
 
 - Adds an optional Forever quest-data integration using the installed Questie and QuestieDB providers for world-map and Minimap quest locations, objectives, quest givers, and turn-ins.

@@ -2,7 +2,7 @@
 ## Title: |cff55aaffFlowdiUI|r
 ## Notes: Modular interface suite for World of Warcraft: Forever
 ## Author: Flowdi
-## Version: 0.8.46
+## Version: 0.8.47
 ## SavedVariables: FlowdiUIDB
 ## OptionalDeps: Questie, QuestieDB
 ## IconTexture: Interface\AddOns\FlowdiUI\Media\Logo.tga

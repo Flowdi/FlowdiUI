@@ -17,15 +17,24 @@ local function AutoLootIsActive()
     return enabled ~= (toggled and true or false)
 end
 
-local function ItemIconFromMessage(message)
+local function ItemDataFromMessage(message)
     local link = message and message:match("(|c%x+|Hitem:.-|h.-|h|r)")
     if not link then link = message and message:match("(|Hitem:.-|h.-|h)") end
-    if not link then return "Interface\\Icons\\INV_Misc_Bag_08" end
+    if not link then return nil, nil, "Interface\\Icons\\INV_Misc_Bag_08" end
+    local itemID = tonumber(link:match("item:(%d+)"))
+    local icon
     if GetItemInfoInstant then
-        local icon = select(5, GetItemInfoInstant(link))
-        if icon then return icon end
+        icon = select(5, GetItemInfoInstant(itemID or link))
     end
-    return "Interface\\Icons\\INV_Misc_QuestionMark"
+    if not icon and C_Item and C_Item.GetItemIconByID and itemID then
+        icon = C_Item.GetItemIconByID(itemID)
+    end
+    if not icon and GetItemIcon and itemID then icon = GetItemIcon(itemID) end
+    if not icon and GetItemInfo then icon = select(10, GetItemInfo(itemID or link)) end
+    if not icon and C_Item and C_Item.RequestLoadItemDataByID and itemID then
+        C_Item.RequestLoadItemDataByID(itemID)
+    end
+    return link, itemID, icon or "Interface\\Icons\\INV_Misc_QuestionMark"
 end
 
 function module:CreateFeed()
@@ -58,6 +67,14 @@ function module:AcquireRow(index)
     text:SetJustifyH("LEFT")
     text:SetWordWrap(false)
     row.text = text
+    row:EnableMouse(true)
+    row:SetScript("OnEnter", function(self)
+        if not self.itemLink then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetHyperlink(self.itemLink)
+        GameTooltip:Show()
+    end)
+    row:SetScript("OnLeave", GameTooltip_Hide)
     row:Hide()
     self.rows[index] = row
     return row
@@ -83,12 +100,14 @@ function module:LayoutFeed()
     if mover then FUI:SyncMoverOverlay(mover) end
 end
 
-function module:AddFeedMessage(message, icon)
+function module:AddFeedMessage(message, icon, itemLink, itemID)
     local db = FUI.db.quickLoot
     if not db.enabled or not db.feedEnabled or not message or message == "" then return end
     table.insert(self.activeEntries, 1, {
         message = message,
-        icon = icon or ItemIconFromMessage(message),
+        icon = icon,
+        itemLink = itemLink,
+        itemID = itemID,
         created = GetTime(),
     })
     while #self.activeEntries > (db.feedRows or 6) do table.remove(self.activeEntries) end
@@ -112,9 +131,11 @@ function module:RefreshFeed()
             local alpha = age > fadeStart and math.max(0, (duration - age) / math.max(0.1, duration - fadeStart)) or 1
             row.icon:SetTexture(entry.icon)
             row.text:SetText(entry.message)
+            row.itemLink = entry.itemLink
             row:SetAlpha(alpha)
             row:Show()
         else
+            row.itemLink = nil
             row:Hide()
         end
     end
@@ -127,6 +148,19 @@ function module:LootAllSlots()
         local hasItem = not LootSlotHasItem or LootSlotHasItem(slot)
         if hasItem then pcall(LootSlot, slot) end
     end
+end
+
+function module:RefreshItemIcons(itemID)
+    for _, entry in ipairs(self.activeEntries) do
+        if entry.itemID and (not itemID or entry.itemID == itemID) then
+            local icon
+            if C_Item and C_Item.GetItemIconByID then icon = C_Item.GetItemIconByID(entry.itemID) end
+            if not icon and GetItemIcon then icon = GetItemIcon(entry.itemID) end
+            if not icon and GetItemInfo then icon = select(10, GetItemInfo(entry.itemID)) end
+            if icon then entry.icon = icon end
+        end
+    end
+    self:RefreshFeed()
 end
 
 function module:HideLootWindow()
@@ -181,6 +215,7 @@ function module:Initialize()
     events:RegisterEvent("LOOT_CLOSED")
     events:RegisterEvent("CHAT_MSG_LOOT")
     events:RegisterEvent("CHAT_MSG_MONEY")
+    pcall(events.RegisterEvent, events, "GET_ITEM_INFO_RECEIVED")
     pcall(events.RegisterEvent, events, "CHAT_MSG_CURRENCY")
     events:SetScript("OnEvent", function(_, event, message)
         if event == "LOOT_READY" or event == "LOOT_OPENED" then
@@ -189,11 +224,14 @@ function module:Initialize()
             module.quickSession = false
             if LootFrame then LootFrame:SetAlpha(1) end
         elseif event == "CHAT_MSG_LOOT" then
-            module:AddFeedMessage(message, ItemIconFromMessage(message))
+            local link, itemID, icon = ItemDataFromMessage(message)
+            module:AddFeedMessage(message, icon, link, itemID)
         elseif event == "CHAT_MSG_MONEY" then
             module:AddFeedMessage(message, "Interface\\Icons\\INV_Misc_Coin_01")
         elseif event == "CHAT_MSG_CURRENCY" then
             module:AddFeedMessage(message, "Interface\\Icons\\INV_Misc_Coin_02")
+        elseif event == "GET_ITEM_INFO_RECEIVED" then
+            module:RefreshItemIcons(tonumber(message))
         end
     end)
     events:SetScript("OnUpdate", function(_, elapsed)

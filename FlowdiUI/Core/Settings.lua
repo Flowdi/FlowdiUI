@@ -614,7 +614,7 @@ local function BuildActionBars(page)
 end
 
 local function BuildNameplates(page)
-    AddTitle(page, "Nameplates", "Dimensions and typography for Blizzard nameplates.")
+    AddTitle(page, "Nameplates", "FlowdiUI health, cast, threat and target presentation for world units.")
     AddModuleSwitch(page, "nameplates")
     AddSlider(page, "Width", 24, -155, 260, 70, 240, 5,
         function() return FUI.db.nameplates.width end,
@@ -632,6 +632,21 @@ local function BuildNameplates(page)
         function() return FUI.db.nameplates.fontSize end,
         function(value) FUI.db.nameplates.fontSize = value end,
         function(value) return string.format("%d px", value) end)
+    AddCheckbox(page, "Health percentage", 24, -325,
+        function() return FUI.db.nameplates.healthText end,
+        function(value) FUI.db.nameplates.healthText = value end)
+    AddCheckbox(page, "Unit level", 330, -325,
+        function() return FUI.db.nameplates.levelText end,
+        function(value) FUI.db.nameplates.levelText = value end)
+    AddCheckbox(page, "Target highlight", 24, -370,
+        function() return FUI.db.nameplates.targetGlow end,
+        function(value) FUI.db.nameplates.targetGlow = value end)
+    AddCheckbox(page, "Threat coloring", 330, -370,
+        function() return FUI.db.nameplates.threatColor end,
+        function(value) FUI.db.nameplates.threatColor = value end)
+    AddCheckbox(page, "Friendly nameplates", 24, -415,
+        function() return FUI.db.nameplates.showFriendly end,
+        function(value) FUI.db.nameplates.showFriendly = value end)
 end
 
 local function BuildUnitFrames(page)
@@ -1231,14 +1246,17 @@ end
 local function BuildBags(page)
     AddTitle(page, "Bags", "Dark styling and item information for Blizzard bags.")
     AddModuleSwitch(page, "bags")
-    AddSlider(page, "Darkness", 24, -155, 310, 0.35, 1, 0.05,
+    AddCheckbox(page, "Combined Bags", 24, -128,
+        function() return FUI.db.bags.combined ~= false end,
+        function(value) FUI.db.bags.combined = value end)
+    AddSlider(page, "Darkness", 24, -205, 310, 0.35, 1, 0.05,
         function() return FUI.db.bags.darkness end,
         function(value) FUI.db.bags.darkness = value end,
         function(value) return string.format("%d%%", value * 100) end)
-    AddCheckbox(page, "Show item level", 24, -235,
+    AddCheckbox(page, "Show item level", 24, -285,
         function() return FUI.db.bags.itemLevel end,
         function(value) FUI.db.bags.itemLevel = value end)
-    AddCheckbox(page, "Quality-colored borders", 300, -235,
+    AddCheckbox(page, "Quality-colored borders", 300, -285,
         function() return FUI.db.bags.qualityBorders end,
         function(value) FUI.db.bags.qualityBorders = value end)
 end

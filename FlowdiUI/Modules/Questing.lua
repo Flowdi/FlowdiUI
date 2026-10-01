@@ -31,7 +31,17 @@ function module:CaptureQuestieSettings(profile)
         enableMiniMapIcons = profile.enableMiniMapIcons,
         enableObjectives = profile.enableObjectives,
         enableAvailable = profile.enableAvailable,
+        enableAvailableItems = profile.enableAvailableItems,
         enableTurnins = profile.enableTurnins,
+        enabled = profile.enabled,
+        trackerEnabled = profile.trackerEnabled,
+        iconTheme = profile.iconTheme,
+        ICON_SLAY = profile.ICON_SLAY,
+        ICON_LOOT = profile.ICON_LOOT,
+        ICON_EVENT = profile.ICON_EVENT,
+        ICON_OBJECT = profile.ICON_OBJECT,
+        ICON_TALK = profile.ICON_TALK,
+        ICON_INTERACT = profile.ICON_INTERACT,
         TrackerWidth = profile.TrackerWidth,
         TrackerHeight = profile.TrackerHeight,
         TrackerLocation = CopyLocation(profile.TrackerLocation),
@@ -59,7 +69,17 @@ function module:RestoreQuestieSettings()
     profile.enableMiniMapIcons = backup.enableMiniMapIcons
     profile.enableObjectives = backup.enableObjectives
     profile.enableAvailable = backup.enableAvailable
+    profile.enableAvailableItems = backup.enableAvailableItems
     profile.enableTurnins = backup.enableTurnins
+    profile.enabled = backup.enabled
+    profile.trackerEnabled = backup.trackerEnabled
+    profile.iconTheme = backup.iconTheme
+    profile.ICON_SLAY = backup.ICON_SLAY
+    profile.ICON_LOOT = backup.ICON_LOOT
+    profile.ICON_EVENT = backup.ICON_EVENT
+    profile.ICON_OBJECT = backup.ICON_OBJECT
+    profile.ICON_TALK = backup.ICON_TALK
+    profile.ICON_INTERACT = backup.ICON_INTERACT
     profile.TrackerWidth = backup.TrackerWidth
     profile.TrackerHeight = backup.TrackerHeight
     profile.TrackerLocation = CopyLocation(backup.TrackerLocation)
@@ -101,8 +121,40 @@ function module:AnchorQuestieTracker()
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", holder, "TOPLEFT", 6, -6)
     frame:SetSize(width, height)
+    if frame.SetClipsChildren then frame:SetClipsChildren(true) end
     frame:SetBackdropColor(0, 0, 0, 0)
     frame:SetBackdropBorderColor(0, 0, 0, 0)
+
+    -- Questie sizes its content frame from the full quest list. Constrain the
+    -- actual viewport as well as the base frame, otherwise its lines continue
+    -- below FlowdiUI's background even though TrackerHeight is correct.
+    local header = _G.Questie_HeaderFrame
+    local questFrame = _G.TrackedQuests
+    local scrollFrame = _G.TrackedQuestsScrollFrame
+    local headerHeight = header and header:IsShown() and (header:GetHeight() + 20) or 20
+    local contentHeight = math.max(40, height - headerHeight)
+    if questFrame then
+        questFrame:SetWidth(width)
+        questFrame:SetHeight(contentHeight)
+        if questFrame.SetClipsChildren then questFrame:SetClipsChildren(true) end
+        questFrame:EnableMouse(true)
+        questFrame:SetMovable(false)
+        questFrame:SetResizable(false)
+    end
+    if scrollFrame then
+        scrollFrame:ClearAllPoints()
+        scrollFrame:SetAllPoints(questFrame)
+        scrollFrame:EnableMouseWheel(true)
+        if not scrollFrame.FlowdiWheel then
+            scrollFrame.FlowdiWheel = true
+            scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+                local child = self:GetScrollChild()
+                local maximum = child and math.max(0, child:GetHeight() - self:GetHeight()) or 0
+                self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 36)))
+            end)
+        end
+        if scrollFrame.ScrollBar then scrollFrame.ScrollBar:Hide() end
+    end
     if not trackerDB.enabled then frame:Hide() end
     holder:SetShown(trackerDB.enabled)
     if utility.trackerBackground then utility.trackerBackground:SetShown(trackerDB.enabled) end
@@ -129,7 +181,21 @@ function module:ApplyQuestieSettings(forceRefresh)
     profile.enableMiniMapIcons = db.minimapIcons
     profile.enableObjectives = db.showObjectives
     profile.enableAvailable = db.showQuestGivers
+    profile.enableAvailableItems = db.showQuestGivers
     profile.enableTurnins = db.showTurnIns
+    profile.enabled = true
+    profile.trackerEnabled = true
+    profile.iconTheme = "questie"
+    if Questie.icons then
+        profile.ICON_SLAY = Questie.icons.slay
+        profile.ICON_LOOT = Questie.icons.loot
+        profile.ICON_EVENT = Questie.icons.event
+        profile.ICON_OBJECT = Questie.icons.object
+        profile.ICON_TALK = Questie.icons.talk
+        profile.ICON_INTERACT = Questie.icons.interact
+    end
+    if GetCVar and SetCVar and GetCVar("questPOI") then pcall(SetCVar, "questPOI", "0") end
+    if Questie.SetIcons then Questie.SetIcons() end
     local trackerDB = FUI.db.utilityFrames.objectiveTracker
     if db.integrateTracker then
         local font = FUI.db.global.font or "Friz Quadrata"
@@ -181,7 +247,11 @@ function module:ApplyQuestieSettings(forceRefresh)
 
     if forceRefresh or mapChanged then
         local questieQuest = self:GetQuestieModule("QuestieQuest")
-        if questieQuest and questieQuest.SmoothReset then questieQuest:SmoothReset() end
+        if questieQuest then
+            if questieQuest.ToggleAvailableQuests then questieQuest.ToggleAvailableQuests(db.showQuestGivers) end
+            if questieQuest.ToggleNotes then questieQuest:ToggleNotes(db.showObjectives) end
+            if questieQuest.SmoothReset then questieQuest:SmoothReset() end
+        end
     end
     local tracker = self:GetQuestieModule("QuestieTracker")
     if tracker and tracker.Update then tracker:Update() end

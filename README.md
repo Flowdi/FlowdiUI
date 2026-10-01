@@ -7,12 +7,12 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 ## Included in the MVP
 
 - Independent layouts, scale, border color, button-background color/opacity, text, and visibility controls for eight player action bars plus Pet and Stance bars without replacing secure Blizzard action buttons
-- Lightweight nameplate styling
+- FlowdiUI nameplates with health and cast bars, target highlighting, unit levels, health percentages, and threat coloring
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
 - Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs
 - Custom clickable party and raid frames with optional member-pet frames, secret-safe range fading, healer-focused positional aura filters, independent profiles, and live settings previews
 - Chat styling
-- Dark bag styling while retaining Blizzard bag behavior
+- Dark bag styling with optional Combined Bags while retaining Blizzard bag behavior
 - Two movable DataText panels plus an optional Minimap panel
 - Darkmode treatment for common Blizzard windows
 - In-game module settings with the Flowdi logo
@@ -29,8 +29,8 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 - DataTexts for system performance, inventory, social information, progression, location, character statistics, mail, volume, date, and time
 - DataText tooltips and click actions
 - Chat copy window, timestamps, fading controls, and configurable visibility duration
-- Optional Questie/QuestieDB integration for quest locations plus a FlowdiUI-hosted, size-constrained quest tracker
-- Quick Loot for auto-loot interactions with a movable item, money, and currency feed
+- Optional Questie/QuestieDB integration for native kill, loot, quest-giver, and turn-in map pins plus a FlowdiUI-hosted, size-constrained quest tracker
+- Quick Loot for auto-loot interactions with a movable item, money, and currency feed with item tooltips
 - Bag item-level text and quality-colored item borders
 - Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
 - Reserved Profiles page for the upcoming naming, assignment, copy, import, and export workflow

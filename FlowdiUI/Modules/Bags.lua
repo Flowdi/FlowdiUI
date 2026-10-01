@@ -4,6 +4,14 @@ local FUI = ns.FUI
 local module = {}
 FUI:RegisterModule("bags", module)
 
+function module:ApplyCombinedBags()
+    local enabled = FUI.db.bags.combined ~= false
+    if SetCVar then pcall(SetCVar, "combinedBags", enabled and "1" or "0") end
+    if not enabled and ContainerFrameCombinedBags and ContainerFrameCombinedBags:IsShown() then
+        ContainerFrameCombinedBags:Hide()
+    end
+end
+
 local function GetBagAndSlot(button)
     local bag
     if button.GetBagID then
@@ -81,6 +89,7 @@ function module:StyleContainer(frame)
 end
 
 function module:Apply()
+    self:ApplyCombinedBags()
     self:StyleAll()
 end
 
@@ -102,7 +111,7 @@ function module:StyleAll()
 end
 
 function module:Initialize()
-    self:StyleAll()
+    self:Apply()
     local events = CreateFrame("Frame")
     events:RegisterEvent("BAG_UPDATE_DELAYED")
     events:RegisterEvent("PLAYERBANKSLOTS_CHANGED")
@@ -112,6 +121,9 @@ function module:Initialize()
     end)
 
     if OpenAllBags then
-        hooksecurefunc("OpenAllBags", function() module:StyleAll() end)
+        hooksecurefunc("OpenAllBags", function()
+            module:ApplyCombinedBags()
+            C_Timer.After(0, function() module:StyleAll() end)
+        end)
     end
 end

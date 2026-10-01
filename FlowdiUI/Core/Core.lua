@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.46"
+FUI.version = "0.8.47"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -223,9 +223,14 @@ local defaults = {
     },
     nameplates = {
         width = 120,
-        height = 10,
-        castHeight = 7,
+        height = 14,
+        castHeight = 9,
         fontSize = 11,
+        healthText = true,
+        levelText = true,
+        targetGlow = true,
+        threatColor = true,
+        showFriendly = true,
     },
     unitFrames = {
         scale = 1,
@@ -344,6 +349,7 @@ local defaults = {
         darkness = 0.82,
         itemLevel = true,
         qualityBorders = true,
+        combined = true,
     },
     minimap = {
         size = 180,
