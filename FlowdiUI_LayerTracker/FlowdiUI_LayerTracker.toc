@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: |cff55aaffFlowdiUI|r Layer Tracker
+## Notes: Standalone layer tracking panel for World of Warcraft: Forever.
+## Author: Flowdi
+## Version: 1.0.0
+## SavedVariables: FlowdiUILayerTrackerDB
+## IconTexture: Interface\Icons\INV_Misc_Map_01
+## AddonCompartmentFunc: FlowdiUILayerTracker_AddonCompartmentFunc
+
+Core.lua
