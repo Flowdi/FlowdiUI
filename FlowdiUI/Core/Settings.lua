@@ -10,6 +10,8 @@ local pages = {
     { key = "chat", label = "Chat", section = "INTERFACE", icon = "Interface\\Icons\\INV_Letter_15" },
     { key = "bags", label = "Bags", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Bag_08" },
     { key = "minimap", label = "Minimap", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Map_01" },
+    { key = "questing", label = "Questing", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Map02" },
+    { key = "quickLoot", label = "Quick Loot", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Coin_02" },
     { key = "utilityFrames", label = "Utility & Tracker", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Tool_01" },
     { key = "dataPanels", label = "Data Panels", section = "INTERFACE", icon = "Interface\\Icons\\INV_Misc_Book_09" },
     { key = "darkMode", label = "Dark Mode & Skins", section = "SYSTEM", icon = "Interface\\Icons\\Spell_Shadow_DarkRitual" },
@@ -1466,6 +1468,55 @@ local function BuildProfiles(page)
     note:SetText("The profile page is reserved now so the navigation and layout remain stable. Profile naming, character/spec assignment, copying, and import/export will be enabled when the profile backend is implemented.")
 end
 
+local function BuildQuesting(page)
+    AddTitle(page, "Questing", "Quest locations and a FlowdiUI-hosted tracker powered by the installed Forever quest database.")
+    local db = FUI.db.questing
+    AddSection(page, "Integration", -105)
+    AddCheckbox(page, "Enable quest integration", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
+    AddCheckbox(page, "Attach tracker to FlowdiUI", 330, -128, function() return db.integrateTracker end, function(v) db.integrateTracker = v end)
+    AddSection(page, "Map pins", -195)
+    AddCheckbox(page, "World map icons", 24, -218, function() return db.worldMapIcons end, function(v) db.worldMapIcons = v end)
+    AddCheckbox(page, "Minimap icons", 330, -218, function() return db.minimapIcons end, function(v) db.minimapIcons = v end)
+    AddCheckbox(page, "Kill and loot objectives", 24, -258, function() return db.showObjectives end, function(v) db.showObjectives = v end)
+    AddCheckbox(page, "Available quest givers", 330, -258, function() return db.showQuestGivers end, function(v) db.showQuestGivers = v end)
+    AddCheckbox(page, "Quest turn-ins", 24, -298, function() return db.showTurnIns end, function(v) db.showTurnIns = v end)
+    AddSection(page, "Provider", -365)
+    local provider = FUI:CreateFont(page, 12)
+    provider:SetPoint("TOPLEFT", 24, -391)
+    provider:SetWidth(760)
+    provider:SetJustifyH("LEFT")
+    provider:SetTextColor(0.58, 0.7, 0.88)
+    local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Questie")) or (IsAddOnLoaded and IsAddOnLoaded("Questie"))
+    provider:SetText(loaded and
+        "Questie and QuestieDB are available. FlowdiUI owns the visible tracker frame, its size and placement; the provider supplies quest coordinates and map pins." or
+        "Questie and QuestieDB were not detected. Install and enable both Forever addons to supply quest coordinates and map pins.")
+    local note = FUI:CreateFont(page, 11)
+    note:SetPoint("TOPLEFT", provider, "BOTTOMLEFT", 0, -12)
+    note:SetWidth(760)
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(0.46, 0.52, 0.62)
+    note:SetText("Tracker width, height, background and placement remain controlled under Utility & Tracker → Objective Tracker and Unlock Mode.")
+end
+
+local function BuildQuickLoot(page)
+    AddTitle(page, "Quick Loot", "Loot immediately during auto-loot and show the result in a compact movable FlowdiUI feed.")
+    local db = FUI.db.quickLoot
+    AddSection(page, "Loot behavior", -105)
+    AddCheckbox(page, "Enable Quick Loot", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
+    AddCheckbox(page, "Hide Blizzard loot window", 330, -128, function() return db.hideLootWindow end, function(v) db.hideLootWindow = v end)
+    AddSection(page, "Loot feed", -195)
+    AddCheckbox(page, "Show loot feed", 24, -218, function() return db.feedEnabled end, function(v) db.feedEnabled = v end)
+    AddSlider(page, "Visible entries", 24, -275, 280, 3, 10, 1, function() return db.feedRows end, function(v) db.feedRows = v end, function(v) return string.format("%d", v) end)
+    AddSlider(page, "Display duration", 350, -275, 280, 1, 10, 0.5, function() return db.feedDuration end, function(v) db.feedDuration = v end, function(v) return string.format("%.1f s", v) end)
+    AddSlider(page, "Icon size", 24, -365, 280, 16, 34, 1, function() return db.feedIconSize end, function(v) db.feedIconSize = v end, function(v) return string.format("%d px", v) end)
+    local note = FUI:CreateFont(page, 11)
+    note:SetPoint("TOPLEFT", 24, -455)
+    note:SetWidth(760)
+    note:SetJustifyH("LEFT")
+    note:SetTextColor(0.58, 0.7, 0.88)
+    note:SetText("Quick Loot only takes over when the game's auto-loot state is active. Holding the Auto Loot modifier keeps Blizzard's normal manual loot window. Move the feed through Unlock Mode.")
+end
+
 local builders = {
     general = BuildGeneral,
     actionBars = BuildActionBars,
@@ -1476,6 +1527,8 @@ local builders = {
     chat = BuildChat,
     bags = BuildBags,
     minimap = BuildMinimap,
+    questing = BuildQuesting,
+    quickLoot = BuildQuickLoot,
     dataPanels = BuildDataPanels,
     darkMode = BuildDarkMode,
     profiles = BuildProfiles,

@@ -29,6 +29,8 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 - DataTexts for system performance, inventory, social information, progression, location, character statistics, mail, volume, date, and time
 - DataText tooltips and click actions
 - Chat copy window, timestamps, fading controls, and configurable visibility duration
+- Optional Questie/QuestieDB integration for quest locations plus a FlowdiUI-hosted, size-constrained quest tracker
+- Quick Loot for auto-loot interactions with a movable item, money, and currency feed
 - Bag item-level text and quality-colored item borders
 - Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
 - Reserved Profiles page for the upcoming naming, assignment, copy, import, and export workflow
@@ -44,6 +46,8 @@ Copy the `FlowdiUI` folder into the Forever client AddOns directory, normally:
 `World of Warcraft/_classic_beta_/Interface/AddOns/FlowdiUI`
 
 The folder structure must end in `FlowdiUI/FlowdiUI_Camelot.toc`.
+
+The Questing integration is optional. Enable the Forever versions of both `Questie` and `QuestieDB` when FlowdiUI should provide quest locations and host their tracker inside the FlowdiUI Objective Tracker frame. FlowdiUI continues to load normally when either provider is absent.
 
 ## Commands
 

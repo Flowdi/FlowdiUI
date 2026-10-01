@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.45"
+FUI.version = "0.8.46"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -197,6 +197,8 @@ local defaults = {
         bags = true,
         minimap = true,
         utilityFrames = true,
+        questing = true,
+        quickLoot = true,
         layerTracker = true,
         dataPanels = true,
         darkMode = true,
@@ -382,6 +384,23 @@ local defaults = {
             retentionMinutes = 120,
         },
     },
+    questing = {
+        enabled = true,
+        integrateTracker = true,
+        worldMapIcons = true,
+        minimapIcons = true,
+        showObjectives = true,
+        showQuestGivers = true,
+        showTurnIns = true,
+    },
+    quickLoot = {
+        enabled = true,
+        hideLootWindow = true,
+        feedEnabled = true,
+        feedDuration = 4,
+        feedRows = 6,
+        feedIconSize = 22,
+    },
     dataPanels = {
         scale = 1,
         opacity = 0.95,
@@ -435,6 +454,7 @@ local defaults = {
         microBar = { "BOTTOMRIGHT", "BOTTOMRIGHT", -235, 18 },
         bagBar = { "BOTTOMRIGHT", "BOTTOMRIGHT", -18, 18 },
         objectiveTracker = { "TOPRIGHT", "TOPRIGHT", -22, -235 },
+        lootFeed = { "CENTER", "CENTER", -235, -40 },
         layerTracker = { "TOPRIGHT", "TOPRIGHT", -210, -12 },
         dataPanel = { "BOTTOM", "BOTTOM", 0, 4 },
         dataPanel2 = { "TOP", "TOP", 0, -4 },

@@ -2,8 +2,9 @@
 ## Title: |cff55aaffFlowdiUI|r
 ## Notes: Modular interface suite for World of Warcraft: Forever
 ## Author: Flowdi
-## Version: 0.8.45
+## Version: 0.8.46
 ## SavedVariables: FlowdiUIDB
+## OptionalDeps: Questie, QuestieDB
 ## IconTexture: Interface\AddOns\FlowdiUI\Media\Logo.tga
 ## AddonCompartmentFunc: FlowdiUI_AddonCompartmentFunc
 
@@ -16,6 +17,8 @@ Core\UnlockMode.lua
 Core\GameMenu.lua
 Modules\ActionBars.lua
 Modules\UtilityFrames.lua
+Modules\Questing.lua
+Modules\QuickLoot.lua
 Modules\LayerTracker.lua
 Modules\Nameplates.lua
 Modules\UnitFrames.lua

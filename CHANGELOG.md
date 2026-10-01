@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.46
+
+- Adds an optional Forever quest-data integration using the installed Questie and QuestieDB providers for world-map and Minimap quest locations, objectives, quest givers, and turn-ins.
+- Hosts the Questie tracker inside FlowdiUI's Objective Tracker dimensions so long quest lists scroll within the configured frame instead of extending beyond its background.
+- Adds a dedicated Questing settings page while keeping tracker size, backdrop, opacity, and placement under FlowdiUI control.
+- Adds Quick Loot for active auto-loot interactions, processing loot slots immediately while optionally suppressing Blizzard's loot window.
+- Adds a movable FlowdiUI Loot Feed for item, money, and currency feedback with configurable entry count, duration, and icon size.
+
 ## 0.8.45
 
 - Rebuilds the settings shell around a compact FlowdiUI header, grouped sidebar navigation, recognizable module icons, breadcrumbs, and a wider content area while retaining the blue-black identity.

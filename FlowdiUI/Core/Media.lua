@@ -42,6 +42,8 @@ function FUI:DiscoverSharedMedia()
     if not LibStub then return end
     local media = LibStub("LibSharedMedia-3.0", true)
     if not media then return end
+    for name, path in pairs(self.fonts) do media:Register("font", name, path) end
+    for name, path in pairs(self.textures) do media:Register("statusbar", name, path) end
     for kind, destination in pairs({ font = self.fonts, statusbar = self.textures }) do
         local catalog = media:HashTable(kind)
         if catalog then
