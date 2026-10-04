@@ -159,6 +159,44 @@ function FUI:CreateMoverOverlay(mover)
     overlay:SetScript("OnUpdate", function(self)
         if self.isDragging then FUI:UpdateMoverCoordinates(mover, true) end
     end)
+    if mover.resizeHeight then
+        overlay:SetResizable(true)
+        if overlay.SetResizeBounds then
+            overlay:SetResizeBounds(16, mover.minHeight or 80, 4096, mover.maxHeight or 1200)
+        else
+            if overlay.SetMinResize then overlay:SetMinResize(16, mover.minHeight or 80) end
+            if overlay.SetMaxResize then overlay:SetMaxResize(4096, mover.maxHeight or 1200) end
+        end
+        local resize = CreateFrame("Button", nil, overlay, "BackdropTemplate")
+        resize:SetSize(34, 14)
+        resize:SetPoint("BOTTOM", 0, -1)
+        resize:SetFrameLevel(overlay:GetFrameLevel() + 2)
+        resize:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
+        resize:SetBackdropColor(.04, .16, .28, .96)
+        resize:SetBackdropBorderColor(.18, .62, 1, 1)
+        local resizeText = FUI:CreateFont(resize, 11)
+        resizeText:SetPoint("CENTER", 0, 1)
+        resizeText:SetText("↕")
+        resize:RegisterForDrag("LeftButton")
+        resize:SetScript("OnDragStart", function()
+            if not InCombatLockdown() then overlay:StartSizing("BOTTOM") end
+        end)
+        resize:SetScript("OnDragStop", function()
+            overlay:StopMovingOrSizing()
+            local uiScale = UIParent:GetEffectiveScale()
+            local ratio = uiScale > 0 and mover.frame:GetEffectiveScale() / uiScale or 1
+            mover.resizeHeight(overlay:GetHeight() / math.max(.001, ratio))
+            local centerX, centerY = overlay:GetCenter()
+            if centerX and centerY then
+                mover.frame:ClearAllPoints()
+                mover.frame:SetPoint("CENTER", UIParent, "BOTTOMLEFT", centerX, centerY)
+                FUI:SavePosition(mover.frame, mover.key)
+            end
+            if mover.onMoved then mover.onMoved(mover) end
+            FUI:SyncMoverOverlay(mover)
+        end)
+        overlay.resizeHandle = resize
+    end
     overlay:Hide()
     mover.overlay = overlay
     return overlay

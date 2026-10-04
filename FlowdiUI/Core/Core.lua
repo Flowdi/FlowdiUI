@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.51"
+FUI.version = "0.8.52"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -142,7 +142,7 @@ local function ActionBarDefaults(vertical, maximum, iconSize)
 end
 
 local defaults = {
-    profileVersion = 23,
+    profileVersion = 24,
     locked = true,
     scale = 1,
     global = {
@@ -431,7 +431,7 @@ local defaults = {
     questing = {
         enabled = true,
         integrateTracker = true,
-        autoTrackerHeight = true,
+        autoTrackerHeight = false,
         worldMapIcons = true,
         minimapIcons = true,
         showObjectives = true,
@@ -811,6 +811,7 @@ function FUI:Initialize()
         self.db.groupFrames.party.auras.buff.mineOnly = true
         self.db.groupFrames.raid.auras.buff.mineOnly = true
     end
+    if previousVersion < 24 then self.db.questing.autoTrackerHeight = false end
     self.db.profileVersion = defaults.profileVersion
 
     self:DiscoverSharedMedia()

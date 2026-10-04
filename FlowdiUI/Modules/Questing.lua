@@ -4,14 +4,15 @@ local FUI = ns.FUI
 -- QuestieDB is a provider with a public consumer API. FlowdiUI reads that API
 -- directly and owns every frame below; the Questie frontend is neither loaded
 -- nor required.
-local module = { records = {}, mapPins = {}, minimapPins = {}, pinPool = {}, miniPool = {} }
+local module = { records = {}, availableByMap = {}, mapPins = {}, minimapPins = {}, pinPool = {}, miniPool = {} }
 FUI:RegisterModule("questing", module)
 
 local ICONS = {
     slay = "Interface\\Icons\\INV_Sword_04",
     loot = "Interface\\Icons\\INV_Misc_Bag_10",
     object = "Interface\\Icons\\INV_Misc_Gear_01",
-    turnin = "Interface\\Icons\\INV_Misc_QuestionMark",
+    available = "Interface\\GossipFrame\\AvailableQuestIcon",
+    turnin = "Interface\\GossipFrame\\ActiveQuestIcon",
     event = "Interface\\Icons\\INV_Misc_Note_01",
 }
 
@@ -95,6 +96,130 @@ function module:GetTrackedQuests()
     return result
 end
 
+local function GetQuestObjectives(questID)
+    if C_QuestLog and C_QuestLog.GetQuestObjectives then
+        local ok, objectives = pcall(C_QuestLog.GetQuestObjectives, questID)
+        if ok and type(objectives) == "table" then return objectives end
+    end
+    return nil
+end
+
+local function QuestReadyForTurnIn(questID)
+    if C_QuestLog and C_QuestLog.ReadyForTurnIn then
+        local ok, ready = pcall(C_QuestLog.ReadyForTurnIn, questID)
+        if ok then return ready and true or false end
+    end
+    local objectives = GetQuestObjectives(questID)
+    if not objectives or #objectives == 0 then return false end
+    for _, objective in ipairs(objectives) do
+        if not objective.finished then return false end
+    end
+    return true
+end
+
+local function AddQuestProgress(tooltip, questID)
+    local objectives = GetQuestObjectives(questID)
+    if objectives and #objectives > 0 then
+        for _, objective in ipairs(objectives) do
+            local current = tonumber(objective.numFulfilled)
+            local required = tonumber(objective.numRequired)
+            local text = objective.text
+            if current and required and (not text or not text:match("%d+%s*/%s*%d+")) then
+                text = string.format("%d/%d %s", current, required, text or "")
+            end
+            if text and text ~= "" then
+                tooltip:AddLine(text, objective.finished and .35 or .85, objective.finished and 1 or .9, objective.finished and .45 or 1, true)
+            end
+        end
+        return
+    end
+    local questIndex
+    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then questIndex = C_QuestLog.GetLogIndexForQuestID(questID)
+    elseif GetQuestLogIndexByID then questIndex = GetQuestLogIndexByID(questID) end
+    if questIndex and questIndex > 0 and GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
+        for index = 1, GetNumQuestLeaderBoards(questIndex) do
+            local description, _, finished = GetQuestLogLeaderBoard(index, questIndex)
+            if description then tooltip:AddLine(description, finished and .35 or .85, finished and 1 or .9, finished and .45 or 1, true) end
+        end
+    end
+end
+
+local function QuestCompleted(questID)
+    local checker = C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted or IsQuestFlaggedCompleted
+    if not checker then return false end
+    local ok, completed = pcall(checker, questID)
+    return ok and completed and true or false
+end
+
+local function MeetsMask(mask, id)
+    if not mask or mask == 0 or not id then return true end
+    local band = bit and bit.band or bit32 and bit32.band
+    if not band then return true end
+    return band(mask, 2 ^ (id - 1)) ~= 0
+end
+
+function module:GetActiveQuestSet()
+    local active = {}
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        for index = 1, C_QuestLog.GetNumQuestLogEntries() do
+            local info = C_QuestLog.GetInfo(index)
+            if info and not info.isHeader and info.questID then active[info.questID] = true end
+        end
+    elseif GetNumQuestLogEntries and GetQuestLogTitle then
+        for index = 1, GetNumQuestLogEntries() do
+            local _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
+            if not isHeader and questID then active[questID] = true end
+        end
+    end
+    return active
+end
+
+function module:IsQuestAvailable(questID, active)
+    if active[questID] or QuestCompleted(questID) then return false end
+    local db, level = self.provider, UnitLevel("player") or 1
+    local requiredLevel = tonumber(db.Quest.Get(questID, "requiredLevel")) or 0
+    local maximumLevel = tonumber(db.Quest.Get(questID, "requiredMaxLevel"))
+    if level < requiredLevel or (maximumLevel and level > maximumLevel) then return false end
+    local _, _, raceID = UnitRace("player")
+    local _, _, classID = UnitClass("player")
+    if not MeetsMask(db.Quest.Get(questID, "requiredRaces"), raceID) then return false end
+    if not MeetsMask(db.Quest.Get(questID, "requiredClasses"), classID) then return false end
+    for _, prerequisite in ipairs(db.Quest.Get(questID, "preQuestGroup") or {}) do
+        if not QuestCompleted(prerequisite) then return false end
+    end
+    local alternatives = db.Quest.Get(questID, "preQuestSingle") or {}
+    if #alternatives > 0 then
+        local met = false
+        for _, prerequisite in ipairs(alternatives) do if QuestCompleted(prerequisite) then met = true break end end
+        if not met then return false end
+    end
+    local blocker = db.Quest.Get(questID, "availableUntilCompleted")
+    if blocker and QuestCompleted(blocker) then return false end
+    local starter = db.Quest.Get(questID, "availableStartingWith")
+    if starter and not active[starter] and not QuestCompleted(starter) then return false end
+    return true
+end
+
+function module:GetAvailableQuestRecords(mapID)
+    if not FUI.db.questing.showQuestGivers then return {} end
+    if self.availableByMap[mapID] then return self.availableByMap[mapID] end
+    local records, candidates, seen = {}, {}, {}
+    local db, active = self.provider, self:GetActiveQuestSet()
+    if not db or not db.Quest.GetAllIds then return records end
+    for _, questID in ipairs(db.Quest.GetAllIds() or {}) do
+        local areaID = db.Quest.Get(questID, "zoneOrSort")
+        if areaID and areaID > 0 and self.areaToMap[areaID] == mapID and self:IsQuestAvailable(questID, active) then
+            local quest = { id = questID, title = db.Quest.Get(questID, "name") }
+            local starters = db.Quest.Get(questID, "startedBy") or {}
+            for _, npcID in ipairs(starters[1] or {}) do self:AddNpc(candidates, seen, quest, "Quest available", "available", npcID) end
+            for _, objectID in ipairs(starters[2] or {}) do self:AddObject(candidates, seen, quest, "Quest available", "available", objectID) end
+        end
+    end
+    for _, record in ipairs(candidates) do if record.mapID == mapID then records[#records + 1] = record end end
+    self.availableByMap[mapID] = records
+    return records
+end
+
 local function AddSpawn(records, seen, questID, title, objective, iconType, areaID, coords)
     local mapID = module.areaToMap and module.areaToMap[areaID]
     if not mapID or mapID == 0 or type(coords) ~= "table" then return end
@@ -143,6 +268,7 @@ end
 
 function module:BuildRecords()
     self.records = {}
+    self.availableByMap = {}
     if self.providerState ~= "ready" then return end
     local records, seen, db = self.records, {}, self.provider
     for _, quest in ipairs(self:GetTrackedQuests()) do
@@ -160,7 +286,7 @@ function module:BuildRecords()
                 AddSpawnList(records, seen, quest.id, quest.title, extra[3], "event", extra[1])
             end
         end
-        if FUI.db.questing.showTurnIns then
+        if FUI.db.questing.showTurnIns and QuestReadyForTurnIn(quest.id) then
             local finishers = db.Quest.Get(quest.id, "finishedBy") or {}
             for _, npcID in ipairs(finishers[1] or {}) do self:AddNpc(records, seen, quest, "Quest turn-in", "turnin", npcID) end
             for _, objectID in ipairs(finishers[2] or {}) do self:AddObject(records, seen, quest, "Quest turn-in", "turnin", objectID) end
@@ -185,6 +311,7 @@ local function StylePin(pin, mini)
             GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
             GameTooltip:SetText(self.data.title or "Quest", 1, .82, .2)
             if self.data.objective then GameTooltip:AddLine(self.data.objective, .85, .9, 1, true) end
+            AddQuestProgress(GameTooltip, self.data.questID)
             GameTooltip:Show()
         end)
         pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -207,11 +334,11 @@ function module:RefreshWorldMap()
     if not mapID or not width or width <= 1 or not height or height <= 1 then return end
     local used, occupied = 0, {}
     if FUI.db.questing.enabled and FUI.db.questing.worldMapIcons then
-        for _, record in ipairs(self.records) do
+        local function DrawRecord(record)
             if record.mapID == mapID then
                 -- Collapse virtually identical spawn coordinates. This keeps
                 -- dense camps readable while retaining their overall shape.
-                local gridX, gridY = math.floor(record.x / .0125), math.floor(record.y / .0125)
+                local gridX, gridY = math.floor(record.x / .02), math.floor(record.y / .02)
                 local key = record.iconType .. ":" .. gridX .. ":" .. gridY
                 if not occupied[key] then
                     occupied[key] = true
@@ -226,6 +353,8 @@ function module:RefreshWorldMap()
                 end
             end
         end
+        for _, record in ipairs(self.records) do DrawRecord(record) end
+        for _, record in ipairs(self:GetAvailableQuestRecords(mapID)) do DrawRecord(record) end
     end
     for index = used + 1, #self.mapPins do self.mapPins[index]:Hide() end
 end

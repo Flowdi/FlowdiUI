@@ -1645,7 +1645,7 @@ local function BuildQuesting(page)
     note:SetWidth(760)
     note:SetJustifyH("LEFT")
     note:SetTextColor(0.46, 0.52, 0.62)
-    note:SetText("Tracker width, height, background and placement remain controlled under Utility & Tracker → Objective Tracker and Unlock Mode.")
+    note:SetText("Tracker width, height, background and placement remain controlled under Utility & Tracker → Objective Tracker. With automatic height disabled, use the Unlock Mode bottom handle to resize it and the mouse wheel to browse every tracked quest.")
 end
 
 local function BuildQuickLoot(page)

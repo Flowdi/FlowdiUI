@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.52
+
+- Added a mouse-wheel-scrollable Objective Tracker viewport with a height resize handle in Unlock Mode.
+- Made automatic tracker height react in both directions when quests are added, completed, or untracked.
+- Added live quest-objective progress to FlowdiUI map-pin tooltips and only shows turn-in pins for completed quests.
+- Replaced placeholder turn-in symbols with Blizzard's standard quest marker, added eligible quest-giver `!` pins, and further reduced dense map-pin clusters.
+
 ## 0.8.51
 
 - Reduced and spatially de-cluttered FlowdiUI quest map markers and removed their blue icon border.
