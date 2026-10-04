@@ -7,7 +7,7 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 ## Included in the MVP
 
 - Independent layouts, scale, border color, button-background color/opacity, text, and visibility controls for eight player action bars plus Pet and Stance bars without replacing secure Blizzard action buttons
-- FlowdiUI nameplates with health and cast bars, target highlighting, unit levels, health percentages, and threat coloring
+- FlowdiUI nameplates with a live settings preview, configurable health/cast presentation, auras, target effects, friendly behavior, unit colors, health percentages, levels, and threat coloring
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
 - Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs
 - Custom clickable party and raid frames with optional member-pet frames, secret-safe range fading, healer-focused positional aura filters, independent profiles, and live settings previews
@@ -47,7 +47,7 @@ Copy the `FlowdiUI` folder into the Forever client AddOns directory, normally:
 
 The folder structure must end in `FlowdiUI/FlowdiUI_Camelot.toc`.
 
-The Questing integration is optional. Enable the Forever versions of both `Questie` and `QuestieDB` when FlowdiUI should provide quest locations and host their tracker inside the FlowdiUI Objective Tracker frame. FlowdiUI continues to load normally when either provider is absent.
+The Questing integration is optional. Install the Forever/Camelot versions of both `Questie` and `QuestieDB` when FlowdiUI should provide quest locations and host their tracker inside the FlowdiUI Objective Tracker frame. When both are installed but disabled, FlowdiUI enables them and reports if one reload is required. FlowdiUI continues to load normally when either provider is absent.
 
 ## Commands
 

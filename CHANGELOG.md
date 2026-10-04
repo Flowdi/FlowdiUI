@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.48
+
+- Moves Data Panels and the Layer Tracker below normal Blizzard windows and hides them completely while the fullscreen world map is open.
+- Fixes malformed Combined Backpack borders by limiting item-button styling to real bag and item slots and removing stale backdrops from header controls.
+- Rebuilds Nameplate settings into Display, Colors, and General tabs with a live preview and controls for dimensions, cast presentation, auras, target effects, unit colors, threat colors, friendly plates, opacity, scaling, and stacking.
+- Expands the FlowdiUI nameplate renderer with configurable cast timers/icons, target arrows, threat percentages, aura sizing, class/reaction colors, friendly name-only mode, and Forever-native stacking CVars.
+- Detects installed-but-disabled Questie and QuestieDB providers, enables and loads them for FlowdiUI, and reports when one reload is required.
+- Reparents and clips both Blizzard and Questie trackers inside the FlowdiUI Objective Tracker, with optional automatic height based on the active quest list.
+- Refreshes Questie's native kill, loot, quest-giver, and turn-in map pins when the provider becomes ready and whenever the world map opens.
+
 ## 0.8.47
 
 - Fixes Quick Loot item icons by resolving both cached and asynchronously loaded item data, and adds item tooltips to loot-feed rows.

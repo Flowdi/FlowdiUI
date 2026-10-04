@@ -614,39 +614,136 @@ local function BuildActionBars(page)
 end
 
 local function BuildNameplates(page)
-    AddTitle(page, "Nameplates", "FlowdiUI health, cast, threat and target presentation for world units.")
+    AddTitle(page, "Nameplates", "Live-configurable health, cast, aura, target and threat presentation for world units.")
     AddModuleSwitch(page, "nameplates")
-    AddSlider(page, "Width", 24, -155, 260, 70, 240, 5,
-        function() return FUI.db.nameplates.width end,
-        function(value) FUI.db.nameplates.width = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Health bar height", 330, -155, 260, 6, 20, 1,
-        function() return FUI.db.nameplates.height end,
-        function(value) FUI.db.nameplates.height = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Cast bar height", 24, -240, 260, 4, 16, 1,
-        function() return FUI.db.nameplates.castHeight end,
-        function(value) FUI.db.nameplates.castHeight = value end,
-        function(value) return string.format("%d px", value) end)
-    AddSlider(page, "Name font size", 330, -240, 260, 8, 16, 1,
-        function() return FUI.db.nameplates.fontSize end,
-        function(value) FUI.db.nameplates.fontSize = value end,
-        function(value) return string.format("%d px", value) end)
-    AddCheckbox(page, "Health percentage", 24, -325,
-        function() return FUI.db.nameplates.healthText end,
-        function(value) FUI.db.nameplates.healthText = value end)
-    AddCheckbox(page, "Unit level", 330, -325,
-        function() return FUI.db.nameplates.levelText end,
-        function(value) FUI.db.nameplates.levelText = value end)
-    AddCheckbox(page, "Target highlight", 24, -370,
-        function() return FUI.db.nameplates.targetGlow end,
-        function(value) FUI.db.nameplates.targetGlow = value end)
-    AddCheckbox(page, "Threat coloring", 330, -370,
-        function() return FUI.db.nameplates.threatColor end,
-        function(value) FUI.db.nameplates.threatColor = value end)
-    AddCheckbox(page, "Friendly nameplates", 24, -415,
-        function() return FUI.db.nameplates.showFriendly end,
-        function(value) FUI.db.nameplates.showFriendly = value end)
+    local db = FUI.db.nameplates
+    local tabs, panels = {}, {}
+    local function SelectTab(name)
+        for key, panel in pairs(panels) do panel:SetShown(key == name) end
+        for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
+    end
+    for index, name in ipairs({ "Display", "Colors", "General" }) do
+        tabs[name] = AddButton(page, name, 24 + (index - 1) * 135, -88, 124, function() SelectTab(name) end)
+        local panel = CreateFrame("Frame", nil, page)
+        panel:SetPoint("TOPLEFT", 18, -230)
+        panel:SetPoint("BOTTOMRIGHT", -18, 8)
+        panel.controls = {}
+        panel:Hide()
+        panels[name] = panel
+    end
+
+    local preview = CreateFrame("Frame", nil, page)
+    preview:SetSize(420, 105)
+    preview:SetPoint("TOP", page, "TOP", 0, -125)
+    preview.name = FUI:CreateFont(preview, db.fontSize)
+    preview.name:SetPoint("BOTTOM", preview, "CENTER", 0, 19)
+    preview.name:SetText("Enemy Name")
+    preview.health = CreateFrame("StatusBar", nil, preview)
+    preview.health:SetPoint("TOP", preview, "CENTER", 0, 12)
+    preview.health:SetMinMaxValues(0, 100)
+    preview.health.border = CreateFrame("Frame", nil, preview.health, "BackdropTemplate")
+    preview.health.border:SetPoint("TOPLEFT", -1, 1)
+    preview.health.border:SetPoint("BOTTOMRIGHT", 1, -1)
+    preview.health.border:SetFrameLevel(0)
+    preview.healthText = FUI:CreateFont(preview.health, 9)
+    preview.healthText:SetPoint("RIGHT", -3, 0)
+    preview.healthText:SetText("64%")
+    preview.level = FUI:CreateFont(preview.health, 9)
+    preview.level:SetPoint("LEFT", 3, 0)
+    preview.level:SetText("18")
+    preview.glow = CreateFrame("Frame", nil, preview.health, "BackdropTemplate")
+    preview.glow:SetPoint("TOPLEFT", -3, 3)
+    preview.glow:SetPoint("BOTTOMRIGHT", 3, -3)
+    preview.glow:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
+    preview.glow:SetBackdropBorderColor(0.25, 0.7, 1, 1)
+    preview.leftArrow = FUI:CreateFont(preview.health, 18)
+    preview.leftArrow:SetPoint("RIGHT", preview.health, "LEFT", -5, 0)
+    preview.leftArrow:SetText(">")
+    preview.leftArrow:SetTextColor(0.35, 0.75, 1)
+    preview.rightArrow = FUI:CreateFont(preview.health, 18)
+    preview.rightArrow:SetPoint("LEFT", preview.health, "RIGHT", 5, 0)
+    preview.rightArrow:SetText("<")
+    preview.rightArrow:SetTextColor(0.35, 0.75, 1)
+    preview.cast = CreateFrame("StatusBar", nil, preview)
+    preview.cast:SetMinMaxValues(0, 100)
+    preview.cast:SetValue(55)
+    preview.cast.border = CreateFrame("Frame", nil, preview.cast, "BackdropTemplate")
+    preview.cast.border:SetPoint("TOPLEFT", -1, 1)
+    preview.cast.border:SetPoint("BOTTOMRIGHT", 1, -1)
+    preview.cast.border:SetFrameLevel(0)
+    preview.castName = FUI:CreateFont(preview.cast, 8)
+    preview.castName:SetPoint("LEFT", 3, 0)
+    preview.castName:SetText("Spell Name")
+    preview.castTimer = FUI:CreateFont(preview.cast, 8)
+    preview.castTimer:SetPoint("RIGHT", -3, 0)
+    preview.castTimer:SetText("2.3")
+    preview.castIcon = preview.cast:CreateTexture(nil, "ARTWORK")
+    preview.castIcon:SetTexture("Interface\\Icons\\Spell_Fire_Fireball02")
+    preview.castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    preview.castIcon:SetPoint("RIGHT", preview.cast, "LEFT", -3, 0)
+    preview.castIcon:SetSize(18, 18)
+    preview.auras = {}
+    for index, texture in ipairs({ "Spell_Shadow_ShadowWordPain", "Spell_Holy_PowerWordShield", "Ability_Rogue_KidneyShot", "Spell_Frost_FrostNova" }) do
+        local aura = preview:CreateTexture(nil, "ARTWORK")
+        aura:SetTexture("Interface\\Icons\\" .. texture)
+        aura:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        aura:SetPoint("BOTTOMLEFT", preview.health, "TOPLEFT", (index - 1) * 25, 19)
+        preview.auras[index] = aura
+    end
+    if FUI.modules.nameplates and FUI.modules.nameplates.RegisterPreview then FUI.modules.nameplates:RegisterPreview(preview) end
+
+    local display = panels.Display
+    AddSection(display, "Style and dimensions", -5)
+    local textureNames = { "Global" }
+    for _, textureName in ipairs(FUI:GetTextureNames()) do textureNames[#textureNames + 1] = textureName end
+    AddCycle(display, "Health bar texture", 24, -32, 350, textureNames, function() return db.healthTexture end, function(v) db.healthTexture = v end, "texture")
+    AddCycle(display, "Cast bar texture", 430, -32, 350, textureNames, function() return db.castTexture end, function(v) db.castTexture = v end, "texture")
+    AddSlider(display, "Health bar width", 24, -92, 350, 80, 260, 5, function() return db.width end, function(v) db.width = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(display, "Health bar height", 430, -92, 350, 6, 30, 1, function() return db.height end, function(v) db.height = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(display, "Cast bar height", 24, -162, 350, 4, 26, 1, function() return db.castHeight end, function(v) db.castHeight = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(display, "Cast bar Y offset", 430, -162, 350, -20, 12, 1, function() return db.castOffsetY end, function(v) db.castOffsetY = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(display, "Border size", 24, -232, 350, 1, 4, 1, function() return db.borderSize end, function(v) db.borderSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(display, "Background opacity", 430, -232, 350, 0, 1, 0.05, function() return db.backgroundAlpha end, function(v) db.backgroundAlpha = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(display, "Name font size", 24, -302, 350, 8, 20, 1, function() return db.fontSize end, function(v) db.fontSize = v end, function(v) return string.format("%d px", v) end)
+    AddSlider(display, "Aura icon size", 430, -302, 350, 14, 36, 1, function() return db.auraSize end, function(v) db.auraSize = v end, function(v) return string.format("%d px", v) end)
+    AddCheckbox(display, "Health percentage", 24, -365, function() return db.healthText end, function(v) db.healthText = v end)
+    AddCheckbox(display, "Unit level", 240, -365, function() return db.levelText end, function(v) db.levelText = v end)
+    AddCheckbox(display, "Cast icon", 430, -365, function() return db.castIcon end, function(v) db.castIcon = v end)
+    AddCheckbox(display, "Cast timer", 620, -365, function() return db.castTimer end, function(v) db.castTimer = v end)
+
+    local colors = panels.Colors
+    AddSection(colors, "Unit colors", -5)
+    AddColor(colors, "Hostile", 24, -35, function() return db.hostileColor end, function(v) db.hostileColor = v end)
+    AddColor(colors, "Neutral", 430, -35, function() return db.neutralColor end, function(v) db.neutralColor = v end)
+    AddColor(colors, "Friendly", 24, -85, function() return db.friendlyColor end, function(v) db.friendlyColor = v end)
+    AddColor(colors, "Tapped", 430, -85, function() return db.tappedColor end, function(v) db.tappedColor = v end)
+    AddCheckbox(colors, "Class-color players", 24, -130, function() return db.classColorPlayers end, function(v) db.classColorPlayers = v end)
+    AddSection(colors, "Cast colors", -180)
+    AddColor(colors, "Interruptible cast", 24, -210, function() return db.castColor end, function(v) db.castColor = v end)
+    AddColor(colors, "Uninterruptible cast", 430, -210, function() return db.castUninterruptibleColor end, function(v) db.castUninterruptibleColor = v end)
+    AddSection(colors, "Threat colors", -280)
+    AddColor(colors, "Low threat", 24, -310, function() return db.threatLowColor end, function(v) db.threatLowColor = v end)
+    AddColor(colors, "High threat", 430, -310, function() return db.threatHighColor end, function(v) db.threatHighColor = v end)
+    AddColor(colors, "Aggro / tanking", 24, -360, function() return db.threatTankColor end, function(v) db.threatTankColor = v end)
+    AddCheckbox(colors, "Enable threat colors", 430, -360, function() return db.threatColor end, function(v) db.threatColor = v end)
+    AddCheckbox(colors, "Threat percentage", 640, -360, function() return db.threatPercent end, function(v) db.threatPercent = v end)
+
+    local general = panels.General
+    AddSection(general, "Friendly and enemy plates", -5)
+    AddCheckbox(general, "Friendly player nameplates", 24, -35, function() return db.showFriendly end, function(v) db.showFriendly = v end)
+    AddCheckbox(general, "Friendly NPC nameplates", 430, -35, function() return db.showFriendlyNPCs end, function(v) db.showFriendlyNPCs = v end)
+    AddCheckbox(general, "Friendly names only", 24, -75, function() return db.friendlyNameOnly end, function(v) db.friendlyNameOnly = v end)
+    AddCheckbox(general, "Enemy pet nameplates", 430, -75, function() return db.showEnemyPets end, function(v) db.showEnemyPets = v end)
+    AddSection(general, "Target and focus effects", -130)
+    AddCheckbox(general, "Target glow", 24, -160, function() return db.targetGlow end, function(v) db.targetGlow = v end)
+    AddCheckbox(general, "Target arrows", 240, -160, function() return db.targetArrows end, function(v) db.targetArrows = v end)
+    AddSlider(general, "Target scale", 24, -205, 350, 1, 1.5, 0.05, function() return db.targetScale end, function(v) db.targetScale = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSlider(general, "Non-target opacity", 430, -205, 350, 0.2, 1, 0.05, function() return db.nonTargetAlpha end, function(v) db.nonTargetAlpha = v end, function(v) return string.format("%d%%", v * 100) end)
+    AddSection(general, "Spacing and auras", -285)
+    AddCheckbox(general, "Stacking nameplates", 24, -315, function() return db.stacking end, function(v) db.stacking = v end)
+    AddSlider(general, "Stacked vertical spacing", 430, -300, 350, 0.5, 2.5, 0.05, function() return db.verticalSpacing end, function(v) db.verticalSpacing = v end, function(v) return string.format("%.2f", v) end)
+    AddSlider(general, "Maximum debuffs", 24, -365, 350, 0, 8, 1, function() return db.maxDebuffs end, function(v) db.maxDebuffs = v end, function(v) return string.format("%d", v) end)
+    SelectTab("Display")
 end
 
 local function BuildUnitFrames(page)
@@ -1492,22 +1589,26 @@ local function BuildQuesting(page)
     AddSection(page, "Integration", -105)
     AddCheckbox(page, "Enable quest integration", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
     AddCheckbox(page, "Attach tracker to FlowdiUI", 330, -128, function() return db.integrateTracker end, function(v) db.integrateTracker = v end)
-    AddSection(page, "Map pins", -195)
-    AddCheckbox(page, "World map icons", 24, -218, function() return db.worldMapIcons end, function(v) db.worldMapIcons = v end)
-    AddCheckbox(page, "Minimap icons", 330, -218, function() return db.minimapIcons end, function(v) db.minimapIcons = v end)
-    AddCheckbox(page, "Kill and loot objectives", 24, -258, function() return db.showObjectives end, function(v) db.showObjectives = v end)
-    AddCheckbox(page, "Available quest givers", 330, -258, function() return db.showQuestGivers end, function(v) db.showQuestGivers = v end)
-    AddCheckbox(page, "Quest turn-ins", 24, -298, function() return db.showTurnIns end, function(v) db.showTurnIns = v end)
-    AddSection(page, "Provider", -365)
+    AddCheckbox(page, "Fit tracker height to quests", 24, -168, function() return db.autoTrackerHeight end, function(v) db.autoTrackerHeight = v end)
+    AddSection(page, "Map pins", -215)
+    AddCheckbox(page, "World map icons", 24, -238, function() return db.worldMapIcons end, function(v) db.worldMapIcons = v end)
+    AddCheckbox(page, "Minimap icons", 330, -238, function() return db.minimapIcons end, function(v) db.minimapIcons = v end)
+    AddCheckbox(page, "Kill and loot objectives", 24, -278, function() return db.showObjectives end, function(v) db.showObjectives = v end)
+    AddCheckbox(page, "Available quest givers", 330, -278, function() return db.showQuestGivers end, function(v) db.showQuestGivers = v end)
+    AddCheckbox(page, "Quest turn-ins", 24, -318, function() return db.showTurnIns end, function(v) db.showTurnIns = v end)
+    AddSection(page, "Provider", -385)
     local provider = FUI:CreateFont(page, 12)
-    provider:SetPoint("TOPLEFT", 24, -391)
+    provider:SetPoint("TOPLEFT", 24, -411)
     provider:SetWidth(760)
     provider:SetJustifyH("LEFT")
     provider:SetTextColor(0.58, 0.7, 0.88)
+    local questModule = FUI.modules.questing
     local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Questie")) or (IsAddOnLoaded and IsAddOnLoaded("Questie"))
+    local state = questModule and questModule.providerState
     provider:SetText(loaded and
-        "Questie and QuestieDB are available. FlowdiUI owns the visible tracker frame, its size and placement; the provider supplies quest coordinates and map pins." or
-        "Questie and QuestieDB were not detected. Install and enable both Forever addons to supply quest coordinates and map pins.")
+        "Questie and QuestieDB are active. FlowdiUI hosts the tracker while Questie supplies objective, loot, kill, quest-giver, and turn-in locations." or
+        (state == "reload" and "Questie and QuestieDB were installed but disabled. FlowdiUI enabled them; reload once to activate quest locations and map pins." or
+        "Questie and QuestieDB are not active. Install their Forever/Camelot versions to supply quest coordinates and map pins."))
     local note = FUI:CreateFont(page, 11)
     note:SetPoint("TOPLEFT", provider, "BOTTOMLEFT", 0, -12)
     note:SetWidth(760)

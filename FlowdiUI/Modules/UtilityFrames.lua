@@ -251,6 +251,7 @@ function module:CreateTrackerHolder()
     holder:SetFrameStrata("MEDIUM")
     holder:SetFrameLevel(5)
     holder:SetClampedToScreen(true)
+    if holder.SetClipsChildren then holder:SetClipsChildren(true) end
     holder:EnableMouse(false)
     local background = CreateFrame("Frame", "FlowdiUI_ObjectiveTrackerBackground", UIParent, "BackdropTemplate")
     background:SetFrameStrata("BACKGROUND")
@@ -291,6 +292,8 @@ function module:AnchorTracker()
     if not tracker or not holder or not db.enabled or InCombatLockdown() then return end
     local clear = tracker.ClearAllPointsBase or tracker.ClearAllPoints
     local setPoint = tracker.SetPointBase or tracker.SetPoint
+    if tracker:GetParent() ~= holder then tracker:SetParent(holder) end
+    if tracker.SetClipsChildren then tracker:SetClipsChildren(true) end
     pcall(clear, tracker)
     pcall(setPoint, tracker, "TOPRIGHT", holder, "TOPRIGHT", -6, -6)
     pcall(tracker.SetSize, tracker, math.max(1, db.width - 12), math.max(1, db.height - 12))

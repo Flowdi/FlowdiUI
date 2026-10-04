@@ -374,8 +374,8 @@ end
 function module:CreateFrame()
     local frame = CreateFrame("Button", "FlowdiUI_LayerTracker", UIParent, "BackdropTemplate")
     frame:SetSize(190, 42)
-    frame:SetFrameStrata("HIGH")
-    frame:SetFrameLevel(20)
+    frame:SetFrameStrata("LOW")
+    frame:SetFrameLevel(5)
     frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     frame:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     frame:SetBackdropColor(0.008, 0.016, 0.035, 0.96)
@@ -423,7 +423,7 @@ end
 function module:Apply()
     if not self.frame then return end
     local db = FUI.db.utilityFrames.layerTracker
-    self.frame:SetShown(db.enabled)
+    self.frame:SetShown(db.enabled and not (WorldMapFrame and WorldMapFrame:IsShown()))
     self.frame:SetWidth(Clamp(tonumber(db.width) or 190, 150, 300))
     self.frame:SetScale(Clamp(tonumber(db.scale) or 1, 0.6, 1.6) * (FUI.db.scale or 1))
     self.frame:SetBackdropColor(0.008, 0.016, 0.035, FUI.db.global.backgroundOpacity or 0.96)
@@ -439,18 +439,31 @@ function module:Apply()
     self:UpdateDisplay()
 end
 
+function module:HookFullscreenFrames()
+    if not WorldMapFrame or WorldMapFrame.FlowdiLayerHooked then return end
+    WorldMapFrame.FlowdiLayerHooked = true
+    WorldMapFrame:HookScript("OnShow", function()
+        if module.frame then module.frame:Hide() end
+    end)
+    WorldMapFrame:HookScript("OnHide", function() module:Apply() end)
+end
+
 function module:Initialize()
     self:CreateFrame()
+    self:HookFullscreenFrames()
     if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
         pcall(C_ChatInfo.RegisterAddonMessagePrefix, self.prefix)
     end
     self.events = CreateFrame("Frame")
     for _, event in ipairs({
         "CHAT_MSG_ADDON", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_TARGET_CHANGED",
-        "UPDATE_MOUSEOVER_UNIT", "NAME_PLATE_UNIT_ADDED", "GROUP_JOINED", "UNIT_PHASE",
+        "UPDATE_MOUSEOVER_UNIT", "NAME_PLATE_UNIT_ADDED", "GROUP_JOINED", "UNIT_PHASE", "ADDON_LOADED",
     }) do self.events:RegisterEvent(event) end
     self.events:SetScript("OnEvent", function(_, event, ...)
-        if event == "CHAT_MSG_ADDON" then
+        if event == "ADDON_LOADED" then
+            local addonName = ...
+            if addonName == "Blizzard_WorldMap" then module:HookFullscreenFrames() end
+        elseif event == "CHAT_MSG_ADDON" then
             module:OnAddonMessage(...)
         elseif event == "NAME_PLATE_UNIT_ADDED" then
             module:ObserveUnit(...)

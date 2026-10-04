@@ -374,8 +374,8 @@ end
 
 function module:CreatePanel(name, positionKey, maximumSlots)
     local panel = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
-    panel:SetFrameStrata("HIGH")
-    panel:SetFrameLevel(20)
+    panel:SetFrameStrata("LOW")
+    panel:SetFrameLevel(5)
     panel:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = 1 })
     panel.positionKey = positionKey
     panel.slots = {}
@@ -386,6 +386,31 @@ function module:CreatePanel(name, positionKey, maximumSlots)
     for index = 1, maximumSlots do self:CreateSlot(panel, index) end
     self.panels[#self.panels + 1] = panel
     return panel
+end
+
+function module:FullscreenOpen()
+    return WorldMapFrame and WorldMapFrame:IsShown()
+end
+
+function module:UpdateFullscreenVisibility()
+    local hidden = self:FullscreenOpen()
+    for _, panel in ipairs(self.panels) do
+        if hidden then
+            panel.FlowdiFullscreenShown = panel:IsShown()
+            panel:Hide()
+        elseif panel.FlowdiFullscreenShown then
+            panel.FlowdiFullscreenShown = nil
+            panel:Show()
+        end
+    end
+    if not hidden then self:Apply() end
+end
+
+function module:HookFullscreenFrames()
+    if not WorldMapFrame or WorldMapFrame.FlowdiOverlayHooked then return end
+    WorldMapFrame.FlowdiOverlayHooked = true
+    WorldMapFrame:HookScript("OnShow", function() module:UpdateFullscreenVisibility() end)
+    WorldMapFrame:HookScript("OnHide", function() module:UpdateFullscreenVisibility() end)
 end
 
 function module:ApplyPanel(panel, enabled, width, height, count, slotValues)
@@ -430,6 +455,9 @@ function module:Apply()
     end
     self:ApplyPanel(self.minimap, db.minimapEnabled, minimapWidth, db.minimapHeight, db.minimapCount, db.minimapSlots)
     self:Update()
+    if self:FullscreenOpen() then
+        for _, panel in ipairs(self.panels) do panel:Hide() end
+    end
 end
 
 function module:SetLocked(locked)
@@ -454,11 +482,20 @@ function module:Initialize()
         "FRIENDLIST_UPDATE", "BN_FRIEND_ACCOUNT_ONLINE", "BN_FRIEND_ACCOUNT_OFFLINE", "GUILD_ROSTER_UPDATE",
         "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD", "PLAYER_XP_UPDATE", "UPDATE_FACTION", "UPDATE_PENDING_MAIL",
     }) do updater:RegisterEvent(event) end
-    updater:SetScript("OnEvent", function() module:Update() end)
+    updater:RegisterEvent("ADDON_LOADED")
+    updater:SetScript("OnEvent", function(_, event, addonName)
+        if event == "ADDON_LOADED" and addonName == "Blizzard_WorldMap" then
+            module:HookFullscreenFrames()
+            module:UpdateFullscreenVisibility()
+        else
+            module:Update()
+        end
+    end)
     local elapsed = 0
     updater:SetScript("OnUpdate", function(_, delta)
         elapsed = elapsed + delta
         if elapsed >= 1 then elapsed = 0 module:Update() end
     end)
     self:Apply()
+    self:HookFullscreenFrames()
 end

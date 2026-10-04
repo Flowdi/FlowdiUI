@@ -99,12 +99,17 @@ function module:StyleAll()
         self:StyleContainer(_G["ContainerFrame" .. index])
     end
 
+    -- Do not skin every child button of Combined Bags. Search controls,
+    -- close buttons and resize handles are buttons too; treating them as item
+    -- slots creates the large detached blue rectangles seen around the header.
     if ContainerFrameCombinedBags then
-        local children = { ContainerFrameCombinedBags:GetChildren() }
-        for _, child in ipairs(children) do
-            if child and child:IsObjectType("Button") then
-                FUI:SkinButton(child)
-                self:UpdateItem(child)
+        local itemSet = {}
+        for _, button in ipairs(ContainerFrameCombinedBags.Items or {}) do itemSet[button] = true end
+        for _, button in ipairs(ContainerFrameCombinedBags.Bags or {}) do itemSet[button] = true end
+        for _, child in ipairs({ ContainerFrameCombinedBags:GetChildren() }) do
+            if child and child:IsObjectType("Button") and not itemSet[child] and child.FlowdiBackdrop then
+                child.FlowdiBackdrop:Hide()
+                child.FlowdiBackdrop = nil
             end
         end
     end
