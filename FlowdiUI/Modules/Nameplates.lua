@@ -21,6 +21,23 @@ local function SafeNumber(value, fallback)
     return ok and result or fallback
 end
 
+local function IsTargetUnit(unit, plate)
+    -- UnitIsUnit/GUID comparison is authoritative. On the Forever client,
+    -- GetNamePlateForUnit("target") can briefly return a recycled plate and
+    -- made target-only effects appear on unrelated mobs.
+    if UnitIsUnit then
+        local ok, result = pcall(UnitIsUnit, unit, "target")
+        if ok then return result and true or false end
+    end
+    if UnitGUID then
+        local okUnit, unitGUID = pcall(UnitGUID, unit)
+        local okTarget, targetGUID = pcall(UnitGUID, "target")
+        if okUnit and okTarget and unitGUID and targetGUID then return unitGUID == targetGUID end
+    end
+    local targetPlate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("target")
+    return targetPlate ~= nil and targetPlate == plate
+end
+
 local function UnitColor(unit)
     local db = FUI.db.nameplates
     if UnitIsTapDenied and UnitIsTapDenied(unit) then return Color(db.tappedColor, { .42, .44, .48, 1 }) end
@@ -239,11 +256,7 @@ function module:UpdatePlate(unit)
     local db = FUI.db.nameplates
     local friendly = UnitIsFriend("player", unit)
     local nameOnly = friendly and db.friendlyNameOnly
-    -- Frame identity is reliable on Forever even when UnitIsUnit's result is
-    -- restricted. This also prevents pooled nameplate tokens retaining a
-    -- target state when Blizzard recycles them for another mob.
-    local targetPlate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("target")
-    local target = targetPlate ~= nil and targetPlate == plate
+    local target = IsTargetUnit(unit, plate)
     custom:SetScale(target and (db.targetScale or 1) or 1)
     custom:SetAlpha(target and 1 or (db.nonTargetAlpha or 1))
     custom.name:SetText(UnitName(unit) or "")
@@ -409,6 +422,10 @@ function module:Initialize()
         for unit, record in pairs(module.units) do
             if UnitExists(unit) then
                 module:SuppressNative(record.plate, true)
+                -- Forever refreshes and recycles nameplates aggressively.
+                -- Reapply live settings and target state on the same cadence
+                -- instead of relying only on events that are not always sent.
+                module:UpdatePlate(unit)
                 local cast = record.custom.cast
                 if cast:IsShown() and cast.endTime and cast.startTime then
                     local now, duration = GetTime(), math.max(.001, cast.endTime - cast.startTime)

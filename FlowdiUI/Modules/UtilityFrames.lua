@@ -251,7 +251,7 @@ function module:CreateTrackerHolder()
     holder:SetFrameStrata("MEDIUM")
     holder:SetFrameLevel(5)
     holder:SetClampedToScreen(true)
-    if holder.SetClipsChildren then holder:SetClipsChildren(false) end
+    if holder.SetClipsChildren then holder:SetClipsChildren(true) end
     holder:EnableMouse(false)
     local background = CreateFrame("Frame", "FlowdiUI_ObjectiveTrackerBackground", UIParent, "BackdropTemplate")
     background:SetFrameStrata("BACKGROUND")
@@ -292,11 +292,29 @@ function module:AnchorTracker()
     if not tracker or not holder or not db.enabled or InCombatLockdown() then return end
     local clear = tracker.ClearAllPointsBase or tracker.ClearAllPoints
     local setPoint = tracker.SetPointBase or tracker.SetPoint
-    if tracker:GetParent() ~= UIParent then tracker:SetParent(UIParent) end
-    if tracker.SetClipsChildren then tracker:SetClipsChildren(false) end
+    if tracker:GetParent() ~= holder then tracker:SetParent(holder) end
     pcall(clear, tracker)
     pcall(setPoint, tracker, "TOPRIGHT", holder, "TOPRIGHT", -6, -6)
-    pcall(tracker.SetSize, tracker, math.max(1, db.width - 12), math.max(1, db.height - 12))
+    pcall(tracker.SetWidth, tracker, math.max(1, db.width - 12))
+    if not (FUI.db.questing and FUI.db.questing.autoTrackerHeight) then
+        pcall(tracker.SetHeight, tracker, math.max(1, db.height - 12))
+    end
+    self:SyncTrackerHeight()
+end
+
+function module:SyncTrackerHeight()
+    local tracker, holder = _G.ObjectiveTrackerFrame, self.trackerHolder
+    local db = FUI.db.utilityFrames.objectiveTracker
+    if not tracker or not holder or not db.enabled then return end
+    if not (FUI.db.questing and FUI.db.questing.autoTrackerHeight) then
+        holder:SetHeight(db.height)
+        return
+    end
+    local contentHeight = tonumber(tracker:GetHeight()) or (db.height - 12)
+    local top = holder:GetTop()
+    local available = top and math.max(120, top - 8) or db.height
+    local wanted = math.max(120, contentHeight + 12)
+    holder:SetHeight(math.min(wanted, available))
 end
 
 function module:ApplyTracker()
@@ -324,6 +342,15 @@ function module:ApplyTracker()
             end)
         end
         tracker:HookScript("OnShow", function() C_Timer.After(0, function() module:AnchorTracker() end) end)
+        tracker:HookScript("OnSizeChanged", function()
+            if not module.syncingTrackerHeight then
+                module.syncingTrackerHeight = true
+                C_Timer.After(0, function()
+                    module:SyncTrackerHeight()
+                    module.syncingTrackerHeight = nil
+                end)
+            end
+        end)
     end
     local mover = FUI.movers and FUI.movers.objectiveTracker
     if mover then FUI:SyncMoverOverlay(mover) end
@@ -399,6 +426,7 @@ function module:Initialize()
             module:SetNativeBarState("bagBar")
             for _, proxy in pairs(module.proxies) do module:RefreshProxyIcon(proxy) end
             module:StyleTrackerFonts()
+            module:AnchorTracker()
         end
     end)
     self.events = events

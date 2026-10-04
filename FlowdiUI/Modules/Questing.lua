@@ -171,14 +171,13 @@ end
 local function StylePin(pin, mini)
     if pin.styled then return end
     pin.styled = true
-    pin:SetSize(mini and 15 or 18, mini and 15 or 18)
+    -- Quest databases contain many spawn points in a small area. Keep the
+    -- symbols deliberately compact so they describe the area instead of
+    -- covering the map artwork.
+    pin:SetSize(mini and 9 or 12, mini and 9 or 12)
     pin.icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon:SetAllPoints()
     pin.icon:SetTexCoord(.08, .92, .08, .92)
-    pin.border = pin:CreateTexture(nil, "OVERLAY")
-    pin.border:SetPoint("TOPLEFT", -1, 1)
-    pin.border:SetPoint("BOTTOMRIGHT", 1, -1)
-    pin.border:SetColorTexture(.12, .58, 1, .95)
     pin.icon:SetDrawLayer("OVERLAY", 1)
     pin:EnableMouse(not mini)
     if not mini then
@@ -206,18 +205,25 @@ function module:RefreshWorldMap()
     local child = WorldMapFrame.ScrollContainer.Child
     local width, height = child:GetWidth(), child:GetHeight()
     if not mapID or not width or width <= 1 or not height or height <= 1 then return end
-    local used = 0
+    local used, occupied = 0, {}
     if FUI.db.questing.enabled and FUI.db.questing.worldMapIcons then
         for _, record in ipairs(self.records) do
             if record.mapID == mapID then
-                used = used + 1
-                local pin = self:AcquireMapPin(used)
-                pin.data = record
-                pin.icon:SetTexture(record.texture)
-                pin:ClearAllPoints()
-                pin:SetPoint("CENTER", child, "TOPLEFT", record.x * width, -record.y * height)
-                pin:SetFrameLevel(child:GetFrameLevel() + 2100)
-                pin:Show()
+                -- Collapse virtually identical spawn coordinates. This keeps
+                -- dense camps readable while retaining their overall shape.
+                local gridX, gridY = math.floor(record.x / .0125), math.floor(record.y / .0125)
+                local key = record.iconType .. ":" .. gridX .. ":" .. gridY
+                if not occupied[key] then
+                    occupied[key] = true
+                    used = used + 1
+                    local pin = self:AcquireMapPin(used)
+                    pin.data = record
+                    pin.icon:SetTexture(record.texture)
+                    pin:ClearAllPoints()
+                    pin:SetPoint("CENTER", child, "TOPLEFT", record.x * width, -record.y * height)
+                    pin:SetFrameLevel(child:GetFrameLevel() + 2100)
+                    pin:Show()
+                end
             end
         end
     end

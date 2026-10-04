@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.51
+
+- Reduced and spatially de-cluttered FlowdiUI quest map markers and removed their blue icon border.
+- Made live nameplate settings persistent on Forever's frequently refreshed nameplate pool and corrected target-only detection.
+- Made the Objective Tracker follow dynamic quest-list height while clipping content safely at the screen boundary.
+
 ## 0.8.50
 
 - Replaces the Questie frontend integration with FlowdiUI Questing, which reads tracked quest objectives, NPCs, objects, item drops, event locations, and turn-ins directly from the public QuestieDB data API.
