@@ -651,11 +651,27 @@ local function BuildNameplates(page)
     preview.level = FUI:CreateFont(preview.health, 9)
     preview.level:SetPoint("LEFT", 3, 0)
     preview.level:SetText("18")
-    preview.glow = CreateFrame("Frame", nil, preview.health, "BackdropTemplate")
-    preview.glow:SetPoint("TOPLEFT", -3, 3)
-    preview.glow:SetPoint("BOTTOMRIGHT", 3, -3)
-    preview.glow:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
-    preview.glow:SetBackdropBorderColor(0.25, 0.7, 1, 1)
+    preview.glow = CreateFrame("Frame", nil, preview.health)
+    preview.glow:SetPoint("CENTER")
+    preview.glow:SetSize(db.width + 22, db.height + 22)
+    preview.glow.layers = {}
+    for index = 1, 3 do
+        local glow = preview.glow:CreateTexture(nil, "OVERLAY")
+        glow:SetPoint("CENTER")
+        glow:SetSize(db.width + 15 + index * 7, db.height + 15 + index * 7)
+        glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+        glow:SetBlendMode("ADD")
+        glow:SetVertexColor(0.18, 0.62, 1, 0.72 / index)
+        preview.glow.layers[index] = glow
+    end
+    preview.glow.anim = preview.glow:CreateAnimationGroup()
+    preview.glow.anim:SetLooping("BOUNCE")
+    local glowFade = preview.glow.anim:CreateAnimation("Alpha")
+    glowFade:SetFromAlpha(0.38)
+    glowFade:SetToAlpha(1)
+    glowFade:SetDuration(0.65)
+    glowFade:SetSmoothing("IN_OUT")
+    preview.glow.anim:Play()
     preview.leftArrow = FUI:CreateFont(preview.health, 18)
     preview.leftArrow:SetPoint("RIGHT", preview.health, "LEFT", -5, 0)
     preview.leftArrow:SetText(">")
@@ -1599,10 +1615,10 @@ local function BuildProfiles(page)
 end
 
 local function BuildQuesting(page)
-    AddTitle(page, "Questing", "Quest locations and a FlowdiUI-hosted tracker powered by the installed Forever quest database.")
+    AddTitle(page, "Questing", "FlowdiUI quest tracking and map pins read directly from the installed Forever quest database.")
     local db = FUI.db.questing
-    AddSection(page, "Integration", -105)
-    AddCheckbox(page, "Enable quest integration", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
+    AddSection(page, "FlowdiUI Questing", -105)
+    AddCheckbox(page, "Enable FlowdiUI Questing", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
     AddCheckbox(page, "Attach tracker to FlowdiUI", 330, -128, function() return db.integrateTracker end, function(v) db.integrateTracker = v end)
     AddCheckbox(page, "Fit tracker height to quests", 24, -168, function() return db.autoTrackerHeight end, function(v) db.autoTrackerHeight = v end)
     AddSection(page, "Map pins", -215)
@@ -1618,12 +1634,12 @@ local function BuildQuesting(page)
     provider:SetJustifyH("LEFT")
     provider:SetTextColor(0.58, 0.7, 0.88)
     local questModule = FUI.modules.questing
-    local loaded = (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Questie")) or (IsAddOnLoaded and IsAddOnLoaded("Questie"))
     local state = questModule and questModule.providerState
-    provider:SetText(loaded and
-        "Questie and QuestieDB are active. FlowdiUI hosts the tracker while Questie supplies objective, loot, kill, quest-giver, and turn-in locations." or
-        (state == "reload" and "Questie and QuestieDB were installed but disabled. FlowdiUI enabled them; reload once to activate quest locations and map pins." or
-        "Questie and QuestieDB are not active. Install their Forever/Camelot versions to supply quest coordinates and map pins."))
+    provider:SetText(state == "ready" and
+        "FlowdiUI Questing is active. FlowdiUI reads spawn coordinates directly from QuestieDB; the Questie addon remains disabled and is not used." or
+        (state == "incompatible" and "The installed QuestieDB data contract is incompatible. Update QuestieDB to restore FlowdiUI quest locations." or
+        (state == "reload" and "QuestieDB was enabled as FlowdiUI's data library. Reload once to activate FlowdiUI quest locations." or
+        "QuestieDB is missing. Install its Forever/Camelot database package to supply coordinates; the Questie addon itself is not required.")))
     local note = FUI:CreateFont(page, 11)
     note:SetPoint("TOPLEFT", provider, "BOTTOMLEFT", 0, -12)
     note:SetWidth(760)

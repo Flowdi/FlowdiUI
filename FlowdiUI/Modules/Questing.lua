@@ -1,362 +1,317 @@
 local _, ns = ...
 local FUI = ns.FUI
 
-local module = {
-    questieReady = false,
-    callbacksRegistered = false,
-}
+-- QuestieDB is a provider with a public consumer API. FlowdiUI reads that API
+-- directly and owns every frame below; the Questie frontend is neither loaded
+-- nor required.
+local module = { records = {}, mapPins = {}, minimapPins = {}, pinPool = {}, miniPool = {} }
 FUI:RegisterModule("questing", module)
 
-local function CopyLocation(location)
-    if type(location) ~= "table" then return nil end
-    return { location[1], location[2], location[3], location[4], location[5] }
-end
-
-local function IsQuestieLoaded()
-    if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded("Questie") end
-    return IsAddOnLoaded and IsAddOnLoaded("Questie")
-end
+local ICONS = {
+    slay = "Interface\\Icons\\INV_Sword_04",
+    loot = "Interface\\Icons\\INV_Misc_Bag_10",
+    object = "Interface\\Icons\\INV_Misc_Gear_01",
+    turnin = "Interface\\Icons\\INV_Misc_QuestionMark",
+    event = "Interface\\Icons\\INV_Misc_Note_01",
+}
 
 local function AddonExists(name)
     if C_AddOns and C_AddOns.DoesAddOnExist then return C_AddOns.DoesAddOnExist(name) end
-    if GetAddOnInfo then return GetAddOnInfo(name) ~= nil end
-    return false
+    return GetAddOnInfo and GetAddOnInfo(name) ~= nil
 end
 
-function module:EnsureQuestieProvider()
-    if IsQuestieLoaded() then return true end
-    if not AddonExists("Questie") or not AddonExists("QuestieDB") then
-        self.providerState = "missing"
+local function IsLoaded(name)
+    if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
+    return IsAddOnLoaded and IsAddOnLoaded(name)
+end
+
+local function Enable(name, enabled)
+    if C_AddOns then
+        if enabled and C_AddOns.EnableAddOn then pcall(C_AddOns.EnableAddOn, name)
+        elseif not enabled and C_AddOns.DisableAddOn then pcall(C_AddOns.DisableAddOn, name) end
+    elseif enabled and EnableAddOn then pcall(EnableAddOn, name)
+    elseif not enabled and DisableAddOn then pcall(DisableAddOn, name) end
+end
+
+local function Load(name)
+    if IsLoaded(name) then return true end
+    local loader = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
+    if not loader then return false end
+    local ok, loaded = pcall(loader, name)
+    return ok and loaded ~= false
+end
+
+local function Decode(source)
+    if type(source) == "table" then return source end
+    if type(source) ~= "string" or not loadstring then return {} end
+    local chunk = loadstring(source, "=FlowdiUI.QuestieDB")
+    if not chunk then return {} end
+    local ok, value = pcall(chunk)
+    return ok and type(value) == "table" and value or {}
+end
+
+function module:PrepareProvider()
+    -- Undo the old integration's activation of Questie. Removing Questie from
+    -- OptionalDeps means FlowdiUI now loads first and can keep it disabled.
+    if AddonExists("Questie") then Enable("Questie", false) end
+    if not AddonExists("QuestieDB") then self.providerState = "missing" return false end
+    Enable("QuestieDB", true)
+    if not Load("QuestieDB") or type(LibQuestieDB) ~= "table" then
+        self.providerState = "reload"
         return false
     end
-    if C_AddOns and C_AddOns.EnableAddOn then
-        pcall(C_AddOns.EnableAddOn, "QuestieDB")
-        pcall(C_AddOns.EnableAddOn, "Questie")
-    elseif EnableAddOn then
-        pcall(EnableAddOn, "QuestieDB")
-        pcall(EnableAddOn, "Questie")
-    end
-    local loaded, reason
-    if C_AddOns and C_AddOns.LoadAddOn then
-        local ok
-        ok, loaded, reason = pcall(C_AddOns.LoadAddOn, "Questie")
-        if not ok then loaded, reason = false, loaded end
-    elseif LoadAddOn then
-        local ok
-        ok, loaded, reason = pcall(LoadAddOn, "Questie")
-        if not ok then loaded, reason = false, loaded end
-    end
-    self.providerState = loaded and "loaded" or "reload"
-    if not loaded and not self.providerNotice then
-        self.providerNotice = true
-        FUI:Print("Questie and QuestieDB were enabled for the Questing module. Reload the UI once to activate map pins.")
-    end
-    return loaded == true
+    local ok = LibQuestieDB.RequireContract and LibQuestieDB.RequireContract(2)
+    if ok == false then self.providerState = "incompatible" return false end
+    self.providerState = "ready"
+    self.provider = LibQuestieDB
+    local zones = LibQuestieDB.Support and LibQuestieDB.Support.Get and LibQuestieDB.Support.Get("ZoneDB")
+    local private = zones and zones.private or {}
+    self.areaToMap = Decode(private.areaIdToUiMapId)
+    for area, mapID in pairs(Decode(private.areaIdToUiMapIdOverride)) do self.areaToMap[area] = mapID end
+    return true
 end
 
-function module:GetQuestieModule(name)
-    if not QuestieLoader or not QuestieLoader.ImportModule then return nil end
-    local ok, result = pcall(QuestieLoader.ImportModule, QuestieLoader, name)
-    return ok and result or nil
+function module:GetTrackedQuests()
+    local result = {}
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        local count = C_QuestLog.GetNumQuestLogEntries()
+        for index = 1, count do
+            local info = C_QuestLog.GetInfo(index)
+            if info and not info.isHeader and info.questID and info.questID > 0 then
+                local watched = true
+                if C_QuestLog.GetQuestWatchType then watched = C_QuestLog.GetQuestWatchType(info.questID) ~= nil end
+                if watched then result[#result + 1] = { id = info.questID, title = info.title or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(info.questID)) } end
+            end
+        end
+    elseif GetNumQuestLogEntries and GetQuestLogTitle then
+        local count = GetNumQuestLogEntries()
+        for index = 1, count do
+            local title, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
+            if not isHeader and questID and (not IsQuestWatched or IsQuestWatched(index)) then
+                result[#result + 1] = { id = questID, title = title }
+            end
+        end
+    end
+    return result
 end
 
-function module:CaptureQuestieSettings(profile)
-    local db = FUI.db.questing
-    if db.questieBackup then return end
-    db.questieBackup = {
-        enableMapIcons = profile.enableMapIcons,
-        enableMiniMapIcons = profile.enableMiniMapIcons,
-        enableObjectives = profile.enableObjectives,
-        enableAvailable = profile.enableAvailable,
-        enableAvailableItems = profile.enableAvailableItems,
-        enableTurnins = profile.enableTurnins,
-        enabled = profile.enabled,
-        trackerEnabled = profile.trackerEnabled,
-        autoTrackQuests = profile.autoTrackQuests,
-        hideUntrackedQuestsMapIcons = profile.hideUntrackedQuestsMapIcons,
-        hideIconsOnContinents = profile.hideIconsOnContinents,
-        objectiveFilterDistance = profile.objectiveFilterDistance,
-        iconTheme = profile.iconTheme,
-        ICON_SLAY = profile.ICON_SLAY,
-        ICON_LOOT = profile.ICON_LOOT,
-        ICON_EVENT = profile.ICON_EVENT,
-        ICON_OBJECT = profile.ICON_OBJECT,
-        ICON_TALK = profile.ICON_TALK,
-        ICON_INTERACT = profile.ICON_INTERACT,
-        TrackerWidth = profile.TrackerWidth,
-        TrackerHeight = profile.TrackerHeight,
-        TrackerLocation = CopyLocation(profile.TrackerLocation),
-        trackerBackdropEnabled = profile.trackerBackdropEnabled,
-        trackerBorderEnabled = profile.trackerBorderEnabled,
-        sizerHidden = profile.sizerHidden,
-        trackerLocked = profile.trackerLocked,
-        trackerFontHeader = profile.trackerFontHeader,
-        trackerFontZone = profile.trackerFontZone,
-        trackerFontQuest = profile.trackerFontQuest,
-        trackerFontObjective = profile.trackerFontObjective,
-        trackerFontSizeHeader = profile.trackerFontSizeHeader,
-        trackerFontSizeZone = profile.trackerFontSizeZone,
-        trackerFontSizeQuest = profile.trackerFontSizeQuest,
-        trackerFontSizeObjective = profile.trackerFontSizeObjective,
-        trackerFontOutline = profile.trackerFontOutline,
-    }
+local function AddSpawn(records, seen, questID, title, objective, iconType, areaID, coords)
+    local mapID = module.areaToMap and module.areaToMap[areaID]
+    if not mapID or mapID == 0 or type(coords) ~= "table" then return end
+    for _, coord in ipairs(coords) do
+        local x, y = tonumber(coord[1]), tonumber(coord[2])
+        if x and y and x >= 0 and y >= 0 then
+            local key = table.concat({ questID, iconType, mapID, string.format("%.2f", x), string.format("%.2f", y) }, ":")
+            if not seen[key] then
+                seen[key] = true
+                records[#records + 1] = {
+                    questID = questID, title = title or ("Quest " .. questID), objective = objective,
+                    iconType = iconType, texture = ICONS[iconType] or ICONS.event,
+                    mapID = mapID, x = x / 100, y = y / 100,
+                }
+            end
+        end
+    end
 end
 
-function module:RestoreQuestieSettings()
-    local backup = FUI.db.questing.questieBackup
-    local profile = Questie and Questie.db and Questie.db.profile
-    if not backup or not profile then return end
-    profile.enableMapIcons = backup.enableMapIcons
-    profile.enableMiniMapIcons = backup.enableMiniMapIcons
-    profile.enableObjectives = backup.enableObjectives
-    profile.enableAvailable = backup.enableAvailable
-    profile.enableAvailableItems = backup.enableAvailableItems
-    profile.enableTurnins = backup.enableTurnins
-    profile.enabled = backup.enabled
-    profile.trackerEnabled = backup.trackerEnabled
-    profile.autoTrackQuests = backup.autoTrackQuests
-    profile.hideUntrackedQuestsMapIcons = backup.hideUntrackedQuestsMapIcons
-    profile.hideIconsOnContinents = backup.hideIconsOnContinents
-    profile.objectiveFilterDistance = backup.objectiveFilterDistance
-    profile.iconTheme = backup.iconTheme
-    profile.ICON_SLAY = backup.ICON_SLAY
-    profile.ICON_LOOT = backup.ICON_LOOT
-    profile.ICON_EVENT = backup.ICON_EVENT
-    profile.ICON_OBJECT = backup.ICON_OBJECT
-    profile.ICON_TALK = backup.ICON_TALK
-    profile.ICON_INTERACT = backup.ICON_INTERACT
-    profile.TrackerWidth = backup.TrackerWidth
-    profile.TrackerHeight = backup.TrackerHeight
-    profile.TrackerLocation = CopyLocation(backup.TrackerLocation)
-    profile.trackerBackdropEnabled = backup.trackerBackdropEnabled
-    profile.trackerBorderEnabled = backup.trackerBorderEnabled
-    profile.sizerHidden = backup.sizerHidden
-    profile.trackerLocked = backup.trackerLocked
-    profile.trackerFontHeader = backup.trackerFontHeader
-    profile.trackerFontZone = backup.trackerFontZone
-    profile.trackerFontQuest = backup.trackerFontQuest
-    profile.trackerFontObjective = backup.trackerFontObjective
-    profile.trackerFontSizeHeader = backup.trackerFontSizeHeader
-    profile.trackerFontSizeZone = backup.trackerFontSizeZone
-    profile.trackerFontSizeQuest = backup.trackerFontSizeQuest
-    profile.trackerFontSizeObjective = backup.trackerFontSizeObjective
-    profile.trackerFontOutline = backup.trackerFontOutline
-    FUI.db.questing.questieBackup = nil
+local function AddSpawnList(records, seen, questID, title, objective, iconType, spawns)
+    if type(spawns) ~= "table" then return end
+    for areaID, coords in pairs(spawns) do AddSpawn(records, seen, questID, title, objective, iconType, areaID, coords) end
+end
+
+function module:AddNpc(records, seen, quest, objective, iconType, npcID)
+    if not npcID then return end
+    local db = self.provider
+    local name = db.Npc.Get(npcID, "name")
+    AddSpawnList(records, seen, quest.id, quest.title, objective or name, iconType, db.Npc.Get(npcID, "spawns"))
+end
+
+function module:AddObject(records, seen, quest, objective, iconType, objectID)
+    if not objectID then return end
+    local db = self.provider
+    local name = db.Object.Get(objectID, "name")
+    AddSpawnList(records, seen, quest.id, quest.title, objective or name, iconType, db.Object.Get(objectID, "spawns"))
+end
+
+function module:AddItem(records, seen, quest, objective, itemID)
+    if not itemID then return end
+    local db = self.provider
+    local itemName = db.Item.Get(itemID, "name")
+    for _, npcID in ipairs(db.Item.Get(itemID, "npcDrops") or {}) do self:AddNpc(records, seen, quest, objective or itemName, "loot", npcID) end
+    for _, objectID in ipairs(db.Item.Get(itemID, "objectDrops") or {}) do self:AddObject(records, seen, quest, objective or itemName, "loot", objectID) end
+end
+
+function module:BuildRecords()
+    self.records = {}
+    if self.providerState ~= "ready" then return end
+    local records, seen, db = self.records, {}, self.provider
+    for _, quest in ipairs(self:GetTrackedQuests()) do
+        local objectives = db.Quest.Get(quest.id, "objectives") or {}
+        if FUI.db.questing.showObjectives then
+            for _, row in ipairs(objectives[1] or {}) do self:AddNpc(records, seen, quest, row[2], "slay", row[1]) end
+            for _, row in ipairs(objectives[2] or {}) do self:AddObject(records, seen, quest, row[2], "object", row[1]) end
+            for _, row in ipairs(objectives[3] or {}) do self:AddItem(records, seen, quest, row[2], row[1]) end
+            for _, row in ipairs(objectives[5] or {}) do
+                for _, npcID in ipairs(row[1] or {}) do self:AddNpc(records, seen, quest, row[3], "slay", npcID) end
+            end
+            local trigger = db.Quest.Get(quest.id, "triggerEnd")
+            if trigger then AddSpawnList(records, seen, quest.id, quest.title, trigger[1], "event", trigger[2]) end
+            for _, extra in ipairs(db.Quest.Get(quest.id, "extraObjectives") or {}) do
+                AddSpawnList(records, seen, quest.id, quest.title, extra[3], "event", extra[1])
+            end
+        end
+        if FUI.db.questing.showTurnIns then
+            local finishers = db.Quest.Get(quest.id, "finishedBy") or {}
+            for _, npcID in ipairs(finishers[1] or {}) do self:AddNpc(records, seen, quest, "Quest turn-in", "turnin", npcID) end
+            for _, objectID in ipairs(finishers[2] or {}) do self:AddObject(records, seen, quest, "Quest turn-in", "turnin", objectID) end
+        end
+    end
+end
+
+local function StylePin(pin, mini)
+    if pin.styled then return end
+    pin.styled = true
+    pin:SetSize(mini and 15 or 18, mini and 15 or 18)
+    pin.icon = pin:CreateTexture(nil, "ARTWORK")
+    pin.icon:SetAllPoints()
+    pin.icon:SetTexCoord(.08, .92, .08, .92)
+    pin.border = pin:CreateTexture(nil, "OVERLAY")
+    pin.border:SetPoint("TOPLEFT", -1, 1)
+    pin.border:SetPoint("BOTTOMRIGHT", 1, -1)
+    pin.border:SetColorTexture(.12, .58, 1, .95)
+    pin.icon:SetDrawLayer("OVERLAY", 1)
+    pin:EnableMouse(not mini)
+    if not mini then
+        pin:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetText(self.data.title or "Quest", 1, .82, .2)
+            if self.data.objective then GameTooltip:AddLine(self.data.objective, .85, .9, 1, true) end
+            GameTooltip:Show()
+        end)
+        pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+end
+
+function module:AcquireMapPin(index)
+    local pin = self.mapPins[index] or table.remove(self.pinPool)
+    if not pin then pin = CreateFrame("Button", nil, WorldMapFrame.ScrollContainer.Child) StylePin(pin, false) end
+    pin:SetParent(WorldMapFrame.ScrollContainer.Child)
+    self.mapPins[index] = pin
+    return pin
+end
+
+function module:RefreshWorldMap()
+    if not WorldMapFrame or not WorldMapFrame.ScrollContainer or not WorldMapFrame.ScrollContainer.Child then return end
+    local mapID = WorldMapFrame.GetMapID and WorldMapFrame:GetMapID()
+    local child = WorldMapFrame.ScrollContainer.Child
+    local width, height = child:GetWidth(), child:GetHeight()
+    if not mapID or not width or width <= 1 or not height or height <= 1 then return end
+    local used = 0
+    if FUI.db.questing.enabled and FUI.db.questing.worldMapIcons then
+        for _, record in ipairs(self.records) do
+            if record.mapID == mapID then
+                used = used + 1
+                local pin = self:AcquireMapPin(used)
+                pin.data = record
+                pin.icon:SetTexture(record.texture)
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", child, "TOPLEFT", record.x * width, -record.y * height)
+                pin:SetFrameLevel(child:GetFrameLevel() + 2100)
+                pin:Show()
+            end
+        end
+    end
+    for index = used + 1, #self.mapPins do self.mapPins[index]:Hide() end
+end
+
+function module:AcquireMinimapPin(index)
+    if not self.minimapPins[index] then
+        local pin = CreateFrame("Frame", nil, Minimap)
+        StylePin(pin, true)
+        pin:SetFrameLevel(Minimap:GetFrameLevel() + 12)
+        self.minimapPins[index] = pin
+    end
+    return self.minimapPins[index]
+end
+
+function module:RefreshMinimap()
+    if not Minimap then return end
+    local enabled = FUI.db.questing.enabled and FUI.db.questing.minimapIcons
+    local mapID = enabled and C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+    local player = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
+    local px, py = player and player:GetXY()
+    local radiusByZoom = { 466.7, 400, 333.3, 266.7, 200, 133.3 }
+    local radius = radiusByZoom[(Minimap:GetZoom() or 0) + 1] or 200
+    local halfW, halfH = Minimap:GetWidth() / 2, Minimap:GetHeight() / 2
+    local used = 0
+    if mapID and px and py and C_Map.GetWorldPosFromMapPos then
+        local _, playerWorld = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(px, py))
+        local pwx, pwy = playerWorld and playerWorld:GetXY()
+        if pwx and pwy then
+            for _, record in ipairs(self.records) do
+                if record.mapID == mapID then
+                    local _, world = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(record.x, record.y))
+                    local wx, wy = world and world:GetXY()
+                    if wx and wy then
+                        local dx, dy = wx - pwx, wy - pwy
+                        if math.abs(dx) <= radius and math.abs(dy) <= radius then
+                            used = used + 1
+                            local pin = self:AcquireMinimapPin(used)
+                            pin.icon:SetTexture(record.texture)
+                            pin:ClearAllPoints()
+                            pin:SetPoint("CENTER", Minimap, "CENTER", dx / radius * halfW, -dy / radius * halfH)
+                            pin:Show()
+                        end
+                    end
+                end
+            end
+        end
+    end
+    for index = used + 1, #self.minimapPins do self.minimapPins[index]:Hide() end
+end
+
+function module:Refresh()
+    self:BuildRecords()
+    self:RefreshWorldMap()
+    self:RefreshMinimap()
+end
+
+function module:HookWorldMap()
+    if not WorldMapFrame or WorldMapFrame.FlowdiQuestPinsHooked then return end
+    WorldMapFrame.FlowdiQuestPinsHooked = true
+    WorldMapFrame:HookScript("OnShow", function() C_Timer.After(0, function() module:RefreshWorldMap() end) end)
+    if WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", function() module:RefreshWorldMap() end) end
+end
+
+function module:Apply()
+    if not self.provider then self:PrepareProvider() end
+    local utility = FUI.modules.utilityFrames
+    local holder = utility and utility.trackerHolder
+    if holder then holder:SetShown(FUI.db.questing.enabled and FUI.db.utilityFrames.objectiveTracker.enabled) end
     if ObjectiveTrackerFrame then
         ObjectiveTrackerFrame:SetAlpha(1)
         if ObjectiveTrackerFrame.EnableMouse then ObjectiveTrackerFrame:EnableMouse(true) end
     end
-    local questieQuest = self:GetQuestieModule("QuestieQuest")
-    if questieQuest and questieQuest.SmoothReset then questieQuest:SmoothReset() end
-    local tracker = self:GetQuestieModule("QuestieTracker")
-    if tracker and tracker.Update then tracker:Update() end
-end
-
-function module:AnchorQuestieTracker()
-    local db = FUI.db.questing
-    if not db.enabled or not db.integrateTracker then return end
-    local utility = FUI.modules.utilityFrames
-    local holder = utility and utility.trackerHolder
-    local frame = _G.Questie_BaseFrame
-    if not holder or not frame or InCombatLockdown() then return end
-
-    local trackerDB = FUI.db.utilityFrames.objectiveTracker
-    local width = math.max(120, trackerDB.width - 12)
-    local height = math.max(100, trackerDB.height - 12)
-    holder:SetHeight(trackerDB.height)
-    holder:SetWidth(trackerDB.width)
-    -- Questie's tracker owns a native ScrollFrame and measures its line pool
-    -- during every UpdateFormatting pass. Reparenting/clipping those internal
-    -- frames makes the line pool report no visible content. Keep Questie on
-    -- UIParent and only use our holder as an anchor/background.
-    if holder.SetClipsChildren then holder:SetClipsChildren(false) end
-    if frame:GetParent() ~= UIParent then frame:SetParent(UIParent) end
-    frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", holder, "TOPLEFT", 6, -6)
-    frame:SetSize(width, height)
-    if frame.SetClipsChildren then frame:SetClipsChildren(false) end
-    frame:SetBackdropColor(0, 0, 0, 0)
-    frame:SetBackdropBorderColor(0, 0, 0, 0)
-    if not trackerDB.enabled then frame:Hide() end
-    holder:SetShown(trackerDB.enabled)
-    if utility.trackerBackground then utility.trackerBackground:SetShown(trackerDB.enabled) end
-end
-
-function module:RefreshQuestieMap()
-    if not self.questieReady then return end
-    local db = FUI.db.questing
-    local questieMap = self:GetQuestieModule("QuestieMap")
-    if Questie and Questie.SetIcons then Questie.SetIcons() end
-    if questieMap and questieMap.RescaleIcons then questieMap:RescaleIcons() end
-end
-
-function module:HookWorldMap()
-    if not WorldMapFrame or WorldMapFrame.FlowdiQuestieHooked then return end
-    WorldMapFrame.FlowdiQuestieHooked = true
-    WorldMapFrame:HookScript("OnShow", function()
-        C_Timer.After(0, function() module:RefreshQuestieMap() end)
-        C_Timer.After(0.5, function() module:RefreshQuestieMap() end)
-    end)
-end
-
-function module:ApplyQuestieSettings(forceRefresh)
-    if not self.questieReady or not Questie or not Questie.db or not Questie.db.profile then return end
-    local db = FUI.db.questing
-    local profile = Questie.db.profile
-    if not db.enabled then
-        self:RestoreQuestieSettings()
-        return
-    end
-
-    self:CaptureQuestieSettings(profile)
-    local signature = table.concat({
-        tostring(db.worldMapIcons), tostring(db.minimapIcons), tostring(db.showObjectives),
-        tostring(db.showQuestGivers), tostring(db.showTurnIns), tostring(db.integrateTracker),
-    }, ":")
-    local mapChanged = self.lastSignature and self.lastSignature ~= signature
-    self.lastSignature = signature
-
-    profile.enableMapIcons = db.worldMapIcons
-    profile.enableMiniMapIcons = db.minimapIcons
-    profile.enableObjectives = db.showObjectives
-    profile.enableAvailable = db.showQuestGivers
-    profile.enableAvailableItems = db.showQuestGivers
-    profile.enableTurnins = db.showTurnIns
-    profile.hideUntrackedQuestsMapIcons = false
-    profile.hideIconsOnContinents = false
-    profile.objectiveFilterDistance = 0
-    profile.enabled = true
-    profile.trackerEnabled = true
-    profile.autoTrackQuests = true
-    profile.iconTheme = "questie"
-    if Questie.icons then
-        profile.ICON_SLAY = Questie.icons.slay
-        profile.ICON_LOOT = Questie.icons.loot
-        profile.ICON_EVENT = Questie.icons.event
-        profile.ICON_OBJECT = Questie.icons.object
-        profile.ICON_TALK = Questie.icons.talk
-        profile.ICON_INTERACT = Questie.icons.interact
-    end
-    if GetCVar and SetCVar and GetCVar("questPOI") then pcall(SetCVar, "questPOI", "0") end
-    if Questie.SetIcons then Questie.SetIcons() end
-    local trackerDB = FUI.db.utilityFrames.objectiveTracker
-    if db.integrateTracker then
-        local font = FUI.db.global.font or "Friz Quadrata"
-        profile.trackerFontHeader = font
-        profile.trackerFontZone = font
-        profile.trackerFontQuest = font
-        profile.trackerFontObjective = font
-        profile.trackerFontSizeHeader = trackerDB.headerSize
-        profile.trackerFontSizeZone = trackerDB.headerSize
-        profile.trackerFontSizeQuest = trackerDB.textSize
-        profile.trackerFontSizeObjective = trackerDB.textSize
-        profile.trackerFontOutline = FUI.db.global.fontOutline or "OUTLINE"
-        profile.TrackerWidth = math.max(120, trackerDB.width - 12)
-        profile.TrackerHeight = math.max(100, trackerDB.height - 12)
-        profile.TrackerLocation = { "TOPLEFT", "FlowdiUI_ObjectiveTrackerHolder", "TOPLEFT", 6, -6 }
-        profile.trackerBackdropEnabled = false
-        profile.trackerBorderEnabled = false
-        profile.sizerHidden = true
-        profile.trackerLocked = true
-        if ObjectiveTrackerFrame then
-            ObjectiveTrackerFrame:SetAlpha(0)
-            if ObjectiveTrackerFrame.EnableMouse then ObjectiveTrackerFrame:EnableMouse(false) end
-        end
-    else
-        local backup = db.questieBackup
-        if backup then
-            profile.TrackerWidth = backup.TrackerWidth
-            profile.TrackerHeight = backup.TrackerHeight
-            profile.TrackerLocation = CopyLocation(backup.TrackerLocation)
-            profile.trackerBackdropEnabled = backup.trackerBackdropEnabled
-            profile.trackerBorderEnabled = backup.trackerBorderEnabled
-            profile.sizerHidden = backup.sizerHidden
-            profile.trackerLocked = backup.trackerLocked
-            profile.trackerFontHeader = backup.trackerFontHeader
-            profile.trackerFontZone = backup.trackerFontZone
-            profile.trackerFontQuest = backup.trackerFontQuest
-            profile.trackerFontObjective = backup.trackerFontObjective
-            profile.trackerFontSizeHeader = backup.trackerFontSizeHeader
-            profile.trackerFontSizeZone = backup.trackerFontSizeZone
-            profile.trackerFontSizeQuest = backup.trackerFontSizeQuest
-            profile.trackerFontSizeObjective = backup.trackerFontSizeObjective
-            profile.trackerFontOutline = backup.trackerFontOutline
-        end
-        if ObjectiveTrackerFrame then
-            ObjectiveTrackerFrame:SetAlpha(1)
-            if ObjectiveTrackerFrame.EnableMouse then ObjectiveTrackerFrame:EnableMouse(true) end
-        end
-    end
-
-    if forceRefresh or mapChanged then
-        local questieQuest = self:GetQuestieModule("QuestieQuest")
-        if questieQuest then
-            -- SmoothReset is Questie's supported path for rebuilding the
-            -- current quest log from QuestieDB and repopulating both map and
-            -- minimap note queues. Do not run ToggleNotes/ToggleAvailable at
-            -- the same time: each starts another GetAllQuestIds coroutine and
-            -- the competing rebuilds can leave both tracker and notes empty.
-            if questieQuest.SmoothReset then questieQuest:SmoothReset() end
-        end
-        C_Timer.After(1, function() module:RefreshQuestieMap() end)
-        C_Timer.After(3, function() module:RefreshQuestieMap() end)
-    end
-    local tracker = self:GetQuestieModule("QuestieTracker")
-    if tracker and tracker.Update then tracker:Update() end
-    C_Timer.After(0, function() module:AnchorQuestieTracker() end)
-end
-
-function module:OnQuestieReady()
-    if self.questieReady then return end
-    self.questieReady = true
-    self.providerState = "loaded"
-    self:HookWorldMap()
-    if Questie.API and Questie.API.RegisterForQuestUpdates and not self.callbacksRegistered then
-        self.callbacksRegistered = true
-        Questie.API.RegisterForQuestUpdates(function()
-            C_Timer.After(0, function() module:AnchorQuestieTracker() end)
-        end)
-    end
-    local tracker = self:GetQuestieModule("QuestieTracker")
-    if tracker and tracker.Update and not self.trackerHooked then
-        self.trackerHooked = true
-        hooksecurefunc(tracker, "Update", function()
-            C_Timer.After(0, function() module:AnchorQuestieTracker() end)
-        end)
-    end
-    self:ApplyQuestieSettings(true)
-end
-
-function module:TryConnect()
-    if self.questieReady then return end
-    if not IsQuestieLoaded() then self:EnsureQuestieProvider() end
-    if not IsQuestieLoaded() or not Questie or not Questie.API then return end
-    if Questie.API.isReady then
-        self:OnQuestieReady()
-    elseif Questie.API.RegisterOnReady and not self.readyCallbackRegistered then
-        self.readyCallbackRegistered = true
-        Questie.API.RegisterOnReady(function() module:OnQuestieReady() end)
-    end
-end
-
-function module:Apply()
-    self:TryConnect()
-    if self.questieReady then self:ApplyQuestieSettings(false) end
+    self:Refresh()
 end
 
 function module:Initialize()
-    self:EnsureQuestieProvider()
+    self:PrepareProvider()
+    self:HookWorldMap()
     local events = CreateFrame("Frame")
-    events:RegisterEvent("ADDON_LOADED")
-    events:RegisterEvent("PLAYER_ENTERING_WORLD")
-    events:RegisterEvent("PLAYER_REGEN_ENABLED")
-    events:SetScript("OnEvent", function(_, event, addonName)
-        if event == "ADDON_LOADED" and addonName ~= "Questie" then return end
-        C_Timer.After(0, function() module:Apply() end)
-        C_Timer.After(1, function() module:Apply() end)
+    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "ZONE_CHANGED_NEW_AREA" }) do
+        pcall(events.RegisterEvent, events, event)
+    end
+    events:SetScript("OnEvent", function()
+        module:HookWorldMap()
+        module.refreshPending = true
+        C_Timer.After(.25, function()
+            if module.refreshPending then module.refreshPending = false module:Refresh() end
+        end)
     end)
-    self.anchorTicker = C_Timer.NewTicker(0.2, function()
-        if module.questieReady then module:AnchorQuestieTracker() end
+    events:SetScript("OnUpdate", function(_, elapsed)
+        module.miniElapsed = (module.miniElapsed or 0) + elapsed
+        if module.miniElapsed >= .15 then module.miniElapsed = 0 module:RefreshMinimap() end
     end)
     self.events = events
     self:Apply()

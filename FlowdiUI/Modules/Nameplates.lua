@@ -102,6 +102,28 @@ function module:CreateCustomPlate(plate)
     custom.target:SetPoint("BOTTOMRIGHT", 3, -3)
     custom.target:SetFrameLevel(health:GetFrameLevel() + 5)
     custom.target:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
+    custom.target:Hide()
+    custom.targetGlow = CreateFrame("Frame", nil, custom)
+    custom.targetGlow:SetPoint("CENTER", health, "CENTER", 0, 0)
+    custom.targetGlow:SetFrameLevel(health:GetFrameLevel() + 3)
+    custom.targetGlow:EnableMouse(false)
+    custom.targetGlow.layers = {}
+    for index = 1, 3 do
+        local glow = custom.targetGlow:CreateTexture(nil, "OVERLAY")
+        glow:SetPoint("CENTER")
+        glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+        glow:SetBlendMode("ADD")
+        glow:SetVertexColor(.18, .62, 1, .72 / index)
+        custom.targetGlow.layers[index] = glow
+    end
+    custom.targetGlow.anim = custom.targetGlow:CreateAnimationGroup()
+    custom.targetGlow.anim:SetLooping("BOUNCE")
+    local fade = custom.targetGlow.anim:CreateAnimation("Alpha")
+    fade:SetFromAlpha(.38)
+    fade:SetToAlpha(1)
+    fade:SetDuration(.65)
+    fade:SetSmoothing("IN_OUT")
+    custom.targetGlow:Hide()
     custom.leftArrow = FUI:CreateFont(custom, 18)
     custom.leftArrow:SetPoint("RIGHT", health, "LEFT", -5, 0)
     custom.leftArrow:SetText(">")
@@ -168,6 +190,10 @@ function module:Layout(custom)
     custom.health:SetSize(db.width, db.height)
     custom.health:SetStatusBarTexture(BarTexture(db.healthTexture, false))
     ApplyBorder(custom.health.border)
+    custom.targetGlow:SetSize(db.width + 22, db.height + 22)
+    for index, glow in ipairs(custom.targetGlow.layers) do
+        glow:SetSize(db.width + 15 + index * 7, db.height + 15 + index * 7)
+    end
     custom.name:SetFont(FUI:GetModuleFontPath("nameplates"), db.fontSize, FUI.db.global.fontOutline)
     custom.name:ClearAllPoints()
     if db.namePosition == "Inside" then custom.name:SetPoint("CENTER", custom.health, "CENTER", 0, 0)
@@ -213,7 +239,11 @@ function module:UpdatePlate(unit)
     local db = FUI.db.nameplates
     local friendly = UnitIsFriend("player", unit)
     local nameOnly = friendly and db.friendlyNameOnly
-    local target = UnitIsUnit(unit, "target")
+    -- Frame identity is reliable on Forever even when UnitIsUnit's result is
+    -- restricted. This also prevents pooled nameplate tokens retaining a
+    -- target state when Blizzard recycles them for another mob.
+    local targetPlate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("target")
+    local target = targetPlate ~= nil and targetPlate == plate
     custom:SetScale(target and (db.targetScale or 1) or 1)
     custom:SetAlpha(target and 1 or (db.nonTargetAlpha or 1))
     custom.name:SetText(UnitName(unit) or "")
@@ -243,8 +273,15 @@ function module:UpdatePlate(unit)
     custom.raidIcon:SetShown(db.raidMarker ~= false and raidIndex ~= nil)
     if raidIndex and SetRaidTargetIconTexture then SetRaidTargetIconTexture(custom.raidIcon, raidIndex) end
     local execute = (db.executeThreshold or 0) > 0 and percent <= db.executeThreshold and UnitCanAttack("player", unit)
-    custom.target:SetBackdropBorderColor(execute and 1 or .22, execute and .35 or .68, execute and .08 or 1, execute and 1 or .95)
-    custom.target:SetShown((db.targetGlow and target and not nameOnly) or (execute and db.executeGlow and not nameOnly))
+    custom.target:SetBackdropBorderColor(1, .35, .08, 1)
+    custom.target:SetShown(execute and db.executeGlow and not nameOnly)
+    local showGlow = db.targetGlow and target and not nameOnly
+    custom.targetGlow:SetShown(showGlow)
+    if showGlow then
+        if not custom.targetGlow.anim:IsPlaying() then custom.targetGlow.anim:Play() end
+    else
+        custom.targetGlow.anim:Stop()
+    end
     if nameOnly then custom.cast:Hide() else self:UpdateCast(custom, unit) end
     self:CreateAuras(custom, unit)
     if custom.auras then custom.auras:SetShown(not nameOnly and (db.maxDebuffs or 0) > 0) end
@@ -296,6 +333,14 @@ function module:UpdatePreview(preview)
     preview.leftArrow:SetShown(db.targetArrows)
     preview.rightArrow:SetShown(db.targetArrows)
     preview.glow:SetShown(db.targetGlow)
+    preview.glow:SetSize(db.width + 22, db.height + 22)
+    if preview.glow.layers then
+        for index, glow in ipairs(preview.glow.layers) do glow:SetSize(db.width + 15 + index * 7, db.height + 15 + index * 7) end
+    end
+    if preview.glow.anim then
+        if db.targetGlow and not preview.glow.anim:IsPlaying() then preview.glow.anim:Play()
+        elseif not db.targetGlow then preview.glow.anim:Stop() end
+    end
     preview.cast:SetSize(db.width, db.castHeight)
     preview.cast:ClearAllPoints()
     preview.cast:SetPoint("TOP", preview.health, "BOTTOM", 0, db.castOffsetY or -3)

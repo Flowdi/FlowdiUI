@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.50
+
+- Replaces the Questie frontend integration with FlowdiUI Questing, which reads tracked quest objectives, NPCs, objects, item drops, event locations, and turn-ins directly from the public QuestieDB data API.
+- Removes Questie from FlowdiUI's optional dependencies and reverses its previous automatic activation; only QuestieDB remains an optional data library.
+- Adds independent FlowdiUI world-map and Minimap pins with kill, loot, object, event, and turn-in visuals and map-pin tooltips.
+- Restores Blizzard's objective content inside the FlowdiUI Objective Tracker frame instead of hosting Questie's tracker UI.
+- Resolves target state by exact nameplate-frame identity so arrows can only appear on the currently targeted mob, including after Blizzard recycles a nameplate.
+- Replaces the target border with a layered, additive, animated blue glow and updates the live settings preview to show the same effect.
+
 ## 0.8.49
 
 - Restores tracked quests by removing FlowdiUI's invasive reparenting, clipping, and forced sizing of Questie's internal line pool and scroll frames.
