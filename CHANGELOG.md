@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.53
+
+- Replaced square inventory-style quest pins with compact transparent map symbols, locally bundled under their MIT license.
+- Added deterministic per-quest objective colors and retained separate nearby objectives for a Questie-like readable map overview.
+- Rebuilt Objective Tracker scrolling around a real ScrollFrame so the quest content now moves together with the scrollbar.
+
 ## 0.8.52
 
 - Added a mouse-wheel-scrollable Objective Tracker viewport with a height resize handle in Unlock Mode.

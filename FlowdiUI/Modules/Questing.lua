@@ -8,12 +8,17 @@ local module = { records = {}, availableByMap = {}, mapPins = {}, minimapPins = 
 FUI:RegisterModule("questing", module)
 
 local ICONS = {
-    slay = "Interface\\Icons\\INV_Sword_04",
-    loot = "Interface\\Icons\\INV_Misc_Bag_10",
-    object = "Interface\\Icons\\INV_Misc_Gear_01",
-    available = "Interface\\GossipFrame\\AvailableQuestIcon",
-    turnin = "Interface\\GossipFrame\\ActiveQuestIcon",
-    event = "Interface\\Icons\\INV_Misc_Note_01",
+    slay = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\slay.blp",
+    loot = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\loot.blp",
+    object = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\object.blp",
+    available = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\available.blp",
+    turnin = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\complete.blp",
+    event = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\event.blp",
+}
+
+local QUEST_COLORS = {
+    { .30, .68, 1 }, { 1, .36, .24 }, { .95, .72, .18 }, { .72, .38, 1 },
+    { .22, .82, .55 }, { 1, .48, .78 }, { .38, .86, .92 }, { .92, .55, .22 },
 }
 
 local function AddonExists(name)
@@ -300,10 +305,10 @@ local function StylePin(pin, mini)
     -- Quest databases contain many spawn points in a small area. Keep the
     -- symbols deliberately compact so they describe the area instead of
     -- covering the map artwork.
-    pin:SetSize(mini and 9 or 12, mini and 9 or 12)
+    pin:SetSize(mini and 8 or 10, mini and 8 or 10)
     pin.icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon:SetAllPoints()
-    pin.icon:SetTexCoord(.08, .92, .08, .92)
+    pin.icon:SetTexCoord(0, 1, 0, 1)
     pin.icon:SetDrawLayer("OVERLAY", 1)
     pin:EnableMouse(not mini)
     if not mini then
@@ -338,14 +343,20 @@ function module:RefreshWorldMap()
             if record.mapID == mapID then
                 -- Collapse virtually identical spawn coordinates. This keeps
                 -- dense camps readable while retaining their overall shape.
-                local gridX, gridY = math.floor(record.x / .02), math.floor(record.y / .02)
-                local key = record.iconType .. ":" .. gridX .. ":" .. gridY
+                local gridX, gridY = math.floor(record.x / .006), math.floor(record.y / .006)
+                local key = record.questID .. ":" .. record.iconType .. ":" .. gridX .. ":" .. gridY
                 if not occupied[key] then
                     occupied[key] = true
                     used = used + 1
                     local pin = self:AcquireMapPin(used)
                     pin.data = record
                     pin.icon:SetTexture(record.texture)
+                    if record.iconType == "available" or record.iconType == "turnin" then
+                        pin.icon:SetVertexColor(1, 1, 1, 1)
+                    else
+                        local color = QUEST_COLORS[(record.questID % #QUEST_COLORS) + 1]
+                        pin.icon:SetVertexColor(color[1], color[2], color[3], 1)
+                    end
                     pin:ClearAllPoints()
                     pin:SetPoint("CENTER", child, "TOPLEFT", record.x * width, -record.y * height)
                     pin:SetFrameLevel(child:GetFrameLevel() + 2100)
@@ -393,6 +404,12 @@ function module:RefreshMinimap()
                             used = used + 1
                             local pin = self:AcquireMinimapPin(used)
                             pin.icon:SetTexture(record.texture)
+                            if record.iconType == "available" or record.iconType == "turnin" then
+                                pin.icon:SetVertexColor(1, 1, 1, 1)
+                            else
+                                local color = QUEST_COLORS[(record.questID % #QUEST_COLORS) + 1]
+                                pin.icon:SetVertexColor(color[1], color[2], color[3], 1)
+                            end
                             pin:ClearAllPoints()
                             pin:SetPoint("CENTER", Minimap, "CENTER", dx / radius * halfW, -dy / radius * halfH)
                             pin:Show()

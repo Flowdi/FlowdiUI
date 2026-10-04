@@ -269,11 +269,22 @@ function module:CreateTrackerHolder()
     local scrollThumb = holder:CreateTexture(nil, "OVERLAY")
     scrollThumb:SetWidth(4)
     scrollThumb:SetColorTexture(.18, .62, 1, .95)
+    local scrollFrame = CreateFrame("ScrollFrame", "FlowdiUI_ObjectiveTrackerScrollFrame", holder)
+    scrollFrame:SetPoint("TOPLEFT", 6, -6)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -7, 6)
+    scrollFrame:SetFrameLevel(holder:GetFrameLevel() + 1)
+    if scrollFrame.EnableMouseWheel then scrollFrame:EnableMouseWheel(true) end
+    scrollFrame:SetScript("OnMouseWheel", function(_, delta) module:ScrollTracker(delta) end)
+    local scrollChild = CreateFrame("Frame", "FlowdiUI_ObjectiveTrackerScrollChild", scrollFrame)
+    scrollChild:SetSize(1, 1)
+    scrollFrame:SetScrollChild(scrollChild)
     holder:SetScript("OnMouseWheel", function(_, delta) module:ScrollTracker(delta) end)
     self.trackerHolder = holder
     self.trackerBackground = background
     self.trackerScrollTrack = scrollTrack
     self.trackerScrollThumb = scrollThumb
+    self.trackerScrollFrame = scrollFrame
+    self.trackerScrollChild = scrollChild
 end
 
 function module:StyleTrackerFonts()
@@ -304,17 +315,20 @@ function module:AnchorTracker()
     if not tracker or not holder or not db.enabled or InCombatLockdown() then return end
     local clear = tracker.ClearAllPointsBase or tracker.ClearAllPoints
     local setPoint = tracker.SetPointBase or tracker.SetPoint
-    if tracker:GetParent() ~= holder then tracker:SetParent(holder) end
+    local scrollChild = self.trackerScrollChild
+    if not scrollChild then return end
+    if tracker:GetParent() ~= scrollChild then tracker:SetParent(scrollChild) end
     pcall(clear, tracker)
-    pcall(setPoint, tracker, "TOPRIGHT", holder, "TOPRIGHT", -6, 6 + (self.trackerScrollOffset or 0))
-    pcall(tracker.SetWidth, tracker, math.max(1, db.width - 12))
+    pcall(setPoint, tracker, "TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
+    pcall(tracker.SetWidth, tracker, math.max(1, db.width - 13))
     self:SyncTrackerHeight()
 end
 
 function module:SyncTrackerHeight()
     local tracker, holder = _G.ObjectiveTrackerFrame, self.trackerHolder
+    local scrollFrame, scrollChild = self.trackerScrollFrame, self.trackerScrollChild
     local db = FUI.db.utilityFrames.objectiveTracker
-    if not tracker or not holder or not db.enabled then return end
+    if not tracker or not holder or not scrollFrame or not scrollChild or not db.enabled then return end
     local contentHeight = tonumber(tracker:GetHeight()) or (db.height - 12)
     if FUI.db.questing and FUI.db.questing.autoTrackerHeight then
         local top = holder:GetTop()
@@ -323,13 +337,11 @@ function module:SyncTrackerHeight()
     else
         holder:SetHeight(db.height)
     end
-    local viewport = math.max(1, holder:GetHeight() - 12)
+    local viewport = math.max(1, scrollFrame:GetHeight())
     local maximum = math.max(0, contentHeight - viewport)
     self.trackerScrollOffset = math.max(0, math.min(self.trackerScrollOffset or 0, maximum))
-    local clear = tracker.ClearAllPointsBase or tracker.ClearAllPoints
-    local setPoint = tracker.SetPointBase or tracker.SetPoint
-    pcall(clear, tracker)
-    pcall(setPoint, tracker, "TOPRIGHT", holder, "TOPRIGHT", -6, 6 + self.trackerScrollOffset)
+    scrollChild:SetSize(math.max(1, scrollFrame:GetWidth()), math.max(viewport, contentHeight))
+    scrollFrame:SetVerticalScroll(self.trackerScrollOffset)
     local track, thumb = self.trackerScrollTrack, self.trackerScrollThumb
     if track and thumb then
         local show = maximum > 0
