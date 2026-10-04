@@ -622,7 +622,7 @@ local function BuildNameplates(page)
         for key, panel in pairs(panels) do panel:SetShown(key == name) end
         for key, tab in pairs(tabs) do tab:GetFontString():SetTextColor(key == name and 0.35 or 0.75, key == name and 0.72 or 0.82, 1) end
     end
-    for index, name in ipairs({ "Display", "Colors", "General" }) do
+    for index, name in ipairs({ "Display", "Colors", "General", "Text & Auras" }) do
         tabs[name] = AddButton(page, name, 24 + (index - 1) * 135, -88, 124, function() SelectTab(name) end)
         local panel = CreateFrame("Frame", nil, page)
         panel:SetPoint("TOPLEFT", 18, -230)
@@ -706,7 +706,7 @@ local function BuildNameplates(page)
     AddSlider(display, "Background opacity", 430, -232, 350, 0, 1, 0.05, function() return db.backgroundAlpha end, function(v) db.backgroundAlpha = v end, function(v) return string.format("%d%%", v * 100) end)
     AddSlider(display, "Name font size", 24, -302, 350, 8, 20, 1, function() return db.fontSize end, function(v) db.fontSize = v end, function(v) return string.format("%d px", v) end)
     AddSlider(display, "Aura icon size", 430, -302, 350, 14, 36, 1, function() return db.auraSize end, function(v) db.auraSize = v end, function(v) return string.format("%d px", v) end)
-    AddCheckbox(display, "Health percentage", 24, -365, function() return db.healthText end, function(v) db.healthText = v end)
+    AddCheckbox(display, "Health text", 24, -365, function() return (db.healthTextMode or "Percent") ~= "None" end, function(v) db.healthTextMode = v and "Percent" or "None"; db.healthText = v end)
     AddCheckbox(display, "Unit level", 240, -365, function() return db.levelText end, function(v) db.levelText = v end)
     AddCheckbox(display, "Cast icon", 430, -365, function() return db.castIcon end, function(v) db.castIcon = v end)
     AddCheckbox(display, "Cast timer", 620, -365, function() return db.castTimer end, function(v) db.castTimer = v end)
@@ -743,6 +743,21 @@ local function BuildNameplates(page)
     AddCheckbox(general, "Stacking nameplates", 24, -315, function() return db.stacking end, function(v) db.stacking = v end)
     AddSlider(general, "Stacked vertical spacing", 430, -300, 350, 0.5, 2.5, 0.05, function() return db.verticalSpacing end, function(v) db.verticalSpacing = v end, function(v) return string.format("%.2f", v) end)
     AddSlider(general, "Maximum debuffs", 24, -365, 350, 0, 8, 1, function() return db.maxDebuffs end, function(v) db.maxDebuffs = v end, function(v) return string.format("%d", v) end)
+
+    local textAuras = panels["Text & Auras"]
+    AddSection(textAuras, "Texts and indicators", -5)
+    AddCycle(textAuras, "Name position", 24, -32, 350, { "Above", "Inside", "Hidden" }, function() return db.namePosition or "Above" end, function(v) db.namePosition = v end)
+    AddCycle(textAuras, "Health text format", 430, -32, 350, { "None", "Percent", "Current", "Current / Max" }, function() return db.healthTextMode or "Percent" end, function(v) db.healthTextMode = v; db.healthText = v ~= "None" end)
+    AddCheckbox(textAuras, "Cast name", 24, -92, function() return db.castText ~= false end, function(v) db.castText = v end)
+    AddCheckbox(textAuras, "Raid marker", 210, -92, function() return db.raidMarker ~= false end, function(v) db.raidMarker = v end)
+    AddCheckbox(textAuras, "Aura durations", 400, -92, function() return db.auraDuration ~= false end, function(v) db.auraDuration = v end)
+    AddCheckbox(textAuras, "Aura stacks", 610, -92, function() return db.auraStacks ~= false end, function(v) db.auraStacks = v end)
+    AddSection(textAuras, "Execute and visibility", -150)
+    AddCheckbox(textAuras, "Execute border glow", 24, -180, function() return db.executeGlow ~= false end, function(v) db.executeGlow = v end)
+    AddSlider(textAuras, "Execute threshold", 430, -165, 350, 0, 50, 1, function() return db.executeThreshold or 20 end, function(v) db.executeThreshold = v end, function(v) return string.format("%d%%", v) end)
+    AddSlider(textAuras, "Maximum distance", 24, -235, 350, 20, 60, 1, function() return db.maxDistance or 41 end, function(v) db.maxDistance = v end, function(v) return string.format("%d yd", v) end)
+    AddSection(textAuras, "Nameplate spacing", -315)
+    AddSlider(textAuras, "Horizontal overlap", 24, -340, 350, 0.2, 2.5, 0.05, function() return db.horizontalSpacing or 0.8 end, function(v) db.horizontalSpacing = v end, function(v) return string.format("%.2f", v) end)
     SelectTab("Display")
 end
 

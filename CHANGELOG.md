@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.49
+
+- Restores tracked quests by removing FlowdiUI's invasive reparenting, clipping, and forced sizing of Questie's internal line pool and scroll frames.
+- Rebuilds QuestieDB objectives through one coordinated `SmoothReset` instead of racing multiple quest-log coroutines, restoring Questie's kill, loot, quest-giver, and turn-in map markers.
+- Forces objective notes to use the installed QuestieDB provider without proximity filtering or untracked-map suppression while retaining FlowdiUI positioning, fonts, and background styling.
+- Replaces temporary Blizzard-nameplate restyling with an independent FlowdiUI presentation layer so live settings reliably control health bars, casts, target effects, threat colors, text, and auras.
+- Adds functional nameplate controls for health-text format, name placement, cast names, raid markers, aura duration/stacks, execute glow and threshold, maximum distance, and horizontal overlap.
+
 ## 0.8.48
 
 - Moves Data Panels and the Layer Tracker below normal Blizzard windows and hides them completely while the fullscreen world map is open.

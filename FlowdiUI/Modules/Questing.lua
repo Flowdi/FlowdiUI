@@ -72,6 +72,10 @@ function module:CaptureQuestieSettings(profile)
         enableTurnins = profile.enableTurnins,
         enabled = profile.enabled,
         trackerEnabled = profile.trackerEnabled,
+        autoTrackQuests = profile.autoTrackQuests,
+        hideUntrackedQuestsMapIcons = profile.hideUntrackedQuestsMapIcons,
+        hideIconsOnContinents = profile.hideIconsOnContinents,
+        objectiveFilterDistance = profile.objectiveFilterDistance,
         iconTheme = profile.iconTheme,
         ICON_SLAY = profile.ICON_SLAY,
         ICON_LOOT = profile.ICON_LOOT,
@@ -110,6 +114,10 @@ function module:RestoreQuestieSettings()
     profile.enableTurnins = backup.enableTurnins
     profile.enabled = backup.enabled
     profile.trackerEnabled = backup.trackerEnabled
+    profile.autoTrackQuests = backup.autoTrackQuests
+    profile.hideUntrackedQuestsMapIcons = backup.hideUntrackedQuestsMapIcons
+    profile.hideIconsOnContinents = backup.hideIconsOnContinents
+    profile.objectiveFilterDistance = backup.objectiveFilterDistance
     profile.iconTheme = backup.iconTheme
     profile.ICON_SLAY = backup.ICON_SLAY
     profile.ICON_LOOT = backup.ICON_LOOT
@@ -155,54 +163,20 @@ function module:AnchorQuestieTracker()
     local trackerDB = FUI.db.utilityFrames.objectiveTracker
     local width = math.max(120, trackerDB.width - 12)
     local height = math.max(100, trackerDB.height - 12)
-    local header = _G.Questie_HeaderFrame
-    local questFrame = _G.TrackedQuests
-    local scrollFrame = _G.TrackedQuestsScrollFrame
-    local scrollChild = _G.TrackedQuestsScrollChildFrame
-    local headerHeight = header and header:IsShown() and (header:GetHeight() + 20) or 20
-    if db.autoTrackerHeight and scrollChild and scrollChild:GetHeight() > 1 then
-        local maximum = math.max(140, (UIParent:GetHeight() / math.max(0.1, holder:GetEffectiveScale())) - 50)
-        height = math.max(100, math.min(maximum, scrollChild:GetHeight() + headerHeight + 4))
-        holder:SetHeight(height + 12)
-    else
-        holder:SetHeight(trackerDB.height)
-    end
+    holder:SetHeight(trackerDB.height)
     holder:SetWidth(trackerDB.width)
-    if holder.SetClipsChildren then holder:SetClipsChildren(true) end
-    if frame:GetParent() ~= holder then frame:SetParent(holder) end
+    -- Questie's tracker owns a native ScrollFrame and measures its line pool
+    -- during every UpdateFormatting pass. Reparenting/clipping those internal
+    -- frames makes the line pool report no visible content. Keep Questie on
+    -- UIParent and only use our holder as an anchor/background.
+    if holder.SetClipsChildren then holder:SetClipsChildren(false) end
+    if frame:GetParent() ~= UIParent then frame:SetParent(UIParent) end
     frame:ClearAllPoints()
     frame:SetPoint("TOPLEFT", holder, "TOPLEFT", 6, -6)
     frame:SetSize(width, height)
-    if frame.SetClipsChildren then frame:SetClipsChildren(true) end
+    if frame.SetClipsChildren then frame:SetClipsChildren(false) end
     frame:SetBackdropColor(0, 0, 0, 0)
     frame:SetBackdropBorderColor(0, 0, 0, 0)
-
-    -- Questie sizes its content frame from the full quest list. Constrain the
-    -- actual viewport as well as the base frame, otherwise its lines continue
-    -- below FlowdiUI's background even though TrackerHeight is correct.
-    local contentHeight = math.max(40, height - headerHeight)
-    if questFrame then
-        questFrame:SetWidth(width)
-        questFrame:SetHeight(contentHeight)
-        if questFrame.SetClipsChildren then questFrame:SetClipsChildren(true) end
-        questFrame:EnableMouse(true)
-        questFrame:SetMovable(false)
-        questFrame:SetResizable(false)
-    end
-    if scrollFrame then
-        scrollFrame:ClearAllPoints()
-        scrollFrame:SetAllPoints(questFrame)
-        scrollFrame:EnableMouseWheel(true)
-        if not scrollFrame.FlowdiWheel then
-            scrollFrame.FlowdiWheel = true
-            scrollFrame:SetScript("OnMouseWheel", function(self, delta)
-                local child = self:GetScrollChild()
-                local maximum = child and math.max(0, child:GetHeight() - self:GetHeight()) or 0
-                self:SetVerticalScroll(math.max(0, math.min(maximum, self:GetVerticalScroll() - delta * 36)))
-            end)
-        end
-        if scrollFrame.ScrollBar then scrollFrame.ScrollBar:Hide() end
-    end
     if not trackerDB.enabled then frame:Hide() end
     holder:SetShown(trackerDB.enabled)
     if utility.trackerBackground then utility.trackerBackground:SetShown(trackerDB.enabled) end
@@ -211,13 +185,8 @@ end
 function module:RefreshQuestieMap()
     if not self.questieReady then return end
     local db = FUI.db.questing
-    local questieQuest = self:GetQuestieModule("QuestieQuest")
     local questieMap = self:GetQuestieModule("QuestieMap")
     if Questie and Questie.SetIcons then Questie.SetIcons() end
-    if questieQuest then
-        if questieQuest.ToggleAvailableQuests then questieQuest.ToggleAvailableQuests(db.showQuestGivers) end
-        if questieQuest.ToggleNotes then questieQuest:ToggleNotes(db.showObjectives) end
-    end
     if questieMap and questieMap.RescaleIcons then questieMap:RescaleIcons() end
 end
 
@@ -253,8 +222,12 @@ function module:ApplyQuestieSettings(forceRefresh)
     profile.enableAvailable = db.showQuestGivers
     profile.enableAvailableItems = db.showQuestGivers
     profile.enableTurnins = db.showTurnIns
+    profile.hideUntrackedQuestsMapIcons = false
+    profile.hideIconsOnContinents = false
+    profile.objectiveFilterDistance = 0
     profile.enabled = true
     profile.trackerEnabled = true
+    profile.autoTrackQuests = true
     profile.iconTheme = "questie"
     if Questie.icons then
         profile.ICON_SLAY = Questie.icons.slay
@@ -318,8 +291,11 @@ function module:ApplyQuestieSettings(forceRefresh)
     if forceRefresh or mapChanged then
         local questieQuest = self:GetQuestieModule("QuestieQuest")
         if questieQuest then
-            if questieQuest.ToggleAvailableQuests then questieQuest.ToggleAvailableQuests(db.showQuestGivers) end
-            if questieQuest.ToggleNotes then questieQuest:ToggleNotes(db.showObjectives) end
+            -- SmoothReset is Questie's supported path for rebuilding the
+            -- current quest log from QuestieDB and repopulating both map and
+            -- minimap note queues. Do not run ToggleNotes/ToggleAvailable at
+            -- the same time: each starts another GetAllQuestIds coroutine and
+            -- the competing rebuilds can leave both tracker and notes empty.
             if questieQuest.SmoothReset then questieQuest:SmoothReset() end
         end
         C_Timer.After(1, function() module:RefreshQuestieMap() end)

@@ -1,25 +1,14 @@
 local _, ns = ...
 local FUI = ns.FUI
 
+-- CompactUnitFrame is repainted continuously by Blizzard. FlowdiUI therefore
+-- renders a separate presentation layer and keeps the native base for clicks.
 local module = { units = {}, previews = {} }
 FUI:RegisterModule("nameplates", module)
 
-local function Color(dbColor, fallback)
-    local value = dbColor or fallback
+local function Color(value, fallback)
+    value = value or fallback
     return value[1], value[2], value[3], value[4] or 1
-end
-
-local function FindHealth(frame)
-    return frame and (frame.healthBar or frame.HealthBar or
-        frame.HealthBarsContainer and frame.HealthBarsContainer.healthBar)
-end
-
-local function FindCast(frame)
-    return frame and (frame.castBar or frame.CastBar or frame.castbar)
-end
-
-local function FindAuraFrame(frame)
-    return frame and (frame.BuffFrame or frame.buffFrame or frame.AurasFrame or frame.auras)
 end
 
 local function BarTexture(value, secondary)
@@ -27,201 +16,257 @@ local function BarTexture(value, secondary)
     return FUI:GetStatusBarTexture(secondary)
 end
 
-local function ConfigureBorder(bar)
-    if not bar.FlowdiBorder then
-        local border = CreateFrame("Frame", nil, bar, "BackdropTemplate")
-        border:SetPoint("TOPLEFT", -1, 1)
-        border:SetPoint("BOTTOMRIGHT", 1, -1)
-        border:SetFrameLevel(math.max(0, bar:GetFrameLevel() - 1))
-        bar.FlowdiBorder = border
-    end
-    local size = math.max(1, FUI.db.nameplates.borderSize or 1)
-    bar.FlowdiBorder:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = size })
-    bar.FlowdiBorder:SetBackdropColor(0.008, 0.016, 0.035, FUI.db.nameplates.backgroundAlpha or 0.82)
-    bar.FlowdiBorder:SetBackdropBorderColor(unpack(FUI.colors.border))
-    return bar.FlowdiBorder
+local function SafeNumber(value, fallback)
+    local ok, result = pcall(tonumber, value)
+    return ok and result or fallback
 end
 
-local function HealthColor(unit)
+local function UnitColor(unit)
     local db = FUI.db.nameplates
-    if UnitIsTapDenied and UnitIsTapDenied(unit) then return Color(db.tappedColor, { 0.42, 0.44, 0.48, 1 }) end
-    if db.threatColor and UnitCanAttack("player", unit) then
-        local status = UnitThreatSituation and UnitThreatSituation("player", unit)
-        if status == 3 then return Color(db.threatTankColor, { 0.92, 0.16, 0.12, 1 }) end
-        if status == 2 then return Color(db.threatHighColor, { 1.0, 0.48, 0.08, 1 }) end
-        if status == 1 then return Color(db.threatLowColor, { 0.96, 0.78, 0.10, 1 }) end
+    if UnitIsTapDenied and UnitIsTapDenied(unit) then return Color(db.tappedColor, { .42, .44, .48, 1 }) end
+    if db.threatColor and UnitCanAttack("player", unit) and UnitThreatSituation then
+        local ok, status = pcall(UnitThreatSituation, "player", unit)
+        if ok and status == 3 then return Color(db.threatTankColor, { .92, .16, .12, 1 }) end
+        if ok and status == 2 then return Color(db.threatHighColor, { 1, .48, .08, 1 }) end
+        if ok and status == 1 then return Color(db.threatLowColor, { .96, .78, .10, 1 }) end
     end
     if db.classColorPlayers and UnitIsPlayer(unit) then
         local _, class = UnitClass(unit)
-        local color = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-        if color then return color.r, color.g, color.b, 1 end
+        local classColor = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+        if classColor then return classColor.r, classColor.g, classColor.b, 1 end
     end
-    if UnitIsFriend("player", unit) then return Color(db.friendlyColor, { 0.16, 0.68, 0.38, 1 }) end
-    if UnitCanAttack("player", unit) then return Color(db.hostileColor, { 0.78, 0.16, 0.18, 1 }) end
-    return Color(db.neutralColor, { 0.82, 0.68, 0.16, 1 })
+    if UnitIsFriend("player", unit) then return Color(db.friendlyColor, { .16, .68, .38, 1 }) end
+    if UnitCanAttack("player", unit) then return Color(db.hostileColor, { .78, .16, .18, 1 }) end
+    return Color(db.neutralColor, { .82, .68, .16, 1 })
 end
 
-function module:CreateElements(frame, health)
-    if frame.FlowdiElements then return frame.FlowdiElements end
-    local elements = {}
-    elements.percent = FUI:CreateFont(health, 9)
-    elements.percent:SetPoint("RIGHT", health, "RIGHT", -3, 0)
-    elements.percent:SetJustifyH("RIGHT")
-    elements.level = FUI:CreateFont(health, 9)
-    elements.level:SetPoint("LEFT", health, "LEFT", 3, 0)
-    elements.level:SetJustifyH("LEFT")
-    elements.threat = FUI:CreateFont(health, 9)
-    elements.threat:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT", 0, 3)
-    elements.threat:SetTextColor(1, 0.74, 0.18)
-
-    elements.target = CreateFrame("Frame", nil, health, "BackdropTemplate")
-    elements.target:SetPoint("TOPLEFT", -3, 3)
-    elements.target:SetPoint("BOTTOMRIGHT", 3, -3)
-    elements.target:SetFrameLevel(health:GetFrameLevel() + 4)
-    elements.target:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
-    elements.target:SetBackdropBorderColor(0.22, 0.68, 1, 0.95)
-    elements.target:Hide()
-
-    elements.leftArrow = FUI:CreateFont(health, 18)
-    elements.leftArrow:SetPoint("RIGHT", health, "LEFT", -5, 0)
-    elements.leftArrow:SetText(">")
-    elements.leftArrow:SetTextColor(0.35, 0.75, 1)
-    elements.rightArrow = FUI:CreateFont(health, 18)
-    elements.rightArrow:SetPoint("LEFT", health, "RIGHT", 5, 0)
-    elements.rightArrow:SetText("<")
-    elements.rightArrow:SetTextColor(0.35, 0.75, 1)
-    frame.FlowdiElements = elements
-    return elements
+local function CreateBorder(parent)
+    local border = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    border:SetPoint("TOPLEFT", -1, 1)
+    border:SetPoint("BOTTOMRIGHT", 1, -1)
+    border:SetFrameLevel(math.max(0, parent:GetFrameLevel() - 1))
+    return border
 end
 
-function module:StyleAuras(frame)
-    local auraFrame = FindAuraFrame(frame)
-    if not auraFrame or not auraFrame.GetChildren then return end
-    local size = FUI.db.nameplates.auraSize or 22
-    local maximum = FUI.db.nameplates.maxDebuffs or 4
-    local index = 0
-    for _, button in ipairs({ auraFrame:GetChildren() }) do
-        local icon = button.Icon or button.icon or button.IconTexture
-        if icon then
-            index = index + 1
-            button:SetSize(size, size)
-            icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-            if not button.FlowdiAuraBorder then
-                button.FlowdiAuraBorder = FUI:CreateBackdrop(button, 1)
+local function ApplyBorder(border)
+    local db = FUI.db.nameplates
+    border:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = math.max(1, db.borderSize or 1) })
+    border:SetBackdropColor(.008, .016, .035, db.backgroundAlpha or .82)
+    border:SetBackdropBorderColor(unpack(FUI.colors.border))
+end
+
+function module:SuppressNative(plate, suppress)
+    local native = plate and plate.UnitFrame
+    if not native then return end
+    native:SetAlpha(suppress and 0 or 1)
+    if suppress and not native.FlowdiAlphaHooked then
+        native.FlowdiAlphaHooked = true
+        hooksecurefunc(native, "SetAlpha", function(self, alpha)
+            if FUI.db and FUI.db.modules.nameplates and alpha ~= 0 and not self.FlowdiSettingAlpha then
+                self.FlowdiSettingAlpha = true
+                self:SetAlpha(0)
+                self.FlowdiSettingAlpha = nil
             end
-            button:SetShown(index <= maximum)
-        end
+        end)
     end
 end
 
-function module:UpdateCast(unit, frame)
-    local cast = FindCast(frame)
-    if not cast then return end
+function module:CreateCustomPlate(plate)
+    if plate.FlowdiPlate then return plate.FlowdiPlate end
+    local custom = CreateFrame("Frame", nil, plate)
+    custom:SetSize(260, 90)
+    custom:SetPoint("CENTER", plate, "CENTER", 0, 0)
+    custom:SetFrameStrata(plate:GetFrameStrata())
+    custom:SetFrameLevel((plate:GetFrameLevel() or 0) + 20)
+    custom:EnableMouse(false)
+
+    local health = CreateFrame("StatusBar", nil, custom)
+    health:SetPoint("CENTER", custom, "CENTER", 0, 0)
+    health:SetMinMaxValues(0, 1)
+    health:SetValue(1)
+    health.border = CreateBorder(health)
+    custom.health = health
+    custom.name = FUI:CreateFont(custom, 11)
+    custom.name:SetPoint("BOTTOM", health, "TOP", 0, 3)
+    custom.name:SetJustifyH("CENTER")
+    custom.level = FUI:CreateFont(health, 9)
+    custom.level:SetPoint("LEFT", 3, 0)
+    custom.percent = FUI:CreateFont(health, 9)
+    custom.percent:SetPoint("RIGHT", -3, 0)
+    custom.threat = FUI:CreateFont(custom, 9)
+    custom.threat:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT", 0, 3)
+    custom.threat:SetTextColor(1, .74, .18)
+
+    custom.target = CreateFrame("Frame", nil, health, "BackdropTemplate")
+    custom.target:SetPoint("TOPLEFT", -3, 3)
+    custom.target:SetPoint("BOTTOMRIGHT", 3, -3)
+    custom.target:SetFrameLevel(health:GetFrameLevel() + 5)
+    custom.target:SetBackdrop({ edgeFile = FUI.textures.Flat, edgeSize = 2 })
+    custom.leftArrow = FUI:CreateFont(custom, 18)
+    custom.leftArrow:SetPoint("RIGHT", health, "LEFT", -5, 0)
+    custom.leftArrow:SetText(">")
+    custom.leftArrow:SetTextColor(.35, .75, 1)
+    custom.rightArrow = FUI:CreateFont(custom, 18)
+    custom.rightArrow:SetPoint("LEFT", health, "RIGHT", 5, 0)
+    custom.rightArrow:SetText("<")
+    custom.rightArrow:SetTextColor(.35, .75, 1)
+
+    local cast = CreateFrame("StatusBar", nil, custom)
+    cast:SetMinMaxValues(0, 1)
+    cast.border = CreateBorder(cast)
+    cast.name = FUI:CreateFont(cast, 9)
+    cast.name:SetPoint("LEFT", 3, 0)
+    cast.name:SetJustifyH("LEFT")
+    cast.timer = FUI:CreateFont(cast, 9)
+    cast.timer:SetPoint("RIGHT", -3, 0)
+    cast.timer:SetJustifyH("RIGHT")
+    cast.icon = cast:CreateTexture(nil, "ARTWORK")
+    cast.icon:SetPoint("RIGHT", cast, "LEFT", -3, 0)
+    cast.icon:SetTexCoord(.08, .92, .08, .92)
+    custom.cast = cast
+    custom.raidIcon = custom:CreateTexture(nil, "OVERLAY")
+    custom.raidIcon:SetPoint("BOTTOM", custom.name, "TOP", 0, 2)
+    custom.raidIcon:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+    custom.raidIcon:SetSize(18, 18)
+    custom.raidIcon:Hide()
+    plate.FlowdiPlate = custom
+    return custom
+end
+
+function module:CreateAuras(custom, unit)
+    local db = FUI.db.nameplates
+    local signature = table.concat({ db.maxDebuffs or 0, db.auraSize or 22, tostring(db.auraDuration), tostring(db.auraStacks) }, ":")
+    if custom.auraSignature == signature and custom.auras then
+        if custom.auras.SetUnit then custom.auras:SetUnit(unit) end
+        return
+    end
+    if custom.auraSignature == signature and custom.auraPending then return end
+    if custom.auras and FUI.AuraEngine then FUI.AuraEngine:Release(custom.auras) end
+    custom.auras, custom.auraSignature, custom.auraPending = nil, signature, true
+    if not FUI.AuraEngine or (db.maxDebuffs or 0) <= 0 then custom.auraPending = nil return end
+    local settings = {
+        size = db.auraSize or 22, spacing = 2, perRow = math.max(1, db.maxDebuffs or 4), rows = 1,
+        point = "Bottom Left", relativePoint = "Top Left", x = 0, y = 6,
+        growthX = "Right", growthY = "Up", borderSize = 1, cooldown = true, tooltip = true,
+        showDuration = db.auraDuration ~= false, showStacks = db.auraStacks ~= false,
+        durationSize = 9, stackSize = 9, durationPosition = "Bottom", stackPosition = "Top Right",
+    }
+    FUI.AuraEngine:QueueCreate(function(container)
+        custom.auraPending = nil
+        if custom and custom.GetParent and custom:GetParent() and custom.auraSignature == signature then
+            custom.auras = container
+        elseif container then
+            FUI.AuraEngine:Release(container)
+        end
+    end, custom, unit, "debuff", settings, "nameplates", custom:GetFrameLevel() + 7,
+        custom.health, db.maxDebuffs, { groupKey = "FlowdiNameplateDebuffs", filter = "HARMFUL" })
+end
+
+function module:Layout(custom)
+    local db = FUI.db.nameplates
+    custom:SetSize(math.max(260, db.width + 80), 90)
+    custom.health:SetSize(db.width, db.height)
+    custom.health:SetStatusBarTexture(BarTexture(db.healthTexture, false))
+    ApplyBorder(custom.health.border)
+    custom.name:SetFont(FUI:GetModuleFontPath("nameplates"), db.fontSize, FUI.db.global.fontOutline)
+    custom.name:ClearAllPoints()
+    if db.namePosition == "Inside" then custom.name:SetPoint("CENTER", custom.health, "CENTER", 0, 0)
+    else custom.name:SetPoint("BOTTOM", custom.health, "TOP", 0, 3) end
+    custom.name:SetShown(db.namePosition ~= "Hidden")
+    custom.cast:SetSize(db.width, db.castHeight)
+    custom.cast:ClearAllPoints()
+    custom.cast:SetPoint("TOP", custom.health, "BOTTOM", 0, db.castOffsetY or -3)
+    custom.cast:SetStatusBarTexture(BarTexture(db.castTexture, true))
+    ApplyBorder(custom.cast.border)
+    custom.cast.name:SetFont(FUI:GetModuleFontPath("nameplates"), math.max(8, db.fontSize - 2), FUI.db.global.fontOutline)
+    custom.cast.timer:SetFont(FUI:GetModuleFontPath("nameplates"), math.max(8, db.fontSize - 2), FUI.db.global.fontOutline)
+    custom.cast.icon:SetSize(math.max(14, db.castHeight + 2), math.max(14, db.castHeight + 2))
+end
+
+function module:UpdateCast(custom, unit)
+    local db = FUI.db.nameplates
     local name, _, texture, startTime, endTime, _, _, notInterruptible = UnitCastingInfo(unit)
-    local channel
+    local channel = false
     if not name then
         name, _, texture, startTime, endTime, _, notInterruptible = UnitChannelInfo(unit)
         channel = name ~= nil
     end
-    local active = name ~= nil
-    if cast.FlowdiTimer then
-        cast.FlowdiTimer:SetShown(active and FUI.db.nameplates.castTimer)
-        cast.FlowdiTimer.unit = active and unit or nil
-        cast.FlowdiTimer.endTime = active and endTime and endTime / 1000 or nil
-    end
-    local icon = cast.Icon or cast.icon
-    if icon then
-        icon:SetShown(FUI.db.nameplates.castIcon and active)
-        if active and texture then icon:SetTexture(texture) end
-        icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    end
-    if active then
-        local color = notInterruptible and FUI.db.nameplates.castUninterruptibleColor or FUI.db.nameplates.castColor
-        cast:SetStatusBarColor(Color(color, { 0.22, 0.62, 1, 1 }))
-        cast.FlowdiChannel = channel
-    end
-end
-
-function module:StyleCast(unit, frame, health)
-    local cast = FindCast(frame)
-    if not cast then return end
-    local db = FUI.db.nameplates
-    cast:SetStatusBarTexture(BarTexture(db.castTexture, true))
-    cast:SetSize(db.width, db.castHeight)
-    cast:ClearAllPoints()
-    cast:SetPoint("TOP", health, "BOTTOM", 0, db.castOffsetY or -3)
-    ConfigureBorder(cast)
-    local castText = cast.Text or cast.text or cast.CastName or cast.castName
-    if castText and castText.SetFont then
-        castText:SetFont(FUI:GetModuleFontPath("nameplates"), math.max(8, db.fontSize - 2), FUI.db.global.fontOutline)
-    end
-    if not cast.FlowdiTimer then
-        local timer = FUI:CreateFont(cast, math.max(8, db.fontSize - 2))
-        timer:SetPoint("RIGHT", cast, "RIGHT", -3, 0)
-        timer:SetJustifyH("RIGHT")
-        cast.FlowdiTimer = timer
-    end
-    self:UpdateCast(unit, frame)
+    if not name then custom.cast:Hide() return end
+    custom.cast:Show()
+    custom.cast.name:SetShown(db.castText ~= false)
+    custom.cast.name:SetText(db.castText ~= false and name or "")
+    custom.cast.timer:SetShown(db.castTimer)
+    custom.cast.icon:SetShown(db.castIcon)
+    if texture then custom.cast.icon:SetTexture(texture) end
+    custom.cast.startTime = SafeNumber(startTime, 0) / 1000
+    custom.cast.endTime = SafeNumber(endTime, 0) / 1000
+    custom.cast.channel = channel
+    custom.cast:SetStatusBarColor(Color(notInterruptible and db.castUninterruptibleColor or db.castColor, { .22, .62, 1, 1 }))
 end
 
 function module:UpdatePlate(unit)
-    local plate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit(unit)
-    local frame = plate and plate.UnitFrame
-    if not frame then return end
-    local health = FindHealth(frame)
-    if not health then return end
+    local record = self.units[unit]
+    if not record or not UnitExists(unit) then return end
+    local plate, custom = record.plate, record.custom
+    self:SuppressNative(plate, true)
+    self:Layout(custom)
     local db = FUI.db.nameplates
-    local elements = self:CreateElements(frame, health)
-    local isTarget = UnitIsUnit(unit, "target")
     local friendly = UnitIsFriend("player", unit)
     local nameOnly = friendly and db.friendlyNameOnly
-    local r, g, b = HealthColor(unit)
-    health:SetStatusBarColor(r, g, b)
-    health:SetShown(not nameOnly)
-    local cast = FindCast(frame)
-    if cast and nameOnly then cast:Hide() end
-    local current, maximum = UnitHealth(unit) or 0, UnitHealthMax(unit) or 0
-    elements.percent:SetText(db.healthText and maximum > 0 and string.format("%d%%", math.floor(current / maximum * 100 + 0.5)) or "")
+    local target = UnitIsUnit(unit, "target")
+    custom:SetScale(target and (db.targetScale or 1) or 1)
+    custom:SetAlpha(target and 1 or (db.nonTargetAlpha or 1))
+    custom.name:SetText(UnitName(unit) or "")
+    custom.health:SetStatusBarColor(UnitColor(unit))
+    local okHealth, current = pcall(UnitHealth, unit)
+    local okMax, maximum = pcall(UnitHealthMax, unit)
+    current, maximum = SafeNumber(okHealth and current, 0), math.max(1, SafeNumber(okMax and maximum, 1))
+    custom.health:SetMinMaxValues(0, maximum)
+    custom.health:SetValue(math.max(0, current))
+    local percent = math.floor((current / maximum) * 100 + .5)
+    local mode = db.healthTextMode or (db.healthText and "Percent" or "None")
+    if mode == "Current" then custom.percent:SetText(tostring(current))
+    elseif mode == "Current / Max" then custom.percent:SetText(current .. " / " .. maximum)
+    elseif mode == "Percent" then custom.percent:SetText(percent .. "%")
+    else custom.percent:SetText("") end
     local level = UnitLevel(unit)
-    elements.level:SetText(db.levelText and level and level > 0 and level or (db.levelText and level == -1 and "??" or ""))
-    elements.target:SetShown(db.targetGlow and isTarget and not nameOnly)
-    elements.leftArrow:SetShown(db.targetArrows and isTarget and not nameOnly)
-    elements.rightArrow:SetShown(db.targetArrows and isTarget and not nameOnly)
+    custom.level:SetText(db.levelText and (level == -1 and "??" or level or "") or "")
+    custom.health:SetShown(not nameOnly)
+    custom.level:SetShown(not nameOnly)
+    custom.percent:SetShown(not nameOnly)
+    custom.leftArrow:SetShown(db.targetArrows and target and not nameOnly)
+    custom.rightArrow:SetShown(db.targetArrows and target and not nameOnly)
     local _, status, threat = UnitDetailedThreatSituation and UnitDetailedThreatSituation("player", unit)
-    elements.threat:SetText(db.threatPercent and threat and status and string.format("%d%%", threat) or "")
-    frame:SetScale(isTarget and (db.targetScale or 1) or 1)
-    frame:SetAlpha(isTarget and 1 or (db.nonTargetAlpha or 1))
-    self:UpdateCast(unit, frame)
-    self:StyleAuras(frame)
+    threat = SafeNumber(threat, nil)
+    custom.threat:SetText(db.threatPercent and status and threat and string.format("%d%%", threat) or "")
+    local raidIndex = GetRaidTargetIndex and GetRaidTargetIndex(unit)
+    custom.raidIcon:SetShown(db.raidMarker ~= false and raidIndex ~= nil)
+    if raidIndex and SetRaidTargetIconTexture then SetRaidTargetIconTexture(custom.raidIcon, raidIndex) end
+    local execute = (db.executeThreshold or 0) > 0 and percent <= db.executeThreshold and UnitCanAttack("player", unit)
+    custom.target:SetBackdropBorderColor(execute and 1 or .22, execute and .35 or .68, execute and .08 or 1, execute and 1 or .95)
+    custom.target:SetShown((db.targetGlow and target and not nameOnly) or (execute and db.executeGlow and not nameOnly))
+    if nameOnly then custom.cast:Hide() else self:UpdateCast(custom, unit) end
+    self:CreateAuras(custom, unit)
+    if custom.auras then custom.auras:SetShown(not nameOnly and (db.maxDebuffs or 0) > 0) end
 end
 
 function module:StylePlate(unit)
     if not FUI.db.modules.nameplates then return end
     local plate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit(unit)
-    local frame = plate and plate.UnitFrame
-    if not frame then return end
-    self.units[unit] = frame
-    local db = FUI.db.nameplates
-    local health = FindHealth(frame)
-    if health then
-        health:SetStatusBarTexture(BarTexture(db.healthTexture, false))
-        health:SetSize(db.width, db.height)
-        ConfigureBorder(health)
-        self:CreateElements(frame, health)
-        self:StyleCast(unit, frame, health)
-    end
-    local name = frame.name or frame.Name
-    if name and name.SetFont then
-        name:SetFont(FUI:GetModuleFontPath("nameplates"), db.fontSize, FUI.db.global.fontOutline)
-        name:SetShadowOffset(0, 0)
-        if health then
-            name:ClearAllPoints()
-            name:SetPoint("BOTTOM", health, "TOP", 0, 3)
-        end
-    end
-    if frame.selectionHighlight then frame.selectionHighlight:SetAlpha(0) end
-    frame.FlowdiStyled = true
+    if not plate then return end
+    local custom = self:CreateCustomPlate(plate)
+    custom.unit = unit
+    custom:Show()
+    self.units[unit] = { plate = plate, custom = custom }
     self:UpdatePlate(unit)
+end
+
+function module:ReleasePlate(unit)
+    local record = self.units[unit]
+    if not record then return end
+    if record.custom then record.custom:Hide() end
+    self:SuppressNative(record.plate, false)
+    self.units[unit] = nil
 end
 
 function module:StyleVisiblePlates()
@@ -241,12 +286,12 @@ function module:UpdatePreview(preview)
     local db = FUI.db.nameplates
     preview.health:SetSize(db.width, db.height)
     preview.health:SetStatusBarTexture(BarTexture(db.healthTexture, false))
-    preview.health:SetStatusBarColor(Color(db.hostileColor, { 0.78, 0.16, 0.18, 1 }))
+    preview.health:SetStatusBarColor(Color(db.hostileColor, { .78, .16, .18, 1 }))
     preview.health:SetValue(64)
     preview.health.border:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = db.borderSize or 1 })
-    preview.health.border:SetBackdropColor(0.008, 0.016, 0.035, db.backgroundAlpha or 0.82)
+    preview.health.border:SetBackdropColor(.008, .016, .035, db.backgroundAlpha or .82)
     preview.health.border:SetBackdropBorderColor(unpack(FUI.colors.border))
-    preview.healthText:SetShown(db.healthText)
+    preview.healthText:SetShown((db.healthTextMode or "Percent") ~= "None")
     preview.level:SetShown(db.levelText)
     preview.leftArrow:SetShown(db.targetArrows)
     preview.rightArrow:SetShown(db.targetArrows)
@@ -255,14 +300,16 @@ function module:UpdatePreview(preview)
     preview.cast:ClearAllPoints()
     preview.cast:SetPoint("TOP", preview.health, "BOTTOM", 0, db.castOffsetY or -3)
     preview.cast:SetStatusBarTexture(BarTexture(db.castTexture, true))
-    preview.cast:SetStatusBarColor(Color(db.castColor, { 0.22, 0.62, 1, 1 }))
+    preview.cast:SetStatusBarColor(Color(db.castColor, { .22, .62, 1, 1 }))
     preview.cast.border:SetBackdrop({ bgFile = FUI.textures.Flat, edgeFile = FUI.textures.Flat, edgeSize = db.borderSize or 1 })
-    preview.cast.border:SetBackdropColor(0.008, 0.016, 0.035, db.backgroundAlpha or 0.82)
+    preview.cast.border:SetBackdropColor(.008, .016, .035, db.backgroundAlpha or .82)
     preview.cast.border:SetBackdropBorderColor(unpack(FUI.colors.border))
     preview.castTimer:SetShown(db.castTimer)
+    preview.castName:SetShown(db.castText ~= false)
     preview.castIcon:SetShown(db.castIcon)
     preview.castIcon:SetSize(math.max(14, db.castHeight + 2), math.max(14, db.castHeight + 2))
     preview.name:SetFont(FUI:GetModuleFontPath("nameplates"), db.fontSize, FUI.db.global.fontOutline)
+    preview.name:SetShown(db.namePosition ~= "Hidden")
     for index, aura in ipairs(preview.auras) do
         aura:SetSize(db.auraSize, db.auraSize)
         aura:SetShown(index <= db.maxDebuffs)
@@ -282,17 +329,16 @@ function module:ApplyCVars()
     pcall(SetCVar, "nameplateShowFriendlyNpcs", db.showFriendlyNPCs and "1" or "0")
     pcall(SetCVar, "nameplateShowEnemyPets", db.showEnemyPets and "1" or "0")
     pcall(SetCVar, "nameplateShowOnlyNameForFriendlyPlayerUnits", db.friendlyNameOnly and "1" or "0")
-    if C_CVar and C_CVar.SetCVarBitfield and Enum and Enum.NamePlateStackType then
-        pcall(C_CVar.SetCVarBitfield, "nameplateStackingTypes", Enum.NamePlateStackType.Enemy, db.stacking and true or false)
-    else
-        pcall(SetCVar, "nameplateMotion", db.stacking and "1" or "0")
-    end
+    pcall(SetCVar, "nameplateMotion", db.stacking and "1" or "0")
     pcall(SetCVar, "nameplateOverlapV", tostring(db.verticalSpacing or 1))
+    pcall(SetCVar, "nameplateOverlapH", tostring(db.horizontalSpacing or .8))
+    pcall(SetCVar, "nameplateMaxDistance", tostring(db.maxDistance or 41))
 end
 
 function module:Apply()
     self:ApplyCVars()
-    self:StyleVisiblePlates()
+    if FUI.db.modules.nameplates then self:StyleVisiblePlates()
+    else for unit in pairs(self.units) do self:ReleasePlate(unit) end end
     self:UpdatePreviews()
 end
 
@@ -300,30 +346,32 @@ function module:Initialize()
     local events = CreateFrame("Frame")
     for _, event in ipairs({
         "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED", "PLAYER_ENTERING_WORLD", "PLAYER_TARGET_CHANGED",
-        "UNIT_HEALTH", "UNIT_AURA", "UNIT_THREAT_LIST_UPDATE", "UNIT_THREAT_SITUATION_UPDATE",
-        "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_STOP",
+        "RAID_TARGET_UPDATE", "UNIT_HEALTH", "UNIT_MAXHEALTH", "UNIT_NAME_UPDATE", "UNIT_FACTION", "UNIT_AURA",
+        "UNIT_THREAT_LIST_UPDATE", "UNIT_THREAT_SITUATION_UPDATE", "UNIT_SPELLCAST_START",
+        "UNIT_SPELLCAST_CHANNEL_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_CHANNEL_STOP",
         "UNIT_SPELLCAST_INTERRUPTIBLE", "UNIT_SPELLCAST_NOT_INTERRUPTIBLE",
     }) do pcall(events.RegisterEvent, events, event) end
     events:SetScript("OnEvent", function(_, event, unit)
-        if event == "NAME_PLATE_UNIT_ADDED" then
-            module:StylePlate(unit)
-        elseif event == "NAME_PLATE_UNIT_REMOVED" then
-            module.units[unit] = nil
-        elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
-            module:Apply()
-        elseif unit and unit:match("^nameplate") then
-            module:UpdatePlate(unit)
-        end
+        if event == "NAME_PLATE_UNIT_ADDED" then module:StylePlate(unit)
+        elseif event == "NAME_PLATE_UNIT_REMOVED" then module:ReleasePlate(unit)
+        elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_ENTERING_WORLD" or event == "RAID_TARGET_UPDATE" then module:Apply()
+        elseif unit and unit:match("^nameplate") then module:UpdatePlate(unit) end
     end)
     events:SetScript("OnUpdate", function(_, elapsed)
         module.elapsed = (module.elapsed or 0) + elapsed
-        if module.elapsed < 0.08 then return end
+        if module.elapsed < .05 then return end
         module.elapsed = 0
-        for unit, frame in pairs(module.units) do
+        for unit, record in pairs(module.units) do
             if UnitExists(unit) then
-                local cast = FindCast(frame)
-                local timer = cast and cast.FlowdiTimer
-                if timer and timer:IsShown() and timer.endTime then timer:SetText(string.format("%.1f", math.max(0, timer.endTime - GetTime()))) end
+                module:SuppressNative(record.plate, true)
+                local cast = record.custom.cast
+                if cast:IsShown() and cast.endTime and cast.startTime then
+                    local now, duration = GetTime(), math.max(.001, cast.endTime - cast.startTime)
+                    local progress = math.max(0, math.min(duration, now - cast.startTime))
+                    cast:SetMinMaxValues(0, duration)
+                    cast:SetValue(cast.channel and (duration - progress) or progress)
+                    cast.timer:SetText(FUI.db.nameplates.castTimer and string.format("%.1f", math.max(0, cast.endTime - now)) or "")
+                end
             end
         end
     end)

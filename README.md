@@ -7,7 +7,7 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 ## Included in the MVP
 
 - Independent layouts, scale, border color, button-background color/opacity, text, and visibility controls for eight player action bars plus Pet and Stance bars without replacing secure Blizzard action buttons
-- FlowdiUI nameplates with a live settings preview, configurable health/cast presentation, auras, target effects, friendly behavior, unit colors, health percentages, levels, and threat coloring
+- Independent FlowdiUI nameplates with a live settings preview, configurable health/cast presentation, aura timers and stacks, target/execute effects, raid markers, friendly behavior, unit colors, multiple health-text formats, levels, threat coloring, spacing, and distance
 - Custom player, pet, target, focus, target-of-target, and target-chain frames
 - Configurable Buff and Debuff displays for player, target, and focus frames, including secure hostile-target Debuffs
 - Custom clickable party and raid frames with optional member-pet frames, secret-safe range fading, healer-focused positional aura filters, independent profiles, and live settings previews
