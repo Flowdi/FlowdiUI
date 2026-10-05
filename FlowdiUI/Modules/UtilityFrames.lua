@@ -288,48 +288,162 @@ function module:CreateTrackerHolder()
 end
 
 function module:StyleTrackerFonts()
-    local db = FUI.db.utilityFrames.objectiveTracker
-    local path = FUI:GetFontPath(FUI.db.global.font)
-    local outline = FUI.db.global.fontOutline
-    local headers = { _G.ObjectiveTrackerHeaderFont }
-    local lines = { _G.ObjectiveTrackerLineFont }
-    for index = 1, 20 do lines[#lines + 1] = _G["ObjectiveTrackerFont" .. index] end
-    for _, fontObject in pairs(headers) do
-        if fontObject and fontObject.SetFont then
-            fontObject:SetFont(path, db.headerSize, outline)
-            if fontObject.SetTextColor then fontObject:SetTextColor(unpack(FUI.colors.accent)) end
-        end
-    end
-    for _, fontObject in pairs(lines) do
-        if fontObject and fontObject.SetFont then
-            fontObject:SetFont(path, db.textSize, outline)
-            if fontObject.SetTextColor then fontObject:SetTextColor(unpack(FUI.colors.text)) end
-        end
-    end
+    self:RefreshQuestTracker()
 end
 
-function module:AnchorTracker()
-    local tracker = _G.ObjectiveTrackerFrame
-    local holder = self.trackerHolder
+local function QuestLogIndex(questID)
+    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then return C_QuestLog.GetLogIndexForQuestID(questID) end
+    if GetQuestLogIndexByID then return GetQuestLogIndexByID(questID) end
+end
+
+local function AddTrackedQuest(result, seen, questID, logIndex)
+    if not questID or questID <= 0 or seen[questID] or #result >= 40 then return end
+    seen[questID] = true
+    logIndex = logIndex or QuestLogIndex(questID)
+    local title, level
+    if C_QuestLog and C_QuestLog.GetInfo and logIndex and logIndex > 0 then
+        local info = C_QuestLog.GetInfo(logIndex)
+        if info then title, level = info.title, info.level end
+    elseif GetQuestLogTitle and logIndex and logIndex > 0 then
+        title, level = GetQuestLogTitle(logIndex)
+    end
+    if not title and C_QuestLog and C_QuestLog.GetTitleForQuestID then title = C_QuestLog.GetTitleForQuestID(questID) end
+    result[#result + 1] = { id = questID, index = logIndex, title = title or ("Quest " .. questID), level = tonumber(level) }
+end
+
+local function GetTrackedQuestData()
+    local result, seen = {}, {}
+    if C_QuestLog and C_QuestLog.GetNumQuestWatches and C_QuestLog.GetQuestIDForQuestWatchIndex then
+        for watchIndex = 1, math.min(40, C_QuestLog.GetNumQuestWatches() or 0) do
+            AddTrackedQuest(result, seen, C_QuestLog.GetQuestIDForQuestWatchIndex(watchIndex))
+        end
+    end
+    if #result == 0 and C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        for index = 1, C_QuestLog.GetNumQuestLogEntries() do
+            local info = C_QuestLog.GetInfo(index)
+            if info and not info.isHeader and info.questID then
+                local watched = not C_QuestLog.GetQuestWatchType or C_QuestLog.GetQuestWatchType(info.questID) ~= nil
+                if watched then AddTrackedQuest(result, seen, info.questID, index) end
+            end
+        end
+    elseif #result == 0 and GetNumQuestLogEntries and GetQuestLogTitle then
+        for index = 1, GetNumQuestLogEntries() do
+            local _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
+            if not isHeader and questID and (not IsQuestWatched or IsQuestWatched(index)) then AddTrackedQuest(result, seen, questID, index) end
+        end
+    end
+    return result
+end
+
+local function GetObjectiveLines(quest)
+    local lines = {}
+    if C_QuestLog and C_QuestLog.GetQuestObjectives then
+        local ok, objectives = pcall(C_QuestLog.GetQuestObjectives, quest.id)
+        if ok and type(objectives) == "table" then
+            for _, objective in ipairs(objectives) do
+                if objective.text and objective.text ~= "" then lines[#lines + 1] = "• " .. objective.text end
+            end
+        end
+    end
+    if #lines == 0 and quest.index and GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
+        for index = 1, GetNumQuestLeaderBoards(quest.index) do
+            local description = GetQuestLogLeaderBoard(index, quest.index)
+            if description then lines[#lines + 1] = "• " .. description end
+        end
+    end
+    return lines
+end
+
+function module:AcquireQuestRow(index)
+    self.questRows = self.questRows or {}
+    if self.questRows[index] then return self.questRows[index] end
+    local row = CreateFrame("Button", nil, self.trackerScrollChild)
+    row:EnableMouse(true)
+    if row.EnableMouseWheel then row:EnableMouseWheel(true) end
+    row:SetScript("OnMouseWheel", function(_, delta) module:ScrollTracker(delta) end)
+    row:SetScript("OnClick", function(self)
+        if self.questID and QuestMapFrame_OpenToQuestDetails then pcall(QuestMapFrame_OpenToQuestDetails, self.questID)
+        elseif ToggleQuestLog then ToggleQuestLog() end
+    end)
+    row.title = FUI:CreateFont(row, 12)
+    row.title:SetPoint("TOPLEFT", 7, -2)
+    row.title:SetJustifyH("LEFT")
+    row.objectives = FUI:CreateFont(row, 11)
+    row.objectives:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 10, -2)
+    row.objectives:SetJustifyH("LEFT")
+    row.objectives:SetTextColor(.82, .86, .92)
+    self.questRows[index] = row
+    return row
+end
+
+function module:RefreshQuestTracker()
+    local child, scrollFrame = self.trackerScrollChild, self.trackerScrollFrame
     local db = FUI.db.utilityFrames.objectiveTracker
-    if not tracker or not holder or not db.enabled or InCombatLockdown() then return end
-    local clear = tracker.ClearAllPointsBase or tracker.ClearAllPoints
-    local setPoint = tracker.SetPointBase or tracker.SetPoint
-    local scrollChild = self.trackerScrollChild
-    if not scrollChild then return end
-    if tracker:GetParent() ~= scrollChild then tracker:SetParent(scrollChild) end
-    pcall(clear, tracker)
-    pcall(setPoint, tracker, "TOPRIGHT", scrollChild, "TOPRIGHT", 0, 0)
-    pcall(tracker.SetWidth, tracker, math.max(1, db.width - 13))
+    if not child or not scrollFrame then return end
+    local width = math.max(120, scrollFrame:GetWidth())
+    local path, outline = FUI:GetFontPath(FUI.db.global.font), FUI.db.global.fontOutline
+    if not self.questTrackerTitle then
+        self.questTrackerTitle = FUI:CreateFont(child, db.headerSize)
+        self.questTrackerSection = FUI:CreateFont(child, db.headerSize)
+        self.questTrackerEmpty = FUI:CreateFont(child, db.textSize)
+    end
+    local quests = GetTrackedQuestData()
+    self.questTrackerTitle:ClearAllPoints()
+    self.questTrackerTitle:SetPoint("TOPLEFT", child, "TOPLEFT", 2, -2)
+    self.questTrackerTitle:SetFont(path, db.headerSize, outline)
+    self.questTrackerTitle:SetTextColor(unpack(FUI.colors.accent))
+    self.questTrackerTitle:SetText(string.format("All Objectives  %d/40", #quests))
+    self.questTrackerSection:ClearAllPoints()
+    self.questTrackerSection:SetPoint("TOPLEFT", child, "TOPLEFT", 2, -27)
+    self.questTrackerSection:SetFont(path, db.headerSize, outline)
+    self.questTrackerSection:SetTextColor(.35, .75, 1)
+    self.questTrackerSection:SetText("Quests")
+    local y = -52
+    for index, quest in ipairs(quests) do
+        local row = self:AcquireQuestRow(index)
+        row.questID = quest.id
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, y)
+        row:SetWidth(width)
+        row.title:SetFont(path, db.textSize + 1, outline)
+        row.title:SetWidth(width - 14)
+        row.title:SetText(string.format("[%s] %s", quest.level or "?", quest.title))
+        local color = quest.level and GetQuestDifficultyColor and GetQuestDifficultyColor(quest.level)
+        row.title:SetTextColor(color and color.r or 1, color and color.g or .82, color and color.b or .2)
+        local objectives = GetObjectiveLines(quest)
+        row.objectives:SetFont(path, db.textSize, outline)
+        row.objectives:SetWidth(width - 25)
+        row.objectives:SetText(table.concat(objectives, "\n"))
+        row.objectives:SetShown(#objectives > 0)
+        local titleHeight = math.max(db.textSize + 3, row.title:GetStringHeight() or 0)
+        local objectiveHeight = #objectives > 0 and math.max(db.textSize + 2, row.objectives:GetStringHeight() or 0) + 3 or 0
+        local height = titleHeight + objectiveHeight + 5
+        row:SetHeight(height)
+        row:Show()
+        y = y - height
+    end
+    for index = #quests + 1, #(self.questRows or {}) do self.questRows[index]:Hide() end
+    self.questTrackerEmpty:ClearAllPoints()
+    self.questTrackerEmpty:SetPoint("TOPLEFT", child, "TOPLEFT", 12, y - 2)
+    self.questTrackerEmpty:SetFont(path, db.textSize, outline)
+    self.questTrackerEmpty:SetTextColor(.62, .68, .76)
+    self.questTrackerEmpty:SetText("No tracked quests")
+    self.questTrackerEmpty:SetShown(#quests == 0)
+    if #quests == 0 then y = y - 24 end
+    self.trackerContentHeight = math.max(80, -y + 6)
     self:SyncTrackerHeight()
 end
 
+function module:AnchorTracker()
+    self:RefreshQuestTracker()
+end
+
 function module:SyncTrackerHeight()
-    local tracker, holder = _G.ObjectiveTrackerFrame, self.trackerHolder
+    local holder = self.trackerHolder
     local scrollFrame, scrollChild = self.trackerScrollFrame, self.trackerScrollChild
     local db = FUI.db.utilityFrames.objectiveTracker
-    if not tracker or not holder or not scrollFrame or not scrollChild or not db.enabled then return end
-    local contentHeight = tonumber(tracker:GetHeight()) or (db.height - 12)
+    if not holder or not scrollFrame or not scrollChild or not db.enabled then return end
+    local contentHeight = self.trackerContentHeight or 80
     if FUI.db.questing and FUI.db.questing.autoTrackerHeight then
         local top = holder:GetTop()
         local available = top and math.max(120, top - 8) or db.height
@@ -371,36 +485,21 @@ function module:ApplyTracker()
     local background = self.trackerBackground
     holder:SetSize(db.width, db.height)
     FUI:RestorePosition(holder, "objectiveTracker")
-    holder:SetShown(db.enabled)
+    local questing = FUI.db.questing
+    local customEnabled = db.enabled and (not questing or (questing.enabled and questing.integrateTracker))
+    holder:SetShown(customEnabled)
     if background then
         local color = db.backgroundColor or { 0.008, 0.016, 0.035, 1 }
-        background:SetShown(db.enabled)
+        background:SetShown(customEnabled)
         background:SetBackdropColor(color[1], color[2], color[3], db.backgroundAlpha)
         background:SetBackdropBorderColor(unpack(FUI.colors.border))
     end
-    self:StyleTrackerFonts()
-    self:AnchorTracker()
     local tracker = _G.ObjectiveTrackerFrame
-    if tracker and not self.trackerHooks then
-        self.trackerHooks = true
-        if tracker.ApplySystemAnchor then
-            hooksecurefunc(tracker, "ApplySystemAnchor", function()
-                C_Timer.After(0, function() module:AnchorTracker() end)
-            end)
-        end
-        tracker:HookScript("OnShow", function() C_Timer.After(0, function() module:AnchorTracker() end) end)
-        if tracker.EnableMouseWheel then tracker:EnableMouseWheel(true) end
-        tracker:HookScript("OnMouseWheel", function(_, delta) module:ScrollTracker(delta) end)
-        tracker:HookScript("OnSizeChanged", function()
-            if not module.syncingTrackerHeight then
-                module.syncingTrackerHeight = true
-                C_Timer.After(0, function()
-                    module:SyncTrackerHeight()
-                    module.syncingTrackerHeight = nil
-                end)
-            end
-        end)
+    if tracker then
+        tracker:SetAlpha(customEnabled and 0 or 1)
+        if tracker.EnableMouse then tracker:EnableMouse(not customEnabled) end
     end
+    self:RefreshQuestTracker()
     local mover = FUI.movers and FUI.movers.objectiveTracker
     if mover then FUI:SyncMoverOverlay(mover) end
 end
@@ -462,8 +561,15 @@ function module:Initialize()
     events:RegisterEvent("PLAYER_ENTERING_WORLD")
     events:RegisterEvent("PLAYER_REGEN_ENABLED")
     events:RegisterEvent("UNIT_PORTRAIT_UPDATE")
+    for _, event in ipairs({ "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN" }) do
+        pcall(events.RegisterEvent, events, event)
+    end
     events:SetScript("OnEvent", function(_, event, addonName)
         if event == "UNIT_PORTRAIT_UPDATE" and addonName ~= "player" then return end
+        if event == "QUEST_LOG_UPDATE" or event == "QUEST_WATCH_LIST_CHANGED" or event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or event == "QUEST_TURNED_IN" then
+            C_Timer.After(0, function() module:RefreshQuestTracker() end)
+            return
+        end
         if event ~= "ADDON_LOADED" or addonName == "Blizzard_ObjectiveTracker" or addonName == "Blizzard_MainMenu" then
             C_Timer.After(0, function() module:Apply() end)
             C_Timer.After(0.5, function() module:Apply() end)
@@ -483,8 +589,14 @@ function module:Initialize()
             module:SetNativeBarState("microBar")
             module:SetNativeBarState("bagBar")
             for _, proxy in pairs(module.proxies) do module:RefreshProxyIcon(proxy) end
-            module:StyleTrackerFonts()
-            module:AnchorTracker()
+            module:RefreshQuestTracker()
+            local tracker = _G.ObjectiveTrackerFrame
+            local questing = FUI.db.questing
+            local hideNative = FUI.db.utilityFrames.objectiveTracker.enabled and questing and questing.enabled and questing.integrateTracker
+            if tracker then
+                tracker:SetAlpha(hideNative and 0 or 1)
+                if tracker.EnableMouse then tracker:EnableMouse(not hideNative) end
+            end
         end
     end)
     self.events = events

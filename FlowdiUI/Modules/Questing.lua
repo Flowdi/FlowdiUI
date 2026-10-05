@@ -440,10 +440,7 @@ function module:Apply()
     local utility = FUI.modules.utilityFrames
     local holder = utility and utility.trackerHolder
     if holder then holder:SetShown(FUI.db.questing.enabled and FUI.db.utilityFrames.objectiveTracker.enabled) end
-    if ObjectiveTrackerFrame then
-        ObjectiveTrackerFrame:SetAlpha(1)
-        if ObjectiveTrackerFrame.EnableMouse then ObjectiveTrackerFrame:EnableMouse(true) end
-    end
+    if utility and utility.ApplyTracker then utility:ApplyTracker() end
     self:Refresh()
 end
 

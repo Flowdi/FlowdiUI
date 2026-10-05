@@ -16,9 +16,23 @@ local function BarTexture(value, secondary)
     return FUI:GetStatusBarTexture(secondary)
 end
 
+local function PublicValue(value)
+    if issecretvalue and issecretvalue(value) then return nil end
+    return value
+end
+
 local function SafeNumber(value, fallback)
+    value = PublicValue(value)
+    if value == nil then return fallback end
     local ok, result = pcall(tonumber, value)
-    return ok and result or fallback
+    result = ok and PublicValue(result) or nil
+    return result ~= nil and result or fallback
+end
+
+local function SafeUnitCall(callback, ...)
+    if not callback then return nil end
+    local ok, value = pcall(callback, ...)
+    return ok and PublicValue(value) or nil
 end
 
 local function IsTargetUnit(unit, plate)
@@ -27,12 +41,15 @@ local function IsTargetUnit(unit, plate)
     -- made target-only effects appear on unrelated mobs.
     if UnitIsUnit then
         local ok, result = pcall(UnitIsUnit, unit, "target")
-        if ok then return result and true or false end
+        result = ok and PublicValue(result) or nil
+        if result ~= nil then return result == true end
     end
     if UnitGUID then
         local okUnit, unitGUID = pcall(UnitGUID, unit)
         local okTarget, targetGUID = pcall(UnitGUID, "target")
-        if okUnit and okTarget and unitGUID and targetGUID then return unitGUID == targetGUID end
+        unitGUID = okUnit and PublicValue(unitGUID) or nil
+        targetGUID = okTarget and PublicValue(targetGUID) or nil
+        if unitGUID and targetGUID then return unitGUID == targetGUID end
     end
     local targetPlate = C_NamePlate and C_NamePlate.GetNamePlateForUnit and C_NamePlate.GetNamePlateForUnit("target")
     return targetPlate ~= nil and targetPlate == plate
@@ -40,20 +57,23 @@ end
 
 local function UnitColor(unit)
     local db = FUI.db.nameplates
-    if UnitIsTapDenied and UnitIsTapDenied(unit) then return Color(db.tappedColor, { .42, .44, .48, 1 }) end
-    if db.threatColor and UnitCanAttack("player", unit) and UnitThreatSituation then
+    if SafeUnitCall(UnitIsTapDenied, unit) == true then return Color(db.tappedColor, { .42, .44, .48, 1 }) end
+    local canAttack = SafeUnitCall(UnitCanAttack, "player", unit) == true
+    if db.threatColor and canAttack and UnitThreatSituation then
         local ok, status = pcall(UnitThreatSituation, "player", unit)
+        status = ok and PublicValue(status) or nil
         if ok and status == 3 then return Color(db.threatTankColor, { .92, .16, .12, 1 }) end
         if ok and status == 2 then return Color(db.threatHighColor, { 1, .48, .08, 1 }) end
         if ok and status == 1 then return Color(db.threatLowColor, { .96, .78, .10, 1 }) end
     end
-    if db.classColorPlayers and UnitIsPlayer(unit) then
+    if db.classColorPlayers and SafeUnitCall(UnitIsPlayer, unit) == true then
         local _, class = UnitClass(unit)
+        class = PublicValue(class)
         local classColor = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
         if classColor then return classColor.r, classColor.g, classColor.b, 1 end
     end
-    if UnitIsFriend("player", unit) then return Color(db.friendlyColor, { .16, .68, .38, 1 }) end
-    if UnitCanAttack("player", unit) then return Color(db.hostileColor, { .78, .16, .18, 1 }) end
+    if SafeUnitCall(UnitIsFriend, "player", unit) == true then return Color(db.friendlyColor, { .16, .68, .38, 1 }) end
+    if canAttack then return Color(db.hostileColor, { .78, .16, .18, 1 }) end
     return Color(db.neutralColor, { .82, .68, .16, 1 })
 end
 
@@ -229,11 +249,14 @@ end
 function module:UpdateCast(custom, unit)
     local db = FUI.db.nameplates
     local name, _, texture, startTime, endTime, _, _, notInterruptible = UnitCastingInfo(unit)
+    name = PublicValue(name)
     local channel = false
     if not name then
         name, _, texture, startTime, endTime, _, notInterruptible = UnitChannelInfo(unit)
+        name = PublicValue(name)
         channel = name ~= nil
     end
+    name, texture = PublicValue(name), PublicValue(texture)
     if not name then custom.cast:Hide() return end
     custom.cast:Show()
     custom.cast.name:SetShown(db.castText ~= false)
@@ -244,6 +267,7 @@ function module:UpdateCast(custom, unit)
     custom.cast.startTime = SafeNumber(startTime, 0) / 1000
     custom.cast.endTime = SafeNumber(endTime, 0) / 1000
     custom.cast.channel = channel
+    notInterruptible = PublicValue(notInterruptible) == true
     custom.cast:SetStatusBarColor(Color(notInterruptible and db.castUninterruptibleColor or db.castColor, { .22, .62, 1, 1 }))
 end
 
@@ -254,25 +278,29 @@ function module:UpdatePlate(unit)
     self:SuppressNative(plate, true)
     self:Layout(custom)
     local db = FUI.db.nameplates
-    local friendly = UnitIsFriend("player", unit)
+    local friendly = SafeUnitCall(UnitIsFriend, "player", unit) == true
     local nameOnly = friendly and db.friendlyNameOnly
     local target = IsTargetUnit(unit, plate)
     custom:SetScale(target and (db.targetScale or 1) or 1)
     custom:SetAlpha(target and 1 or (db.nonTargetAlpha or 1))
-    custom.name:SetText(UnitName(unit) or "")
+    custom.name:SetText(PublicValue(UnitName(unit)) or "")
     custom.health:SetStatusBarColor(UnitColor(unit))
     local okHealth, current = pcall(UnitHealth, unit)
     local okMax, maximum = pcall(UnitHealthMax, unit)
-    current, maximum = SafeNumber(okHealth and current, 0), math.max(1, SafeNumber(okMax and maximum, 1))
+    current = SafeNumber(okHealth and current, nil)
+    maximum = SafeNumber(okMax and maximum, nil)
+    local readableHealth = current ~= nil and maximum ~= nil and maximum > 0
+    current, maximum = readableHealth and current or 0, readableHealth and maximum or 1
     custom.health:SetMinMaxValues(0, maximum)
     custom.health:SetValue(math.max(0, current))
-    local percent = math.floor((current / maximum) * 100 + .5)
+    local percent = readableHealth and math.floor((current / maximum) * 100 + .5) or nil
     local mode = db.healthTextMode or (db.healthText and "Percent" or "None")
-    if mode == "Current" then custom.percent:SetText(tostring(current))
+    if not readableHealth then custom.percent:SetText("")
+    elseif mode == "Current" then custom.percent:SetText(tostring(current))
     elseif mode == "Current / Max" then custom.percent:SetText(current .. " / " .. maximum)
     elseif mode == "Percent" then custom.percent:SetText(percent .. "%")
     else custom.percent:SetText("") end
-    local level = UnitLevel(unit)
+    local level = SafeNumber(UnitLevel(unit), nil)
     custom.level:SetText(db.levelText and (level == -1 and "??" or level or "") or "")
     custom.health:SetShown(not nameOnly)
     custom.level:SetShown(not nameOnly)
@@ -280,12 +308,13 @@ function module:UpdatePlate(unit)
     custom.leftArrow:SetShown(db.targetArrows and target and not nameOnly)
     custom.rightArrow:SetShown(db.targetArrows and target and not nameOnly)
     local _, status, threat = UnitDetailedThreatSituation and UnitDetailedThreatSituation("player", unit)
+    status = PublicValue(status)
     threat = SafeNumber(threat, nil)
     custom.threat:SetText(db.threatPercent and status and threat and string.format("%d%%", threat) or "")
-    local raidIndex = GetRaidTargetIndex and GetRaidTargetIndex(unit)
+    local raidIndex = SafeNumber(GetRaidTargetIndex and GetRaidTargetIndex(unit), nil)
     custom.raidIcon:SetShown(db.raidMarker ~= false and raidIndex ~= nil)
     if raidIndex and SetRaidTargetIconTexture then SetRaidTargetIconTexture(custom.raidIcon, raidIndex) end
-    local execute = (db.executeThreshold or 0) > 0 and percent <= db.executeThreshold and UnitCanAttack("player", unit)
+    local execute = readableHealth and (db.executeThreshold or 0) > 0 and percent <= db.executeThreshold and SafeUnitCall(UnitCanAttack, "player", unit) == true
     custom.target:SetBackdropBorderColor(1, .35, .08, 1)
     custom.target:SetShown(execute and db.executeGlow and not nameOnly)
     local showGlow = db.targetGlow and target and not nameOnly

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.54
+
+- Replaced Blizzard Objective Tracker reparenting with a native FlowdiUI list that renders and scrolls up to all 40 watched quests.
+- Keeps the configured tracker viewport height while preserving every watched quest and objective in the scrollable content.
+- Added comprehensive secret-value guards to nameplate health, level, target, threat and cast processing for the Forever client.
+- Keeps the disabled Questie frontend out of FlowdiUI's tracker and map-frame execution path; QuestieDB remains the data-only provider.
+
 ## 0.8.53
 
 - Replaced square inventory-style quest pins with compact transparent map symbols, locally bundled under their MIT license.
