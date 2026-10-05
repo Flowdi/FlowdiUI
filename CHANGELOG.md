@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.56
+
+- Restores compact illustrated kill, loot, and object quest pins using the explicitly MIT-licensed monochrome pfQuest assets distributed by Questie, with the full license retained in the package.
+- Colors quest pins by difficulty: green below the player's level, yellow from equal level through two levels higher, orange three to four levels higher, and red five or more levels higher.
+- Keeps quest-giver and turn-in symbols as FlowdiUI-rendered `!` and `?` markers so no unclear or all-rights-reserved Questie artwork is redistributed.
+
 ## 0.8.55
 
 - Replaces the QuestieDB integration with the standalone Flowdi Quest Atlas, using only Blizzard quest positions and an account-wide database learned from the player's own quest progress.

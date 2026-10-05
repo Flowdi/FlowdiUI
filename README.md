@@ -49,6 +49,8 @@ The folder structure must end in `FlowdiUI/FlowdiUI_Camelot.toc`.
 
 FlowdiUI Questing is completely standalone. Flowdi Quest Atlas combines positions exposed by WoW with an account-wide database that learns locations when objectives progress and when quests are accepted or turned in. FlowdiUI does not load, enable, disable, inspect, or require Questie or QuestieDB, so both remain under the player's per-character addon control.
 
+The monochrome kill, loot, and object pin artwork originates from pfQuest and is included under the MIT License. Attribution and the complete license text are stored in `Media/QuestPins/LICENSE.md`.
+
 ## Commands
 
 - `/fui` or `/flowdi` — open settings

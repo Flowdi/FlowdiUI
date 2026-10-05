@@ -10,19 +10,47 @@ local module = {
 }
 FUI:RegisterModule("questing", module)
 
-local QUEST_COLORS = {
-    { .30, .68, 1 }, { 1, .36, .24 }, { .95, .72, .18 }, { .72, .38, 1 },
-    { .22, .82, .55 }, { 1, .48, .78 }, { .38, .86, .92 }, { .92, .55, .22 },
+local PIN_TEXTURES = {
+    slay = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\slay_mono.tga",
+    loot = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\loot_mono.tga",
+    object = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\object_mono.tga",
+    event = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\object_mono.tga",
 }
 
 local PIN_GLYPHS = {
-    slay = "X", loot = "L", object = "O", event = "*", available = "!", turnin = "?",
+    available = "!", turnin = "?",
 }
 
 local function PublicNumber(value)
     if issecretvalue and issecretvalue(value) then return nil end
     local ok, number = pcall(tonumber, value)
     return ok and number or nil
+end
+
+local function GetQuestLevel(questID, info)
+    local level = info and (info.level or info.difficultyLevel)
+    if not level and C_QuestLog and C_QuestLog.GetQuestDifficultyLevel then
+        local ok, result = pcall(C_QuestLog.GetQuestDifficultyLevel, questID)
+        if ok then level = result end
+    end
+    if not level and C_QuestLog and C_QuestLog.GetLogIndexForQuestID and GetQuestLogTitle then
+        local index = C_QuestLog.GetLogIndexForQuestID(questID)
+        if index and index > 0 then
+            local _, legacyLevel = GetQuestLogTitle(index)
+            level = legacyLevel
+        end
+    end
+    return PublicNumber(level) or 0
+end
+
+local function QuestDifficultyColor(questLevel)
+    local playerLevel = PublicNumber(UnitLevel("player")) or 1
+    questLevel = PublicNumber(questLevel) or 0
+    if questLevel <= 0 then return 1, .82, .10 end
+    if questLevel < playerLevel then return .30, .86, .22 end
+    if questLevel <= playerLevel + 2 then return 1, .82, .10 end
+    if questLevel <= playerLevel + 4 then return 1, .42, .08 end
+    return 1, .12, .08
 end
 
 local function NormalizeCoordinate(value)
@@ -121,7 +149,11 @@ function module:GetTrackedQuests()
                 local watched = true
                 if C_QuestLog.GetQuestWatchType then watched = C_QuestLog.GetQuestWatchType(info.questID) ~= nil end
                 if watched then
-                    result[#result + 1] = { id = info.questID, title = info.title or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(info.questID)) }
+                    result[#result + 1] = {
+                        id = info.questID,
+                        title = info.title or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(info.questID)),
+                        level = GetQuestLevel(info.questID, info),
+                    }
                 end
             end
         end
@@ -129,7 +161,7 @@ function module:GetTrackedQuests()
         for index = 1, GetNumQuestLogEntries() do
             local title, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
             if not isHeader and questID and (not IsQuestWatched or IsQuestWatched(index)) then
-                result[#result + 1] = { id = questID, title = title }
+                result[#result + 1] = { id = questID, title = title, level = GetQuestLevel(questID) }
             end
         end
     end
@@ -166,12 +198,13 @@ function module:SaveLearnedLocation(questID, iconType, objective, title)
     for _, record in ipairs(learned[questID]) do
         if record.mapID == mapID and record.iconType == iconType and math.abs(record.x - x) < .012 and math.abs(record.y - y) < .012 then
             record.objective, record.title = objective or record.objective, title or record.title
+            record.questLevel = GetQuestLevel(questID)
             return
         end
     end
     learned[questID][#learned[questID] + 1] = {
         mapID = mapID, x = x, y = y, iconType = iconType,
-        objective = objective, title = title, learnedAt = time and time() or 0,
+        objective = objective, title = title, questLevel = GetQuestLevel(questID), learnedAt = time and time() or 0,
     }
     while #learned[questID] > 80 do table.remove(learned[questID], 1) end
 end
@@ -212,7 +245,8 @@ function module:BuildRecords()
                 if show then
                     AddRecord(self.records, seen, {
                         questID = questID, title = quest.title or location.title, objective = location.objective,
-                        iconType = location.iconType or "event", mapID = location.mapID, x = location.x, y = location.y,
+                        iconType = location.iconType or "event", questLevel = quest.level or location.questLevel,
+                        mapID = location.mapID, x = location.x, y = location.y,
                     })
                 end
             end
@@ -245,7 +279,8 @@ function module:GetNativeRecords(mapID)
                     if (ready and FUI.db.questing.showTurnIns) or (not ready and FUI.db.questing.showObjectives) then
                         AddRecord(records, seen, {
                             questID = questID, title = quest.title, objective = objective and objective.text,
-                            iconType = ready and "turnin" or ObjectiveType(objective), mapID = mapID, x = x, y = y,
+                            iconType = ready and "turnin" or ObjectiveType(objective), questLevel = quest.level,
+                            mapID = mapID, x = x, y = y,
                         })
                     end
                 end
@@ -263,7 +298,8 @@ function module:GetNativeRecords(mapID)
                 if (ready and FUI.db.questing.showTurnIns) or (not ready and FUI.db.questing.showObjectives) then
                     AddRecord(records, seen, {
                         questID = questID, title = quest.title, objective = objective and objective.text,
-                        iconType = ready and "turnin" or ObjectiveType(objective), mapID = mapID, x = x, y = y,
+                        iconType = ready and "turnin" or ObjectiveType(objective), questLevel = quest.level,
+                        mapID = mapID, x = x, y = y,
                     })
                 end
             end
@@ -282,6 +318,7 @@ function module:GetLearnedQuestGivers(mapID)
                 if location.iconType == "available" and location.mapID == mapID then
                     AddRecord(records, seen, {
                         questID = questID, title = location.title, objective = "Quest available", iconType = "available",
+                        questLevel = location.questLevel,
                         mapID = location.mapID, x = location.x, y = location.y,
                     })
                 end
@@ -303,13 +340,13 @@ local function StylePin(pin, mini)
     if pin.styled then return end
     pin.styled = true
     pin:SetSize(mini and 8 or 10, mini and 8 or 10)
-    pin.shadow = pin:CreateTexture(nil, "BACKGROUND")
-    pin.shadow:SetPoint("TOPLEFT", -1, 1)
-    pin.shadow:SetPoint("BOTTOMRIGHT", 1, -1)
-    pin.shadow:SetColorTexture(0, 0, 0, .75)
     pin.icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon:SetAllPoints()
-    pin.icon:SetTexture(FUI.textures.Flat)
+    pin.symbolBackground = pin:CreateTexture(nil, "ARTWORK")
+    pin.symbolBackground:SetPoint("CENTER")
+    pin.symbolBackground:SetSize(mini and 7 or 9, mini and 7 or 9)
+    pin.symbolBackground:SetTexture(FUI.textures.Flat)
+    if pin.symbolBackground.SetRotation then pin.symbolBackground:SetRotation(math.pi / 4) end
     pin.glyph = FUI:CreateFont(pin, mini and 7 or 8)
     pin.glyph:SetPoint("CENTER", 0, 0)
     pin.glyph:SetTextColor(1, 1, 1)
@@ -329,14 +366,19 @@ end
 
 local function ApplyPin(pin, record)
     pin.data = record
-    pin.glyph:SetText(PIN_GLYPHS[record.iconType] or "*")
-    if record.iconType == "available" then
-        pin.icon:SetVertexColor(.20, .70, 1, 1)
-    elseif record.iconType == "turnin" then
-        pin.icon:SetVertexColor(1, .70, .08, 1)
+    local r, g, b = QuestDifficultyColor(record.questLevel)
+    local texture = PIN_TEXTURES[record.iconType]
+    if texture then
+        pin.icon:SetTexture(texture)
+        pin.icon:SetVertexColor(r, g, b, 1)
+        pin.icon:Show()
+        pin.symbolBackground:Hide()
+        pin.glyph:SetText("")
     else
-        local color = QUEST_COLORS[(record.questID % #QUEST_COLORS) + 1]
-        pin.icon:SetVertexColor(color[1], color[2], color[3], 1)
+        pin.icon:Hide()
+        pin.symbolBackground:SetVertexColor(r, g, b, 1)
+        pin.symbolBackground:Show()
+        pin.glyph:SetText(PIN_GLYPHS[record.iconType] or "*")
     end
 end
 
