@@ -29,7 +29,7 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 - DataTexts for system performance, inventory, social information, progression, location, character statistics, mail, volume, date, and time
 - DataText tooltips and click actions
 - Chat copy window, timestamps, fading controls, and configurable visibility duration
-- Flowdi Quest Atlas with independent kill, loot, object, event, quest-giver, and turn-in pins sourced from WoW's quest APIs and an account-wide self-learning location database
+- Flowdi Quest Atlas with independent FlowdiUI kill, loot, object, event, quest-giver, and turn-in pins powered by the separate QuestieDB data library
 - Quick Loot for auto-loot interactions with a movable item, money, and currency feed with item tooltips
 - Bag item-level text and quality-colored item borders
 - Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
@@ -47,7 +47,7 @@ Copy the `FlowdiUI` folder into the Forever client AddOns directory, normally:
 
 The folder structure must end in `FlowdiUI/FlowdiUI_Camelot.toc`.
 
-FlowdiUI Questing is completely standalone. Flowdi Quest Atlas combines positions exposed by WoW with an account-wide database that learns locations when objectives progress and when quests are accepted or turned in. FlowdiUI does not load, enable, disable, inspect, or require Questie or QuestieDB, so both remain under the player's per-character addon control.
+FlowdiUI Questing uses QuestieDB through its documented public consumer API. QuestieDB is a required data-only companion and must be installed and enabled; the Questie frontend is not required. FlowdiUI owns the map pins, filtering, tooltips, colors, Minimap display, tracker, and settings, and never enables or disables Questie automatically. Native WoW positions and account-learned locations remain available as defensive fallback paths in the module.
 
 The monochrome kill, loot, and object pin artwork originates from pfQuest and is included under the MIT License. Attribution and the complete license text are stored in `Media/QuestPins/LICENSE.md`.
 

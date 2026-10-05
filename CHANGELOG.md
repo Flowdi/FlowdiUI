@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.57
+
+- Reconnects Flowdi Quest Atlas to QuestieDB's documented consumer API as a data-only dependency while keeping all rendering, tooltips, filtering, and styling inside FlowdiUI.
+- Restores the complete QuestieDB spawn distribution instead of collapsing nearby coordinates into a few representative points.
+- Colors the tooltip quest level, title, objective description, and live progress with the same green, yellow, orange, or red difficulty color as its map pin.
+- Keeps the native and account-learned coordinate paths as a defensive fallback, without automatically enabling or disabling Questie.
+
 ## 0.8.56
 
 - Restores compact illustrated kill, loot, and object quest pins using the explicitly MIT-licensed monochrome pfQuest assets distributed by Questie, with the full license retained in the package.

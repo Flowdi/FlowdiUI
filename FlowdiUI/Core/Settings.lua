@@ -1615,7 +1615,7 @@ local function BuildProfiles(page)
 end
 
 local function BuildQuesting(page)
-    AddTitle(page, "Questing", "FlowdiUI's standalone quest tracker and self-learning Quest Atlas.")
+    AddTitle(page, "Questing", "FlowdiUI quest tracking powered by the QuestieDB data library.")
     local db = FUI.db.questing
     AddSection(page, "FlowdiUI Questing", -105)
     AddCheckbox(page, "Enable FlowdiUI Questing", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
@@ -1634,13 +1634,18 @@ local function BuildQuesting(page)
     provider:SetWidth(760)
     provider:SetJustifyH("LEFT")
     provider:SetTextColor(0.58, 0.7, 0.88)
-    provider:SetText("Flowdi Quest Atlas is fully standalone. It combines WoW's own quest positions with locations learned from your objective progress, quest acceptance, and turn-ins. Learned locations are shared account-wide through FlowdiUI's SavedVariables.")
+    local questModule = FUI.modules.questing
+    local state = questModule and questModule.providerState
+    provider:SetText(state == "ready" and
+        "QuestieDB is connected as FlowdiUI's data library. FlowdiUI renders every known spawn itself; the Questie frontend is not required." or
+        (state == "incompatible" and "The installed QuestieDB contract is incompatible. Update QuestieDB to restore full quest locations." or
+        "QuestieDB is required but is not loaded. Enable or install QuestieDB, then reload the interface."))
     local note = FUI:CreateFont(page, 11)
     note:SetPoint("TOPLEFT", provider, "BOTTOMLEFT", 0, -12)
     note:SetWidth(760)
     note:SetJustifyH("LEFT")
     note:SetTextColor(0.46, 0.52, 0.62)
-    note:SetText("Questie and QuestieDB are never enabled, disabled, loaded, or read by FlowdiUI. You can manage both addons independently per character. Tracker width, height, background and placement remain under Utility & Tracker → Objective Tracker.")
+    note:SetText("FlowdiUI never enables or disables Questie. QuestieDB supplies data only and remains a separate credited dependency. Tracker width, height, background and placement remain under Utility & Tracker → Objective Tracker.")
 end
 
 local function BuildQuickLoot(page)
