@@ -55,7 +55,39 @@ local function IsTargetUnit(unit, plate)
     return targetPlate ~= nil and targetPlate == plate
 end
 
-local function UnitColor(unit)
+local function NativeReaction(unit, plate)
+    -- Forever protects several unit-reaction queries with secret values. The
+    -- Blizzard nameplate still receives a public presentation color, which is
+    -- safe to classify without inspecting protected combat data.
+    local native = plate and plate.UnitFrame
+    local bar = native and (native.healthBar or (native.HealthBarsContainer and native.HealthBarsContainer.healthBar))
+    local r, g, b
+    if bar and bar.GetStatusBarColor then
+        local ok
+        ok, r, g, b = pcall(bar.GetStatusBarColor, bar)
+        if not ok then r, g, b = nil, nil, nil end
+    end
+    r, g, b = SafeNumber(r, nil), SafeNumber(g, nil), SafeNumber(b, nil)
+    if not r and UnitSelectionColor then
+        local ok
+        ok, r, g, b = pcall(UnitSelectionColor, unit, true)
+        if not ok then r, g, b = nil, nil, nil end
+        r, g, b = SafeNumber(r, nil), SafeNumber(g, nil), SafeNumber(b, nil)
+    end
+    if r and g and b then
+        if r > g * 1.18 and r > b * 1.18 then return "hostile" end
+        if g > r * 1.12 and g > b * 1.05 then return "friendly" end
+        if r > .55 and g > .42 then return "neutral" end
+    end
+    local reaction = SafeNumber(SafeUnitCall(UnitReaction, "player", unit), nil)
+    if reaction then
+        if reaction <= 3 then return "hostile" end
+        if reaction == 4 then return "neutral" end
+        return "friendly"
+    end
+end
+
+local function UnitColor(unit, plate)
     local db = FUI.db.nameplates
     if SafeUnitCall(UnitIsTapDenied, unit) == true then return Color(db.tappedColor, { .42, .44, .48, 1 }) end
     local canAttack = SafeUnitCall(UnitCanAttack, "player", unit) == true
@@ -74,6 +106,9 @@ local function UnitColor(unit)
     end
     if SafeUnitCall(UnitIsFriend, "player", unit) == true then return Color(db.friendlyColor, { .16, .68, .38, 1 }) end
     if canAttack then return Color(db.hostileColor, { .78, .16, .18, 1 }) end
+    local reaction = NativeReaction(unit, plate)
+    if reaction == "hostile" then return Color(db.hostileColor, { .78, .16, .18, 1 }) end
+    if reaction == "friendly" then return Color(db.friendlyColor, { .16, .68, .38, 1 }) end
     return Color(db.neutralColor, { .82, .68, .16, 1 })
 end
 
@@ -284,15 +319,34 @@ function module:UpdatePlate(unit)
     custom:SetScale(target and (db.targetScale or 1) or 1)
     custom:SetAlpha(target and 1 or (db.nonTargetAlpha or 1))
     custom.name:SetText(PublicValue(UnitName(unit)) or "")
-    custom.health:SetStatusBarColor(UnitColor(unit))
+    custom.health:SetStatusBarColor(UnitColor(unit, plate))
     local okHealth, current = pcall(UnitHealth, unit)
     local okMax, maximum = pcall(UnitHealthMax, unit)
     current = SafeNumber(okHealth and current, nil)
     maximum = SafeNumber(okMax and maximum, nil)
     local readableHealth = current ~= nil and maximum ~= nil and maximum > 0
     current, maximum = readableHealth and current or 0, readableHealth and maximum or 1
-    custom.health:SetMinMaxValues(0, maximum)
-    custom.health:SetValue(math.max(0, current))
+    if readableHealth then
+        custom.health:SetMinMaxValues(0, maximum)
+        custom.health:SetValue(math.max(0, current))
+    else
+        -- Secret values may be forwarded to a StatusBar, but may not be
+        -- converted or used in Lua arithmetic. This preserves the live fill
+        -- while keeping health text and execute calculations protected.
+        local set = false
+        if UnitHealthPercent then
+            local curve = CurveConstants and CurveConstants.ScaleTo100
+            local okPercent, protectedPercent = pcall(UnitHealthPercent, unit, true, curve)
+            if okPercent then
+                custom.health:SetMinMaxValues(0, 100)
+                set = pcall(custom.health.SetValue, custom.health, protectedPercent)
+            end
+        end
+        if not set then
+            custom.health:SetMinMaxValues(0, 1)
+            custom.health:SetValue(1)
+        end
+    end
     local percent = readableHealth and math.floor((current / maximum) * 100 + .5) or nil
     local mode = db.healthTextMode or (db.healthText and "Percent" or "None")
     if not readableHealth then custom.percent:SetText("")

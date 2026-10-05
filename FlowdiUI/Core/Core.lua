@@ -5,7 +5,7 @@ ns.FUI = FUI
 _G.FlowdiUI = FUI
 
 FUI.name = ADDON_NAME
-FUI.version = "0.8.54"
+FUI.version = "0.8.55"
 FUI.modules = {}
 FUI.media = {}
 FUI.pendingLayout = false
@@ -142,7 +142,7 @@ local function ActionBarDefaults(vertical, maximum, iconSize)
 end
 
 local defaults = {
-    profileVersion = 24,
+    profileVersion = 25,
     locked = true,
     scale = 1,
     global = {
@@ -437,6 +437,8 @@ local defaults = {
         showObjectives = true,
         showQuestGivers = true,
         showTurnIns = true,
+        learningEnabled = true,
+        learned = {},
     },
     quickLoot = {
         enabled = true,

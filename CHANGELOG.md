@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.55
+
+- Replaces the QuestieDB integration with the standalone Flowdi Quest Atlas, using only Blizzard quest positions and an account-wide database learned from the player's own quest progress.
+- Removes all automatic loading, enabling, and disabling of Questie and QuestieDB so their per-character state remains entirely user-controlled.
+- Replaces the borrowed map art with compact original FlowdiUI glyph pins for kills, loot, objects, events, quest givers, and turn-ins.
+- Restores configured hostile, neutral, and friendly nameplate colors on Forever by classifying Blizzard's protected native presentation color without performing arithmetic on secret unit values.
+- Preserves the live nameplate health fill by forwarding protected health percentages directly to the status bar while keeping protected numeric text hidden.
+
 ## 0.8.54
 
 - Replaced Blizzard Objective Tracker reparenting with a native FlowdiUI list that renders and scrolls up to all 40 watched quests.

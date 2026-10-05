@@ -1,104 +1,36 @@
 local _, ns = ...
 local FUI = ns.FUI
 
--- QuestieDB is a provider with a public consumer API. FlowdiUI reads that API
--- directly and owns every frame below; the Questie frontend is neither loaded
--- nor required.
-local module = { records = {}, availableByMap = {}, mapPins = {}, minimapPins = {}, pinPool = {}, miniPool = {} }
-FUI:RegisterModule("questing", module)
-
-local ICONS = {
-    slay = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\slay.blp",
-    loot = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\loot.blp",
-    object = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\object.blp",
-    available = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\available.blp",
-    turnin = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\complete.blp",
-    event = "Interface\\AddOns\\FlowdiUI\\Media\\QuestPins\\event.blp",
+-- Flowdi Quest Atlas deliberately uses only Blizzard's quest APIs and
+-- locations learned while the account plays. It never enables, disables,
+-- loads, reads, or modifies another addon.
+local module = {
+    records = {}, mapPins = {}, minimapPins = {}, objectiveState = {},
+    nativeCache = {}, providerState = "standalone",
 }
+FUI:RegisterModule("questing", module)
 
 local QUEST_COLORS = {
     { .30, .68, 1 }, { 1, .36, .24 }, { .95, .72, .18 }, { .72, .38, 1 },
     { .22, .82, .55 }, { 1, .48, .78 }, { .38, .86, .92 }, { .92, .55, .22 },
 }
 
-local function AddonExists(name)
-    if C_AddOns and C_AddOns.DoesAddOnExist then return C_AddOns.DoesAddOnExist(name) end
-    return GetAddOnInfo and GetAddOnInfo(name) ~= nil
+local PIN_GLYPHS = {
+    slay = "X", loot = "L", object = "O", event = "*", available = "!", turnin = "?",
+}
+
+local function PublicNumber(value)
+    if issecretvalue and issecretvalue(value) then return nil end
+    local ok, number = pcall(tonumber, value)
+    return ok and number or nil
 end
 
-local function IsLoaded(name)
-    if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
-    return IsAddOnLoaded and IsAddOnLoaded(name)
-end
-
-local function Enable(name, enabled)
-    if C_AddOns then
-        if enabled and C_AddOns.EnableAddOn then pcall(C_AddOns.EnableAddOn, name)
-        elseif not enabled and C_AddOns.DisableAddOn then pcall(C_AddOns.DisableAddOn, name) end
-    elseif enabled and EnableAddOn then pcall(EnableAddOn, name)
-    elseif not enabled and DisableAddOn then pcall(DisableAddOn, name) end
-end
-
-local function Load(name)
-    if IsLoaded(name) then return true end
-    local loader = C_AddOns and C_AddOns.LoadAddOn or LoadAddOn
-    if not loader then return false end
-    local ok, loaded = pcall(loader, name)
-    return ok and loaded ~= false
-end
-
-local function Decode(source)
-    if type(source) == "table" then return source end
-    if type(source) ~= "string" or not loadstring then return {} end
-    local chunk = loadstring(source, "=FlowdiUI.QuestieDB")
-    if not chunk then return {} end
-    local ok, value = pcall(chunk)
-    return ok and type(value) == "table" and value or {}
-end
-
-function module:PrepareProvider()
-    -- Undo the old integration's activation of Questie. Removing Questie from
-    -- OptionalDeps means FlowdiUI now loads first and can keep it disabled.
-    if AddonExists("Questie") then Enable("Questie", false) end
-    if not AddonExists("QuestieDB") then self.providerState = "missing" return false end
-    Enable("QuestieDB", true)
-    if not Load("QuestieDB") or type(LibQuestieDB) ~= "table" then
-        self.providerState = "reload"
-        return false
-    end
-    local ok = LibQuestieDB.RequireContract and LibQuestieDB.RequireContract(2)
-    if ok == false then self.providerState = "incompatible" return false end
-    self.providerState = "ready"
-    self.provider = LibQuestieDB
-    local zones = LibQuestieDB.Support and LibQuestieDB.Support.Get and LibQuestieDB.Support.Get("ZoneDB")
-    local private = zones and zones.private or {}
-    self.areaToMap = Decode(private.areaIdToUiMapId)
-    for area, mapID in pairs(Decode(private.areaIdToUiMapIdOverride)) do self.areaToMap[area] = mapID end
-    return true
-end
-
-function module:GetTrackedQuests()
-    local result = {}
-    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
-        local count = C_QuestLog.GetNumQuestLogEntries()
-        for index = 1, count do
-            local info = C_QuestLog.GetInfo(index)
-            if info and not info.isHeader and info.questID and info.questID > 0 then
-                local watched = true
-                if C_QuestLog.GetQuestWatchType then watched = C_QuestLog.GetQuestWatchType(info.questID) ~= nil end
-                if watched then result[#result + 1] = { id = info.questID, title = info.title or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(info.questID)) } end
-            end
-        end
-    elseif GetNumQuestLogEntries and GetQuestLogTitle then
-        local count = GetNumQuestLogEntries()
-        for index = 1, count do
-            local title, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
-            if not isHeader and questID and (not IsQuestWatched or IsQuestWatched(index)) then
-                result[#result + 1] = { id = questID, title = title }
-            end
-        end
-    end
-    return result
+local function NormalizeCoordinate(value)
+    value = PublicNumber(value)
+    if not value then return nil end
+    if value > 1 then value = value / 100 end
+    if value < 0 or value > 1 then return nil end
+    return value
 end
 
 local function GetQuestObjectives(questID)
@@ -106,7 +38,15 @@ local function GetQuestObjectives(questID)
         local ok, objectives = pcall(C_QuestLog.GetQuestObjectives, questID)
         if ok and type(objectives) == "table" then return objectives end
     end
-    return nil
+    local index = C_QuestLog and C_QuestLog.GetLogIndexForQuestID and C_QuestLog.GetLogIndexForQuestID(questID)
+    local result = {}
+    if index and index > 0 and GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
+        for objectiveIndex = 1, GetNumQuestLeaderBoards(index) do
+            local text, objectiveType, finished = GetQuestLogLeaderBoard(objectiveIndex, index)
+            result[#result + 1] = { text = text, type = objectiveType, finished = finished }
+        end
+    end
+    return result
 end
 
 local function QuestReadyForTurnIn(questID)
@@ -115,38 +55,11 @@ local function QuestReadyForTurnIn(questID)
         if ok then return ready and true or false end
     end
     local objectives = GetQuestObjectives(questID)
-    if not objectives or #objectives == 0 then return false end
+    if #objectives == 0 then return false end
     for _, objective in ipairs(objectives) do
         if not objective.finished then return false end
     end
     return true
-end
-
-local function AddQuestProgress(tooltip, questID)
-    local objectives = GetQuestObjectives(questID)
-    if objectives and #objectives > 0 then
-        for _, objective in ipairs(objectives) do
-            local current = tonumber(objective.numFulfilled)
-            local required = tonumber(objective.numRequired)
-            local text = objective.text
-            if current and required and (not text or not text:match("%d+%s*/%s*%d+")) then
-                text = string.format("%d/%d %s", current, required, text or "")
-            end
-            if text and text ~= "" then
-                tooltip:AddLine(text, objective.finished and .35 or .85, objective.finished and 1 or .9, objective.finished and .45 or 1, true)
-            end
-        end
-        return
-    end
-    local questIndex
-    if C_QuestLog and C_QuestLog.GetLogIndexForQuestID then questIndex = C_QuestLog.GetLogIndexForQuestID(questID)
-    elseif GetQuestLogIndexByID then questIndex = GetQuestLogIndexByID(questID) end
-    if questIndex and questIndex > 0 and GetNumQuestLeaderBoards and GetQuestLogLeaderBoard then
-        for index = 1, GetNumQuestLeaderBoards(questIndex) do
-            local description, _, finished = GetQuestLogLeaderBoard(index, questIndex)
-            if description then tooltip:AddLine(description, finished and .35 or .85, finished and 1 or .9, finished and .45 or 1, true) end
-        end
-    end
 end
 
 local function QuestCompleted(questID)
@@ -156,11 +69,71 @@ local function QuestCompleted(questID)
     return ok and completed and true or false
 end
 
-local function MeetsMask(mask, id)
-    if not mask or mask == 0 or not id then return true end
-    local band = bit and bit.band or bit32 and bit32.band
-    if not band then return true end
-    return band(mask, 2 ^ (id - 1)) ~= 0
+local function ObjectiveType(objective)
+    if not objective then return "event" end
+    local kind = tostring(objective.type or ""):lower()
+    local text = tostring(objective.text or ""):lower()
+    if kind:find("monster") or kind:find("kill") or text:find(" slain") or text:find(" killed") then return "slay" end
+    if kind:find("item") or kind:find("loot") or text:find("collect") or text:find("gather") then return "loot" end
+    if kind:find("object") or kind:find("interact") then return "object" end
+    return "event"
+end
+
+local function FirstIncompleteObjective(questID)
+    local objectives = GetQuestObjectives(questID)
+    for _, objective in ipairs(objectives) do
+        if not objective.finished then return objective end
+    end
+    return objectives[1]
+end
+
+local function ObjectiveSignature(questID)
+    local parts = {}
+    for index, objective in ipairs(GetQuestObjectives(questID)) do
+        parts[index] = table.concat({
+            tostring(objective.text or ""), tostring(objective.numFulfilled or ""),
+            tostring(objective.numRequired or ""), tostring(objective.finished and 1 or 0),
+        }, ":")
+    end
+    return table.concat(parts, "|")
+end
+
+local function AddQuestProgress(tooltip, questID)
+    for _, objective in ipairs(GetQuestObjectives(questID)) do
+        local current = PublicNumber(objective.numFulfilled)
+        local required = PublicNumber(objective.numRequired)
+        local text = objective.text
+        if current and required and (not text or not text:match("%d+%s*/%s*%d+")) then
+            text = string.format("%d/%d %s", current, required, text or "")
+        end
+        if text and text ~= "" then
+            tooltip:AddLine(text, objective.finished and .35 or .85, objective.finished and 1 or .9, objective.finished and .45 or 1, true)
+        end
+    end
+end
+
+function module:GetTrackedQuests()
+    local result = {}
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries and C_QuestLog.GetInfo then
+        for index = 1, C_QuestLog.GetNumQuestLogEntries() do
+            local info = C_QuestLog.GetInfo(index)
+            if info and not info.isHeader and info.questID and info.questID > 0 then
+                local watched = true
+                if C_QuestLog.GetQuestWatchType then watched = C_QuestLog.GetQuestWatchType(info.questID) ~= nil end
+                if watched then
+                    result[#result + 1] = { id = info.questID, title = info.title or (C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(info.questID)) }
+                end
+            end
+        end
+    elseif GetNumQuestLogEntries and GetQuestLogTitle then
+        for index = 1, GetNumQuestLogEntries() do
+            local title, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
+            if not isHeader and questID and (not IsQuestWatched or IsQuestWatched(index)) then
+                result[#result + 1] = { id = questID, title = title }
+            end
+        end
+    end
+    return result
 end
 
 function module:GetActiveQuestSet()
@@ -170,146 +143,176 @@ function module:GetActiveQuestSet()
             local info = C_QuestLog.GetInfo(index)
             if info and not info.isHeader and info.questID then active[info.questID] = true end
         end
-    elseif GetNumQuestLogEntries and GetQuestLogTitle then
-        for index = 1, GetNumQuestLogEntries() do
-            local _, _, _, isHeader, _, _, _, questID = GetQuestLogTitle(index)
-            if not isHeader and questID then active[questID] = true end
-        end
     end
     return active
 end
 
-function module:IsQuestAvailable(questID, active)
-    if active[questID] or QuestCompleted(questID) then return false end
-    local db, level = self.provider, UnitLevel("player") or 1
-    local requiredLevel = tonumber(db.Quest.Get(questID, "requiredLevel")) or 0
-    local maximumLevel = tonumber(db.Quest.Get(questID, "requiredMaxLevel"))
-    if level < requiredLevel or (maximumLevel and level > maximumLevel) then return false end
-    local _, _, raceID = UnitRace("player")
-    local _, _, classID = UnitClass("player")
-    if not MeetsMask(db.Quest.Get(questID, "requiredRaces"), raceID) then return false end
-    if not MeetsMask(db.Quest.Get(questID, "requiredClasses"), classID) then return false end
-    for _, prerequisite in ipairs(db.Quest.Get(questID, "preQuestGroup") or {}) do
-        if not QuestCompleted(prerequisite) then return false end
-    end
-    local alternatives = db.Quest.Get(questID, "preQuestSingle") or {}
-    if #alternatives > 0 then
-        local met = false
-        for _, prerequisite in ipairs(alternatives) do if QuestCompleted(prerequisite) then met = true break end end
-        if not met then return false end
-    end
-    local blocker = db.Quest.Get(questID, "availableUntilCompleted")
-    if blocker and QuestCompleted(blocker) then return false end
-    local starter = db.Quest.Get(questID, "availableStartingWith")
-    if starter and not active[starter] and not QuestCompleted(starter) then return false end
-    return true
+function module:GetPlayerLocation()
+    if not C_Map or not C_Map.GetBestMapForUnit or not C_Map.GetPlayerMapPosition then return end
+    local mapID = C_Map.GetBestMapForUnit("player")
+    local position = mapID and C_Map.GetPlayerMapPosition(mapID, "player")
+    if not position then return end
+    local x, y = position:GetXY()
+    x, y = NormalizeCoordinate(x), NormalizeCoordinate(y)
+    if mapID and x and y and (x > 0 or y > 0) then return mapID, x, y end
 end
 
-function module:GetAvailableQuestRecords(mapID)
-    if not FUI.db.questing.showQuestGivers then return {} end
-    if self.availableByMap[mapID] then return self.availableByMap[mapID] end
-    local records, candidates, seen = {}, {}, {}
-    local db, active = self.provider, self:GetActiveQuestSet()
-    if not db or not db.Quest.GetAllIds then return records end
-    for _, questID in ipairs(db.Quest.GetAllIds() or {}) do
-        local areaID = db.Quest.Get(questID, "zoneOrSort")
-        if areaID and areaID > 0 and self.areaToMap[areaID] == mapID and self:IsQuestAvailable(questID, active) then
-            local quest = { id = questID, title = db.Quest.Get(questID, "name") }
-            local starters = db.Quest.Get(questID, "startedBy") or {}
-            for _, npcID in ipairs(starters[1] or {}) do self:AddNpc(candidates, seen, quest, "Quest available", "available", npcID) end
-            for _, objectID in ipairs(starters[2] or {}) do self:AddObject(candidates, seen, quest, "Quest available", "available", objectID) end
+function module:SaveLearnedLocation(questID, iconType, objective, title)
+    if not FUI.db.questing.learningEnabled or not questID then return end
+    local mapID, x, y = self:GetPlayerLocation()
+    if not mapID then return end
+    local learned = FUI.db.questing.learned
+    learned[questID] = learned[questID] or {}
+    for _, record in ipairs(learned[questID]) do
+        if record.mapID == mapID and record.iconType == iconType and math.abs(record.x - x) < .012 and math.abs(record.y - y) < .012 then
+            record.objective, record.title = objective or record.objective, title or record.title
+            return
         end
     end
-    for _, record in ipairs(candidates) do if record.mapID == mapID then records[#records + 1] = record end end
-    self.availableByMap[mapID] = records
-    return records
+    learned[questID][#learned[questID] + 1] = {
+        mapID = mapID, x = x, y = y, iconType = iconType,
+        objective = objective, title = title, learnedAt = time and time() or 0,
+    }
+    while #learned[questID] > 80 do table.remove(learned[questID], 1) end
 end
 
-local function AddSpawn(records, seen, questID, title, objective, iconType, areaID, coords)
-    local mapID = module.areaToMap and module.areaToMap[areaID]
-    if not mapID or mapID == 0 or type(coords) ~= "table" then return end
-    for _, coord in ipairs(coords) do
-        local x, y = tonumber(coord[1]), tonumber(coord[2])
-        if x and y and x >= 0 and y >= 0 then
-            local key = table.concat({ questID, iconType, mapID, string.format("%.2f", x), string.format("%.2f", y) }, ":")
-            if not seen[key] then
-                seen[key] = true
-                records[#records + 1] = {
-                    questID = questID, title = title or ("Quest " .. questID), objective = objective,
-                    iconType = iconType, texture = ICONS[iconType] or ICONS.event,
-                    mapID = mapID, x = x / 100, y = y / 100,
-                }
-            end
+function module:LearnObjectiveChanges()
+    for _, quest in ipairs(self:GetTrackedQuests()) do
+        local signature = ObjectiveSignature(quest.id)
+        local previous = self.objectiveState[quest.id]
+        if previous and previous ~= signature then
+            local objective = FirstIncompleteObjective(quest.id)
+            self:SaveLearnedLocation(quest.id, ObjectiveType(objective), objective and objective.text, quest.title)
         end
+        self.objectiveState[quest.id] = signature
     end
 end
 
-local function AddSpawnList(records, seen, questID, title, objective, iconType, spawns)
-    if type(spawns) ~= "table" then return end
-    for areaID, coords in pairs(spawns) do AddSpawn(records, seen, questID, title, objective, iconType, areaID, coords) end
-end
-
-function module:AddNpc(records, seen, quest, objective, iconType, npcID)
-    if not npcID then return end
-    local db = self.provider
-    local name = db.Npc.Get(npcID, "name")
-    AddSpawnList(records, seen, quest.id, quest.title, objective or name, iconType, db.Npc.Get(npcID, "spawns"))
-end
-
-function module:AddObject(records, seen, quest, objective, iconType, objectID)
-    if not objectID then return end
-    local db = self.provider
-    local name = db.Object.Get(objectID, "name")
-    AddSpawnList(records, seen, quest.id, quest.title, objective or name, iconType, db.Object.Get(objectID, "spawns"))
-end
-
-function module:AddItem(records, seen, quest, objective, itemID)
-    if not itemID then return end
-    local db = self.provider
-    local itemName = db.Item.Get(itemID, "name")
-    for _, npcID in ipairs(db.Item.Get(itemID, "npcDrops") or {}) do self:AddNpc(records, seen, quest, objective or itemName, "loot", npcID) end
-    for _, objectID in ipairs(db.Item.Get(itemID, "objectDrops") or {}) do self:AddObject(records, seen, quest, objective or itemName, "loot", objectID) end
+local function AddRecord(records, seen, record)
+    local x, y = NormalizeCoordinate(record.x), NormalizeCoordinate(record.y)
+    local mapID, questID = PublicNumber(record.mapID), PublicNumber(record.questID)
+    if not x or not y or not mapID or not questID then return end
+    local key = table.concat({ questID, record.iconType or "event", mapID, math.floor(x * 500), math.floor(y * 500) }, ":")
+    if seen[key] then return end
+    seen[key] = true
+    record.x, record.y, record.mapID, record.questID = x, y, mapID, questID
+    records[#records + 1] = record
 end
 
 function module:BuildRecords()
-    self.records = {}
-    self.availableByMap = {}
-    if self.providerState ~= "ready" then return end
-    local records, seen, db = self.records, {}, self.provider
-    for _, quest in ipairs(self:GetTrackedQuests()) do
-        local objectives = db.Quest.Get(quest.id, "objectives") or {}
-        if FUI.db.questing.showObjectives then
-            for _, row in ipairs(objectives[1] or {}) do self:AddNpc(records, seen, quest, row[2], "slay", row[1]) end
-            for _, row in ipairs(objectives[2] or {}) do self:AddObject(records, seen, quest, row[2], "object", row[1]) end
-            for _, row in ipairs(objectives[3] or {}) do self:AddItem(records, seen, quest, row[2], row[1]) end
-            for _, row in ipairs(objectives[5] or {}) do
-                for _, npcID in ipairs(row[1] or {}) do self:AddNpc(records, seen, quest, row[3], "slay", npcID) end
+    self.records, self.nativeCache = {}, {}
+    local tracked, seen = {}, {}
+    for _, quest in ipairs(self:GetTrackedQuests()) do tracked[quest.id] = quest end
+    for questID, locations in pairs(FUI.db.questing.learned or {}) do
+        local quest = tracked[questID]
+        if quest and type(locations) == "table" then
+            for _, location in ipairs(locations) do
+                local show = (location.iconType == "turnin" and FUI.db.questing.showTurnIns and QuestReadyForTurnIn(questID))
+                    or (location.iconType ~= "turnin" and location.iconType ~= "available" and FUI.db.questing.showObjectives)
+                if show then
+                    AddRecord(self.records, seen, {
+                        questID = questID, title = quest.title or location.title, objective = location.objective,
+                        iconType = location.iconType or "event", mapID = location.mapID, x = location.x, y = location.y,
+                    })
+                end
             end
-            local trigger = db.Quest.Get(quest.id, "triggerEnd")
-            if trigger then AddSpawnList(records, seen, quest.id, quest.title, trigger[1], "event", trigger[2]) end
-            for _, extra in ipairs(db.Quest.Get(quest.id, "extraObjectives") or {}) do
-                AddSpawnList(records, seen, quest.id, quest.title, extra[3], "event", extra[1])
-            end
-        end
-        if FUI.db.questing.showTurnIns and QuestReadyForTurnIn(quest.id) then
-            local finishers = db.Quest.Get(quest.id, "finishedBy") or {}
-            for _, npcID in ipairs(finishers[1] or {}) do self:AddNpc(records, seen, quest, "Quest turn-in", "turnin", npcID) end
-            for _, objectID in ipairs(finishers[2] or {}) do self:AddObject(records, seen, quest, "Quest turn-in", "turnin", objectID) end
         end
     end
+end
+
+local function ExtractMapPosition(info)
+    if type(info) ~= "table" then return end
+    local x, y = info.x, info.y
+    local position = info.position or info.poiPosition
+    if position and position.GetXY then x, y = position:GetXY() end
+    return NormalizeCoordinate(x), NormalizeCoordinate(y)
+end
+
+function module:GetNativeRecords(mapID)
+    if self.nativeCache[mapID] then return self.nativeCache[mapID] end
+    local records, seen, tracked = {}, {}, {}
+    for _, quest in ipairs(self:GetTrackedQuests()) do tracked[quest.id] = quest end
+    if C_QuestLog and C_QuestLog.GetQuestsOnMap then
+        local ok, quests = pcall(C_QuestLog.GetQuestsOnMap, mapID)
+        if ok and type(quests) == "table" then
+            for _, info in ipairs(quests) do
+                local questID = PublicNumber(info.questID or info.questId)
+                local quest = questID and tracked[questID]
+                local x, y = ExtractMapPosition(info)
+                if quest and x and y then
+                    local objective = FirstIncompleteObjective(questID)
+                    local ready = QuestReadyForTurnIn(questID)
+                    if (ready and FUI.db.questing.showTurnIns) or (not ready and FUI.db.questing.showObjectives) then
+                        AddRecord(records, seen, {
+                            questID = questID, title = quest.title, objective = objective and objective.text,
+                            iconType = ready and "turnin" or ObjectiveType(objective), mapID = mapID, x = x, y = y,
+                        })
+                    end
+                end
+            end
+        end
+    end
+    if C_QuestLog and C_QuestLog.GetNextWaypoint then
+        for questID, quest in pairs(tracked) do
+            local ok, waypointMap, x, y = pcall(C_QuestLog.GetNextWaypoint, questID)
+            waypointMap = ok and PublicNumber(waypointMap) or nil
+            x, y = NormalizeCoordinate(x), NormalizeCoordinate(y)
+            if waypointMap == mapID and x and y then
+                local objective = FirstIncompleteObjective(questID)
+                local ready = QuestReadyForTurnIn(questID)
+                if (ready and FUI.db.questing.showTurnIns) or (not ready and FUI.db.questing.showObjectives) then
+                    AddRecord(records, seen, {
+                        questID = questID, title = quest.title, objective = objective and objective.text,
+                        iconType = ready and "turnin" or ObjectiveType(objective), mapID = mapID, x = x, y = y,
+                    })
+                end
+            end
+        end
+    end
+    self.nativeCache[mapID] = records
+    return records
+end
+
+function module:GetLearnedQuestGivers(mapID)
+    if not FUI.db.questing.showQuestGivers then return {} end
+    local records, active, seen = {}, self:GetActiveQuestSet(), {}
+    for questID, locations in pairs(FUI.db.questing.learned or {}) do
+        if not active[questID] and not QuestCompleted(questID) then
+            for _, location in ipairs(locations) do
+                if location.iconType == "available" and location.mapID == mapID then
+                    AddRecord(records, seen, {
+                        questID = questID, title = location.title, objective = "Quest available", iconType = "available",
+                        mapID = location.mapID, x = location.x, y = location.y,
+                    })
+                end
+            end
+        end
+    end
+    return records
+end
+
+function module:GetRecordsForMap(mapID)
+    local records = {}
+    for _, record in ipairs(self.records) do if record.mapID == mapID then records[#records + 1] = record end end
+    for _, record in ipairs(self:GetNativeRecords(mapID)) do records[#records + 1] = record end
+    for _, record in ipairs(self:GetLearnedQuestGivers(mapID)) do records[#records + 1] = record end
+    return records
 end
 
 local function StylePin(pin, mini)
     if pin.styled then return end
     pin.styled = true
-    -- Quest databases contain many spawn points in a small area. Keep the
-    -- symbols deliberately compact so they describe the area instead of
-    -- covering the map artwork.
     pin:SetSize(mini and 8 or 10, mini and 8 or 10)
+    pin.shadow = pin:CreateTexture(nil, "BACKGROUND")
+    pin.shadow:SetPoint("TOPLEFT", -1, 1)
+    pin.shadow:SetPoint("BOTTOMRIGHT", 1, -1)
+    pin.shadow:SetColorTexture(0, 0, 0, .75)
     pin.icon = pin:CreateTexture(nil, "ARTWORK")
     pin.icon:SetAllPoints()
-    pin.icon:SetTexCoord(0, 1, 0, 1)
-    pin.icon:SetDrawLayer("OVERLAY", 1)
+    pin.icon:SetTexture(FUI.textures.Flat)
+    pin.glyph = FUI:CreateFont(pin, mini and 7 or 8)
+    pin.glyph:SetPoint("CENTER", 0, 0)
+    pin.glyph:SetTextColor(1, 1, 1)
     pin:EnableMouse(not mini)
     if not mini then
         pin:SetScript("OnEnter", function(self)
@@ -317,18 +320,33 @@ local function StylePin(pin, mini)
             GameTooltip:SetText(self.data.title or "Quest", 1, .82, .2)
             if self.data.objective then GameTooltip:AddLine(self.data.objective, .85, .9, 1, true) end
             AddQuestProgress(GameTooltip, self.data.questID)
+            GameTooltip:AddLine("Flowdi Quest Atlas", .35, .7, 1)
             GameTooltip:Show()
         end)
         pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
     end
 end
 
+local function ApplyPin(pin, record)
+    pin.data = record
+    pin.glyph:SetText(PIN_GLYPHS[record.iconType] or "*")
+    if record.iconType == "available" then
+        pin.icon:SetVertexColor(.20, .70, 1, 1)
+    elseif record.iconType == "turnin" then
+        pin.icon:SetVertexColor(1, .70, .08, 1)
+    else
+        local color = QUEST_COLORS[(record.questID % #QUEST_COLORS) + 1]
+        pin.icon:SetVertexColor(color[1], color[2], color[3], 1)
+    end
+end
+
 function module:AcquireMapPin(index)
-    local pin = self.mapPins[index] or table.remove(self.pinPool)
-    if not pin then pin = CreateFrame("Button", nil, WorldMapFrame.ScrollContainer.Child) StylePin(pin, false) end
-    pin:SetParent(WorldMapFrame.ScrollContainer.Child)
-    self.mapPins[index] = pin
-    return pin
+    if not self.mapPins[index] then
+        self.mapPins[index] = CreateFrame("Button", nil, WorldMapFrame.ScrollContainer.Child)
+        StylePin(self.mapPins[index], false)
+    end
+    self.mapPins[index]:SetParent(WorldMapFrame.ScrollContainer.Child)
+    return self.mapPins[index]
 end
 
 function module:RefreshWorldMap()
@@ -339,43 +357,28 @@ function module:RefreshWorldMap()
     if not mapID or not width or width <= 1 or not height or height <= 1 then return end
     local used, occupied = 0, {}
     if FUI.db.questing.enabled and FUI.db.questing.worldMapIcons then
-        local function DrawRecord(record)
-            if record.mapID == mapID then
-                -- Collapse virtually identical spawn coordinates. This keeps
-                -- dense camps readable while retaining their overall shape.
-                local gridX, gridY = math.floor(record.x / .006), math.floor(record.y / .006)
-                local key = record.questID .. ":" .. record.iconType .. ":" .. gridX .. ":" .. gridY
-                if not occupied[key] then
-                    occupied[key] = true
-                    used = used + 1
-                    local pin = self:AcquireMapPin(used)
-                    pin.data = record
-                    pin.icon:SetTexture(record.texture)
-                    if record.iconType == "available" or record.iconType == "turnin" then
-                        pin.icon:SetVertexColor(1, 1, 1, 1)
-                    else
-                        local color = QUEST_COLORS[(record.questID % #QUEST_COLORS) + 1]
-                        pin.icon:SetVertexColor(color[1], color[2], color[3], 1)
-                    end
-                    pin:ClearAllPoints()
-                    pin:SetPoint("CENTER", child, "TOPLEFT", record.x * width, -record.y * height)
-                    pin:SetFrameLevel(child:GetFrameLevel() + 2100)
-                    pin:Show()
-                end
+        for _, record in ipairs(self:GetRecordsForMap(mapID)) do
+            local gridX, gridY = math.floor(record.x / .007), math.floor(record.y / .007)
+            local key = record.questID .. ":" .. record.iconType .. ":" .. gridX .. ":" .. gridY
+            if not occupied[key] then
+                occupied[key], used = true, used + 1
+                local pin = self:AcquireMapPin(used)
+                ApplyPin(pin, record)
+                pin:ClearAllPoints()
+                pin:SetPoint("CENTER", child, "TOPLEFT", record.x * width, -record.y * height)
+                pin:SetFrameLevel(child:GetFrameLevel() + 2100)
+                pin:Show()
             end
         end
-        for _, record in ipairs(self.records) do DrawRecord(record) end
-        for _, record in ipairs(self:GetAvailableQuestRecords(mapID)) do DrawRecord(record) end
     end
     for index = used + 1, #self.mapPins do self.mapPins[index]:Hide() end
 end
 
 function module:AcquireMinimapPin(index)
     if not self.minimapPins[index] then
-        local pin = CreateFrame("Frame", nil, Minimap)
-        StylePin(pin, true)
-        pin:SetFrameLevel(Minimap:GetFrameLevel() + 12)
-        self.minimapPins[index] = pin
+        self.minimapPins[index] = CreateFrame("Frame", nil, Minimap)
+        StylePin(self.minimapPins[index], true)
+        self.minimapPins[index]:SetFrameLevel(Minimap:GetFrameLevel() + 12)
     end
     return self.minimapPins[index]
 end
@@ -386,6 +389,7 @@ function module:RefreshMinimap()
     local mapID = enabled and C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
     local player = mapID and C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(mapID, "player")
     local px, py = player and player:GetXY()
+    px, py = NormalizeCoordinate(px), NormalizeCoordinate(py)
     local radiusByZoom = { 466.7, 400, 333.3, 266.7, 200, 133.3 }
     local radius = radiusByZoom[(Minimap:GetZoom() or 0) + 1] or 200
     local halfW, halfH = Minimap:GetWidth() / 2, Minimap:GetHeight() / 2
@@ -394,26 +398,18 @@ function module:RefreshMinimap()
         local _, playerWorld = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(px, py))
         local pwx, pwy = playerWorld and playerWorld:GetXY()
         if pwx and pwy then
-            for _, record in ipairs(self.records) do
-                if record.mapID == mapID then
-                    local _, world = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(record.x, record.y))
-                    local wx, wy = world and world:GetXY()
-                    if wx and wy then
-                        local dx, dy = wx - pwx, wy - pwy
-                        if math.abs(dx) <= radius and math.abs(dy) <= radius then
-                            used = used + 1
-                            local pin = self:AcquireMinimapPin(used)
-                            pin.icon:SetTexture(record.texture)
-                            if record.iconType == "available" or record.iconType == "turnin" then
-                                pin.icon:SetVertexColor(1, 1, 1, 1)
-                            else
-                                local color = QUEST_COLORS[(record.questID % #QUEST_COLORS) + 1]
-                                pin.icon:SetVertexColor(color[1], color[2], color[3], 1)
-                            end
-                            pin:ClearAllPoints()
-                            pin:SetPoint("CENTER", Minimap, "CENTER", dx / radius * halfW, -dy / radius * halfH)
-                            pin:Show()
-                        end
+            for _, record in ipairs(self:GetRecordsForMap(mapID)) do
+                local _, world = C_Map.GetWorldPosFromMapPos(mapID, CreateVector2D(record.x, record.y))
+                local wx, wy = world and world:GetXY()
+                if wx and wy then
+                    local dx, dy = wx - pwx, wy - pwy
+                    if math.abs(dx) <= radius and math.abs(dy) <= radius then
+                        used = used + 1
+                        local pin = self:AcquireMinimapPin(used)
+                        ApplyPin(pin, record)
+                        pin:ClearAllPoints()
+                        pin:SetPoint("CENTER", Minimap, "CENTER", dx / radius * halfW, -dy / radius * halfH)
+                        pin:Show()
                     end
                 end
             end
@@ -432,11 +428,13 @@ function module:HookWorldMap()
     if not WorldMapFrame or WorldMapFrame.FlowdiQuestPinsHooked then return end
     WorldMapFrame.FlowdiQuestPinsHooked = true
     WorldMapFrame:HookScript("OnShow", function() C_Timer.After(0, function() module:RefreshWorldMap() end) end)
-    if WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", function() module:RefreshWorldMap() end) end
+    if WorldMapFrame.OnMapChanged then hooksecurefunc(WorldMapFrame, "OnMapChanged", function()
+        module.nativeCache = {}
+        module:RefreshWorldMap()
+    end) end
 end
 
 function module:Apply()
-    if not self.provider then self:PrepareProvider() end
     local utility = FUI.modules.utilityFrames
     local holder = utility and utility.trackerHolder
     if holder then holder:SetShown(FUI.db.questing.enabled and FUI.db.utilityFrames.objectiveTracker.enabled) end
@@ -445,13 +443,24 @@ function module:Apply()
 end
 
 function module:Initialize()
-    self:PrepareProvider()
     self:HookWorldMap()
+    self:LearnObjectiveChanges()
     local events = CreateFrame("Frame")
-    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "ZONE_CHANGED_NEW_AREA" }) do
+    for _, event in ipairs({ "ADDON_LOADED", "PLAYER_ENTERING_WORLD", "QUEST_LOG_UPDATE", "QUEST_WATCH_UPDATE", "QUEST_ACCEPTED", "QUEST_REMOVED", "QUEST_TURNED_IN", "ZONE_CHANGED_NEW_AREA" }) do
         pcall(events.RegisterEvent, events, event)
     end
-    events:SetScript("OnEvent", function()
+    events:SetScript("OnEvent", function(_, event, arg1, arg2)
+        if event == "QUEST_ACCEPTED" then
+            local questID = PublicNumber(arg2) or PublicNumber(arg1)
+            local title = questID and C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)
+            module:SaveLearnedLocation(questID, "available", "Quest available", title)
+        elseif event == "QUEST_TURNED_IN" then
+            local questID = PublicNumber(arg1)
+            local title = questID and C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)
+            module:SaveLearnedLocation(questID, "turnin", "Quest turn-in", title)
+        elseif event == "QUEST_LOG_UPDATE" or event == "QUEST_WATCH_UPDATE" then
+            module:LearnObjectiveChanges()
+        end
         module:HookWorldMap()
         module.refreshPending = true
         C_Timer.After(.25, function()
@@ -460,7 +469,7 @@ function module:Initialize()
     end)
     events:SetScript("OnUpdate", function(_, elapsed)
         module.miniElapsed = (module.miniElapsed or 0) + elapsed
-        if module.miniElapsed >= .15 then module.miniElapsed = 0 module:RefreshMinimap() end
+        if module.miniElapsed >= .20 then module.miniElapsed = 0 module:RefreshMinimap() end
     end)
     self.events = events
     self:Apply()

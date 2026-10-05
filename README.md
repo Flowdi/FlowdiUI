@@ -29,7 +29,7 @@ FlowdiUI includes a fully English settings area with General, Fonts, Textures, C
 - DataTexts for system performance, inventory, social information, progression, location, character statistics, mail, volume, date, and time
 - DataText tooltips and click actions
 - Chat copy window, timestamps, fading controls, and configurable visibility duration
-- FlowdiUI Questing with independent kill, loot, object, event, and turn-in pins sourced directly from the optional Forever QuestieDB data library, without loading the Questie addon
+- Flowdi Quest Atlas with independent kill, loot, object, event, quest-giver, and turn-in pins sourced from WoW's quest APIs and an account-wide self-learning location database
 - Quick Loot for auto-loot interactions with a movable item, money, and currency feed with item tooltips
 - Bag item-level text and quality-colored item borders
 - Central Unlock Mode with labeled movers, an optional layout grid, and Save & Exit
@@ -47,7 +47,7 @@ Copy the `FlowdiUI` folder into the Forever client AddOns directory, normally:
 
 The folder structure must end in `FlowdiUI/FlowdiUI_Camelot.toc`.
 
-FlowdiUI Questing is its own feature. When the optional Forever/Camelot `QuestieDB` data package is installed, FlowdiUI reads its public quest, NPC, object, item, and coordinate APIs directly to render FlowdiUI-owned world-map and Minimap pins. The Questie addon itself remains disabled and is not loaded or required. Without QuestieDB, the rest of FlowdiUI continues to load normally.
+FlowdiUI Questing is completely standalone. Flowdi Quest Atlas combines positions exposed by WoW with an account-wide database that learns locations when objectives progress and when quests are accepted or turned in. FlowdiUI does not load, enable, disable, inspect, or require Questie or QuestieDB, so both remain under the player's per-character addon control.
 
 ## Commands
 

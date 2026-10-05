@@ -1615,7 +1615,7 @@ local function BuildProfiles(page)
 end
 
 local function BuildQuesting(page)
-    AddTitle(page, "Questing", "FlowdiUI quest tracking and map pins read directly from the installed Forever quest database.")
+    AddTitle(page, "Questing", "FlowdiUI's standalone quest tracker and self-learning Quest Atlas.")
     local db = FUI.db.questing
     AddSection(page, "FlowdiUI Questing", -105)
     AddCheckbox(page, "Enable FlowdiUI Questing", 24, -128, function() return db.enabled end, function(v) db.enabled = v end)
@@ -1627,25 +1627,20 @@ local function BuildQuesting(page)
     AddCheckbox(page, "Kill and loot objectives", 24, -278, function() return db.showObjectives end, function(v) db.showObjectives = v end)
     AddCheckbox(page, "Available quest givers", 330, -278, function() return db.showQuestGivers end, function(v) db.showQuestGivers = v end)
     AddCheckbox(page, "Quest turn-ins", 24, -318, function() return db.showTurnIns end, function(v) db.showTurnIns = v end)
-    AddSection(page, "Provider", -385)
+    AddCheckbox(page, "Learn quest locations", 330, -318, function() return db.learningEnabled end, function(v) db.learningEnabled = v end)
+    AddSection(page, "Quest Atlas", -385)
     local provider = FUI:CreateFont(page, 12)
     provider:SetPoint("TOPLEFT", 24, -411)
     provider:SetWidth(760)
     provider:SetJustifyH("LEFT")
     provider:SetTextColor(0.58, 0.7, 0.88)
-    local questModule = FUI.modules.questing
-    local state = questModule and questModule.providerState
-    provider:SetText(state == "ready" and
-        "FlowdiUI Questing is active. FlowdiUI reads spawn coordinates directly from QuestieDB; the Questie addon remains disabled and is not used." or
-        (state == "incompatible" and "The installed QuestieDB data contract is incompatible. Update QuestieDB to restore FlowdiUI quest locations." or
-        (state == "reload" and "QuestieDB was enabled as FlowdiUI's data library. Reload once to activate FlowdiUI quest locations." or
-        "QuestieDB is missing. Install its Forever/Camelot database package to supply coordinates; the Questie addon itself is not required.")))
+    provider:SetText("Flowdi Quest Atlas is fully standalone. It combines WoW's own quest positions with locations learned from your objective progress, quest acceptance, and turn-ins. Learned locations are shared account-wide through FlowdiUI's SavedVariables.")
     local note = FUI:CreateFont(page, 11)
     note:SetPoint("TOPLEFT", provider, "BOTTOMLEFT", 0, -12)
     note:SetWidth(760)
     note:SetJustifyH("LEFT")
     note:SetTextColor(0.46, 0.52, 0.62)
-    note:SetText("Tracker width, height, background and placement remain controlled under Utility & Tracker → Objective Tracker. With automatic height disabled, use the Unlock Mode bottom handle to resize it and the mouse wheel to browse every tracked quest.")
+    note:SetText("Questie and QuestieDB are never enabled, disabled, loaded, or read by FlowdiUI. You can manage both addons independently per character. Tracker width, height, background and placement remain under Utility & Tracker → Objective Tracker.")
 end
 
 local function BuildQuickLoot(page)
